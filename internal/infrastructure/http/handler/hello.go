@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"net/http"
+	"github.com/gofiber/fiber/v2"
 
 	app "github.com/umran/new.crm/backend/internal/application/greeting"
 )
@@ -14,9 +14,7 @@ func NewHelloHandler(service *app.Service) *HelloHandler {
 	return &HelloHandler{service: service}
 }
 
-func (h *HelloHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *HelloHandler) Handle(c *fiber.Ctx) error {
 	greeting := h.service.GetHello()
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(greeting.Message))
+	return c.Type("text/plain; charset=utf-8").SendString(greeting.Message)
 }

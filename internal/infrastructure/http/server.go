@@ -1,7 +1,7 @@
 package http
 
 import (
-	"net/http"
+	"github.com/gofiber/fiber/v2"
 
 	app "github.com/umran/new.crm/backend/internal/application/greeting"
 	"github.com/umran/new.crm/backend/internal/infrastructure/http/handler"
@@ -9,22 +9,22 @@ import (
 
 type Server struct {
 	addr string
-	mux  *http.ServeMux
+	app  *fiber.App
 }
 
 func NewServer(addr string) *Server {
 	greetingService := app.NewService()
 	helloHandler := handler.NewHelloHandler(greetingService)
 
-	mux := http.NewServeMux()
-	mux.Handle("/", helloHandler)
+	fiberApp := fiber.New()
+	fiberApp.Get("/", helloHandler.Handle)
 
 	return &Server{
 		addr: addr,
-		mux:  mux,
+		app:  fiberApp,
 	}
 }
 
 func (s *Server) Run() error {
-	return http.ListenAndServe(s.addr, s.mux)
+	return s.app.Listen(s.addr)
 }

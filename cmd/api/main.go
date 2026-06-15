@@ -7,8 +7,8 @@ import (
 )
 
 func main() {
-	server := httpserver.NewServer(":8080")
-	log.Println("server listening on :8080")
+	server := httpserver.NewServer(":8321")
+	log.Println("server listening on :8321")
 	if err := server.Run(); err != nil {
 		log.Fatal(err)
 	}
