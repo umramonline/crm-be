@@ -2,7 +2,11 @@ module github.com/umran/new.crm/backend
 
 go 1.22
 
-require github.com/gofiber/fiber/v2 v2.52.6
+require (
+	github.com/caarlos0/env/v11 v11.4.1
+	github.com/gofiber/fiber/v2 v2.52.6
+	github.com/joho/godotenv v1.5.1
+)
 
 require (
 	github.com/andybalholm/brotli v1.1.0 // indirect
