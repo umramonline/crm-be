@@ -1,10 +1,17 @@
 package main
 
 import (
+	"context"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
+	authapp "github.com/umran/new.crm/backend/internal/auth/application"
+	authhttp "github.com/umran/new.crm/backend/internal/auth/infrastructure/http"
 	"github.com/umran/new.crm/backend/internal/infrastructure/config"
 	httpserver "github.com/umran/new.crm/backend/internal/infrastructure/http"
+	"github.com/umran/new.crm/backend/internal/umramonline"
 )
 
 func main() {
@@ -13,9 +20,45 @@ func main() {
 		log.Fatal(err)
 	}
 
-	server := httpserver.NewServer(cfg.Addr())
+	umramonlineClient := umramonline.NewClient(umramonline.Config{
+		BaseURL:        cfg.UmramonlineBaseURL,
+		APIKey:         cfg.UmramonlineAPIKey,
+		OTPRequestPath: cfg.UmramonlineOTPRequestPath,
+		Timeout:        cfg.UmramonlineTimeout(),
+	})
+	otpRequestService := authapp.NewOTPRequestService(umramonlineClient)
+	otpHandler := authhttp.NewOTPHandler(otpRequestService)
+
+	server := httpserver.NewServer(httpserver.Config{
+		Addr:                 cfg.Addr(),
+		CORSAllowedOrigins:   cfg.CORSAllowedOrigins,
+		CORSAllowCredentials: cfg.CORSAllowCredentials,
+	}, otpHandler)
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- server.Run()
+	}()
+
 	log.Printf("server listening on %s", cfg.Addr())
-	if err := server.Run(); err != nil {
-		log.Fatal(err)
+
+	select {
+	case err := <-errCh:
+		if err != nil {
+			log.Fatal(err)
+		}
+	case <-ctx.Done():
+		log.Println("shutdown signal received")
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout())
+		defer cancel()
+
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			log.Fatal(err)
+		}
+
+		log.Println("server stopped gracefully")
 	}
 }

@@ -1,9 +1,13 @@
 package http
 
 import (
+	"context"
+
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 
 	app "github.com/umran/new.crm/backend/internal/application/greeting"
+	authhttp "github.com/umran/new.crm/backend/internal/auth/infrastructure/http"
 	"github.com/umran/new.crm/backend/internal/infrastructure/http/handler"
 )
 
@@ -12,19 +16,39 @@ type Server struct {
 	app  *fiber.App
 }
 
-func NewServer(addr string) *Server {
+type Config struct {
+	Addr                 string
+	CORSAllowedOrigins   string
+	CORSAllowCredentials bool
+}
+
+func NewServer(config Config, otpHandler *authhttp.OTPHandler) *Server {
 	greetingService := app.NewService()
 	helloHandler := handler.NewHelloHandler(greetingService)
 
 	fiberApp := fiber.New()
+	fiberApp.Use(cors.New(cors.Config{
+		AllowOrigins:     config.CORSAllowedOrigins,
+		AllowMethods:     "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+		AllowHeaders:     "Origin, Content-Type, Accept, Authorization, X-Requested-With",
+		AllowCredentials: config.CORSAllowCredentials,
+	}))
+
 	fiberApp.Get("/", helloHandler.Handle)
 
+	apiV1 := fiberApp.Group("/api/v1")
+	apiV1.Post("/auth/otp/request", otpHandler.RequestOTP)
+
 	return &Server{
-		addr: addr,
+		addr: config.Addr,
 		app:  fiberApp,
 	}
 }
 
 func (s *Server) Run() error {
 	return s.app.Listen(s.addr)
+}
+
+func (s *Server) Shutdown(ctx context.Context) error {
+	return s.app.ShutdownWithContext(ctx)
 }

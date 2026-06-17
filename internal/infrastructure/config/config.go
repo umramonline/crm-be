@@ -2,13 +2,21 @@ package config
 
 import (
 	"fmt"
+	"time"
 
 	env "github.com/caarlos0/env/v11"
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	Port int `env:"PORT" envDefault:"8080"`
+	Port                      int    `env:"PORT" envDefault:"8080"`
+	CORSAllowedOrigins        string `env:"CORS_ALLOWED_ORIGINS" envDefault:"http://localhost:5173"`
+	CORSAllowCredentials      bool   `env:"CORS_ALLOW_CREDENTIALS" envDefault:"true"`
+	UmramonlineBaseURL        string `env:"UMRAMONLINE_BASE_URL"`
+	UmramonlineAPIKey         string `env:"UMRAMONLINE_API_KEY"`
+	UmramonlineOTPRequestPath string `env:"UMRAMONLINE_OTP_REQUEST_PATH" envDefault:"/api/v1/crm/auth/otp/request"`
+	UmramonlineTimeoutSeconds int    `env:"UMRAMONLINE_TIMEOUT_SECONDS" envDefault:"10"`
+	ShutdownTimeoutSeconds    int    `env:"SHUTDOWN_TIMEOUT_SECONDS" envDefault:"10"`
 }
 
 func Load() (*Config, error) {
@@ -24,4 +32,12 @@ func Load() (*Config, error) {
 
 func (c Config) Addr() string {
 	return fmt.Sprintf(":%d", c.Port)
+}
+
+func (c Config) UmramonlineTimeout() time.Duration {
+	return time.Duration(c.UmramonlineTimeoutSeconds) * time.Second
+}
+
+func (c Config) ShutdownTimeout() time.Duration {
+	return time.Duration(c.ShutdownTimeoutSeconds) * time.Second
 }
