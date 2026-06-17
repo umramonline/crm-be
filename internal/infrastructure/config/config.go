@@ -15,6 +15,7 @@ type Config struct {
 	UmramonlineBaseURL        string `env:"UMRAMONLINE_BASE_URL"`
 	UmramonlineAPIKey         string `env:"UMRAMONLINE_API_KEY"`
 	UmramonlineOTPRequestPath string `env:"UMRAMONLINE_OTP_REQUEST_PATH" envDefault:"/api/v1/crm/auth/otp/request"`
+	UmramonlineOTPVerifyPath  string `env:"UMRAMONLINE_OTP_VERIFY_PATH" envDefault:"/api/v1/crm/auth/otp/verify"`
 	UmramonlineTimeoutSeconds int    `env:"UMRAMONLINE_TIMEOUT_SECONDS" envDefault:"10"`
 	ShutdownTimeoutSeconds    int    `env:"SHUTDOWN_TIMEOUT_SECONDS" envDefault:"10"`
 }

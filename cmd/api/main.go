@@ -24,6 +24,7 @@ func main() {
 		BaseURL:        cfg.UmramonlineBaseURL,
 		APIKey:         cfg.UmramonlineAPIKey,
 		OTPRequestPath: cfg.UmramonlineOTPRequestPath,
+		OTPVerifyPath:  cfg.UmramonlineOTPVerifyPath,
 		Timeout:        cfg.UmramonlineTimeout(),
 	})
 	otpRequestService := authapp.NewOTPRequestService(umramonlineClient)

@@ -38,6 +38,7 @@ func NewServer(config Config, otpHandler *authhttp.OTPHandler) *Server {
 
 	apiV1 := fiberApp.Group("/api/v1")
 	apiV1.Post("/auth/otp/request", otpHandler.RequestOTP)
+	apiV1.Post("/auth/otp/verify", otpHandler.VerifyOTP)
 
 	return &Server{
 		addr: config.Addr,
