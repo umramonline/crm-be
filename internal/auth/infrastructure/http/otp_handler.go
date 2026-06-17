@@ -13,6 +13,7 @@ import (
 type OTPRequestService interface {
 	RequestOTP(ctx context.Context, phone string) error
 	VerifyOTP(ctx context.Context, phone string, otpCode string) error
+	LoginWithPassword(ctx context.Context, phone string, password string) (map[string]any, error)
 }
 
 type OTPHandler struct {
@@ -26,6 +27,11 @@ type otpRequest struct {
 type otpVerifyRequest struct {
 	Phone   string `json:"phone"`
 	OTPCode string `json:"otp_code"`
+}
+
+type passwordLoginRequest struct {
+	Phone    string `json:"phone"`
+	Password string `json:"password"`
 }
 
 func NewOTPHandler(service OTPRequestService) *OTPHandler {
@@ -82,4 +88,36 @@ func (h *OTPHandler) VerifyOTP(c *fiber.Ctx) error {
 	}
 
 	return response.Success(c, fiber.StatusOK, "OTP doğrulandı.", fiber.Map{})
+}
+
+func (h *OTPHandler) LoginWithPassword(c *fiber.Ctx) error {
+	var request passwordLoginRequest
+	if err := c.BodyParser(&request); err != nil {
+		return response.Error(c, fiber.StatusUnprocessableEntity, "Geçersiz istek gövdesi.", map[string]string{
+			"body": "JSON formatı geçersiz.",
+		})
+	}
+
+	data, err := h.service.LoginWithPassword(c.UserContext(), request.Phone, request.Password)
+	if err != nil {
+		if errors.Is(err, application.ErrInvalidPhone) {
+			return response.Error(c, fiber.StatusUnprocessableEntity, "Doğrulama hatası.", map[string]string{
+				"phone": "Telefon numarası 05XXXXXXXXX formatında olmalıdır.",
+			})
+		}
+
+		if errors.Is(err, application.ErrInvalidPassword) {
+			return response.Error(c, fiber.StatusUnprocessableEntity, "Doğrulama hatası.", map[string]string{
+				"password": "Şifre zorunludur.",
+			})
+		}
+
+		if errors.Is(err, application.ErrPasswordRejected) {
+			return response.Error(c, fiber.StatusUnprocessableEntity, "Kimlik bilgileri hatalı.", nil)
+		}
+
+		return response.Error(c, fiber.StatusInternalServerError, "Giriş işlemi şu anda tamamlanamadı.", nil)
+	}
+
+	return response.Success(c, fiber.StatusOK, "Giriş başarılı.", data)
 }

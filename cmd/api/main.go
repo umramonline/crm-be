@@ -21,11 +21,12 @@ func main() {
 	}
 
 	umramonlineClient := umramonline.NewClient(umramonline.Config{
-		BaseURL:        cfg.UmramonlineBaseURL,
-		APIKey:         cfg.UmramonlineAPIKey,
-		OTPRequestPath: cfg.UmramonlineOTPRequestPath,
-		OTPVerifyPath:  cfg.UmramonlineOTPVerifyPath,
-		Timeout:        cfg.UmramonlineTimeout(),
+		BaseURL:           cfg.UmramonlineBaseURL,
+		APIKey:            cfg.UmramonlineAPIKey,
+		OTPRequestPath:    cfg.UmramonlineOTPRequestPath,
+		OTPVerifyPath:     cfg.UmramonlineOTPVerifyPath,
+		PasswordLoginPath: cfg.UmramonlinePasswordPath,
+		Timeout:           cfg.UmramonlineTimeout(),
 	})
 	otpRequestService := authapp.NewOTPRequestService(umramonlineClient)
 	otpHandler := authhttp.NewOTPHandler(otpRequestService)

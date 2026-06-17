@@ -17,8 +17,11 @@ import (
 type fakeOTPRequestService struct {
 	requestErr error
 	verifyErr  error
+	loginErr   error
 	phone      string
 	otpCode    string
+	password   string
+	loginData  map[string]any
 }
 
 func (f *fakeOTPRequestService) RequestOTP(_ context.Context, phone string) error {
@@ -32,6 +35,13 @@ func (f *fakeOTPRequestService) VerifyOTP(_ context.Context, phone string, otpCo
 	f.otpCode = otpCode
 
 	return f.verifyErr
+}
+
+func (f *fakeOTPRequestService) LoginWithPassword(_ context.Context, phone string, password string) (map[string]any, error) {
+	f.phone = phone
+	f.password = password
+
+	return f.loginData, f.loginErr
 }
 
 func TestOTPHandlerReturnsValidationErrorForInvalidPhone(t *testing.T) {
@@ -178,11 +188,101 @@ func TestOTPHandlerDoesNotLeakVerifyRequesterErrors(t *testing.T) {
 	}
 }
 
+func TestOTPHandlerReturnsValidationErrorForInvalidPasswordLoginPhone(t *testing.T) {
+	service := &fakeOTPRequestService{loginErr: application.ErrInvalidPhone}
+	app := newTestApp(service)
+
+	response := performPasswordLoginRequest(t, app, `{"phone":"5551234567","password":"secret"}`)
+	defer response.Body.Close()
+
+	if response.StatusCode != fiber.StatusUnprocessableEntity {
+		t.Fatalf("expected status 422, got %d", response.StatusCode)
+	}
+
+	body := readBody(t, response.Body)
+	if !strings.Contains(body, `"success":false`) || !strings.Contains(body, `"phone"`) {
+		t.Fatalf("expected phone validation envelope, got %s", body)
+	}
+}
+
+func TestOTPHandlerReturnsValidationErrorForEmptyPassword(t *testing.T) {
+	service := &fakeOTPRequestService{loginErr: application.ErrInvalidPassword}
+	app := newTestApp(service)
+
+	response := performPasswordLoginRequest(t, app, `{"phone":"05551234567","password":""}`)
+	defer response.Body.Close()
+
+	if response.StatusCode != fiber.StatusUnprocessableEntity {
+		t.Fatalf("expected status 422, got %d", response.StatusCode)
+	}
+
+	body := readBody(t, response.Body)
+	if !strings.Contains(body, `"success":false`) || !strings.Contains(body, `"password"`) {
+		t.Fatalf("expected password validation envelope, got %s", body)
+	}
+}
+
+func TestOTPHandlerReturnsPasswordLoginSuccessEnvelope(t *testing.T) {
+	service := &fakeOTPRequestService{loginData: map[string]any{"user": map[string]any{"id": float64(1)}}}
+	app := newTestApp(service)
+
+	response := performPasswordLoginRequest(t, app, `{"phone":"05551234567","password":"secret"}`)
+	defer response.Body.Close()
+
+	if response.StatusCode != fiber.StatusOK {
+		t.Fatalf("expected status 200, got %d", response.StatusCode)
+	}
+
+	body := readBody(t, response.Body)
+	if !strings.Contains(body, `"success":true`) || !strings.Contains(body, `"Giriş başarılı."`) {
+		t.Fatalf("expected success envelope, got %s", body)
+	}
+
+	if service.phone != "05551234567" || service.password != "secret" {
+		t.Fatalf("expected payload to be passed to service, got phone=%s password=%s", service.phone, service.password)
+	}
+}
+
+func TestOTPHandlerReturnsRejectedForWrongPassword(t *testing.T) {
+	service := &fakeOTPRequestService{loginErr: application.ErrPasswordRejected}
+	app := newTestApp(service)
+
+	response := performPasswordLoginRequest(t, app, `{"phone":"05551234567","password":"wrong"}`)
+	defer response.Body.Close()
+
+	if response.StatusCode != fiber.StatusUnprocessableEntity {
+		t.Fatalf("expected status 422, got %d", response.StatusCode)
+	}
+
+	body := readBody(t, response.Body)
+	if !strings.Contains(body, `"success":false`) || !strings.Contains(body, `"Kimlik bilgileri hatalı."`) {
+		t.Fatalf("expected rejected envelope, got %s", body)
+	}
+}
+
+func TestOTPHandlerDoesNotLeakPasswordLoginRequesterErrors(t *testing.T) {
+	service := &fakeOTPRequestService{loginErr: errors.New("secret upstream error")}
+	app := newTestApp(service)
+
+	response := performPasswordLoginRequest(t, app, `{"phone":"05551234567","password":"secret"}`)
+	defer response.Body.Close()
+
+	if response.StatusCode != fiber.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d", response.StatusCode)
+	}
+
+	body := readBody(t, response.Body)
+	if strings.Contains(body, "secret upstream error") {
+		t.Fatalf("handler leaked internal error: %s", body)
+	}
+}
+
 func newTestApp(service *fakeOTPRequestService) *fiber.App {
 	app := fiber.New()
 	handler := NewOTPHandler(service)
 	app.Post("/api/v1/auth/otp/request", handler.RequestOTP)
 	app.Post("/api/v1/auth/otp/verify", handler.VerifyOTP)
+	app.Post("/api/v1/auth/password/login", handler.LoginWithPassword)
 
 	return app
 }
@@ -204,6 +304,19 @@ func performVerifyRequest(t *testing.T, app *fiber.App, body string) *http.Respo
 	t.Helper()
 
 	request := httptest.NewRequest("POST", "/api/v1/auth/otp/verify", strings.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	response, err := app.Test(request)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+
+	return response
+}
+
+func performPasswordLoginRequest(t *testing.T, app *fiber.App, body string) *http.Response {
+	t.Helper()
+
+	request := httptest.NewRequest("POST", "/api/v1/auth/password/login", strings.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
 	response, err := app.Test(request)
 	if err != nil {

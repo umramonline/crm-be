@@ -9,9 +9,12 @@ import (
 type fakeOTPRequester struct {
 	requestCalled bool
 	verifyCalled  bool
+	loginCalled   bool
 	phone         string
 	otpCode       string
+	password      string
 	verified      bool
+	loginData     map[string]any
 	err           error
 }
 
@@ -28,6 +31,14 @@ func (f *fakeOTPRequester) VerifyOTP(_ context.Context, phone string, otpCode st
 	f.otpCode = otpCode
 
 	return f.verified, f.err
+}
+
+func (f *fakeOTPRequester) LoginWithPassword(_ context.Context, phone string, password string) (map[string]any, error) {
+	f.loginCalled = true
+	f.phone = phone
+	f.password = password
+
+	return f.loginData, f.err
 }
 
 func TestOTPRequestServiceRejectsInvalidPhone(t *testing.T) {
@@ -135,5 +146,75 @@ func TestOTPRequestServiceWrapsOTPVerifyFailure(t *testing.T) {
 	err := service.VerifyOTP(context.Background(), "05551234567", "123456")
 	if !errors.Is(err, ErrOTPVerifyFailed) {
 		t.Fatalf("expected ErrOTPVerifyFailed, got %v", err)
+	}
+}
+
+func TestOTPRequestServiceRejectsInvalidPasswordLoginPhone(t *testing.T) {
+	requester := &fakeOTPRequester{}
+	service := NewOTPRequestService(requester)
+
+	_, err := service.LoginWithPassword(context.Background(), "5551234567", "secret")
+	if !errors.Is(err, ErrInvalidPhone) {
+		t.Fatalf("expected ErrInvalidPhone, got %v", err)
+	}
+
+	if requester.loginCalled {
+		t.Fatal("requester should not be called for invalid phone")
+	}
+}
+
+func TestOTPRequestServiceRejectsEmptyPassword(t *testing.T) {
+	requester := &fakeOTPRequester{}
+	service := NewOTPRequestService(requester)
+
+	_, err := service.LoginWithPassword(context.Background(), "05551234567", " ")
+	if !errors.Is(err, ErrInvalidPassword) {
+		t.Fatalf("expected ErrInvalidPassword, got %v", err)
+	}
+
+	if requester.loginCalled {
+		t.Fatal("requester should not be called for empty password")
+	}
+}
+
+func TestOTPRequestServiceLogsInWithPasswordForValidPayload(t *testing.T) {
+	requester := &fakeOTPRequester{loginData: map[string]any{"user": map[string]any{"id": float64(1)}}}
+	service := NewOTPRequestService(requester)
+
+	data, err := service.LoginWithPassword(context.Background(), "05551234567", "secret")
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+
+	if !requester.loginCalled {
+		t.Fatal("requester should be called")
+	}
+
+	if requester.phone != "05551234567" || requester.password != "secret" {
+		t.Fatalf("expected payload to be passed through, got phone=%s password=%s", requester.phone, requester.password)
+	}
+
+	if data == nil {
+		t.Fatal("expected login data")
+	}
+}
+
+func TestOTPRequestServiceReturnsRejectedWhenPasswordDoesNotMatch(t *testing.T) {
+	requester := &fakeOTPRequester{}
+	service := NewOTPRequestService(requester)
+
+	_, err := service.LoginWithPassword(context.Background(), "05551234567", "wrong")
+	if !errors.Is(err, ErrPasswordRejected) {
+		t.Fatalf("expected ErrPasswordRejected, got %v", err)
+	}
+}
+
+func TestOTPRequestServiceWrapsPasswordLoginFailure(t *testing.T) {
+	requester := &fakeOTPRequester{err: errors.New("upstream failed")}
+	service := NewOTPRequestService(requester)
+
+	_, err := service.LoginWithPassword(context.Background(), "05551234567", "secret")
+	if !errors.Is(err, ErrPasswordFailed) {
+		t.Fatalf("expected ErrPasswordFailed, got %v", err)
 	}
 }
