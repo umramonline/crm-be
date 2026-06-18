@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 
@@ -22,6 +23,14 @@ type fakeOTPRequestService struct {
 	otpCode    string
 	password   string
 	loginData  map[string]any
+}
+
+type fakeSessionTokenService struct {
+	accessToken  string
+	refreshToken string
+	subject      string
+	validateErr  error
+	issueErr     error
 }
 
 func (f *fakeOTPRequestService) RequestOTP(_ context.Context, phone string) error {
@@ -42,6 +51,32 @@ func (f *fakeOTPRequestService) LoginWithPassword(_ context.Context, phone strin
 	f.password = password
 
 	return f.loginData, f.loginErr
+}
+
+func (f *fakeSessionTokenService) Issue(subject string, tokenType string, _ time.Duration) (string, error) {
+	if f.issueErr != nil {
+		return "", f.issueErr
+	}
+
+	f.subject = subject
+
+	if tokenType == application.TokenTypeRefresh {
+		return f.refreshToken, nil
+	}
+
+	return f.accessToken, nil
+}
+
+func (f *fakeSessionTokenService) Validate(_ string, expectedType string) (application.SessionTokenClaims, error) {
+	if f.validateErr != nil {
+		return application.SessionTokenClaims{}, f.validateErr
+	}
+
+	return application.SessionTokenClaims{
+		Subject:   f.subject,
+		TokenType: expectedType,
+		ExpiresAt: time.Now().Add(time.Minute).Unix(),
+	}, nil
 }
 
 func TestOTPHandlerReturnsValidationErrorForInvalidPhone(t *testing.T) {
@@ -241,6 +276,10 @@ func TestOTPHandlerReturnsPasswordLoginSuccessEnvelope(t *testing.T) {
 	if service.phone != "05551234567" || service.password != "secret" {
 		t.Fatalf("expected payload to be passed to service, got phone=%s password=%s", service.phone, service.password)
 	}
+
+	if !hasCookie(response.Cookies(), "access_token") || !hasCookie(response.Cookies(), "refresh_token") {
+		t.Fatalf("expected auth cookies, got %#v", response.Cookies())
+	}
 }
 
 func TestOTPHandlerReturnsRejectedForWrongPassword(t *testing.T) {
@@ -277,12 +316,94 @@ func TestOTPHandlerDoesNotLeakPasswordLoginRequesterErrors(t *testing.T) {
 	}
 }
 
+func TestOTPHandlerRefreshesAccessCookie(t *testing.T) {
+	service := &fakeOTPRequestService{}
+	tokenService := &fakeSessionTokenService{
+		accessToken:  "new-access-token",
+		refreshToken: "refresh-token",
+		subject:      "1",
+	}
+	app := newTestAppWithTokenService(service, tokenService)
+
+	response := performRefreshRequest(t, app, "refresh-token")
+	defer response.Body.Close()
+
+	if response.StatusCode != fiber.StatusOK {
+		t.Fatalf("expected status 200, got %d", response.StatusCode)
+	}
+
+	if !hasCookie(response.Cookies(), "access_token") {
+		t.Fatalf("expected refreshed access cookie, got %#v", response.Cookies())
+	}
+}
+
+func TestOTPHandlerRejectsRefreshWithoutCookie(t *testing.T) {
+	service := &fakeOTPRequestService{}
+	app := newTestApp(service)
+
+	response := performRefreshRequest(t, app, "")
+	defer response.Body.Close()
+
+	if response.StatusCode != fiber.StatusUnauthorized {
+		t.Fatalf("expected status 401, got %d", response.StatusCode)
+	}
+}
+
+func TestOTPHandlerClearsCookiesOnLogout(t *testing.T) {
+	service := &fakeOTPRequestService{}
+	app := newTestApp(service)
+
+	response := performLogoutRequest(t, app)
+	defer response.Body.Close()
+
+	if response.StatusCode != fiber.StatusOK {
+		t.Fatalf("expected status 200, got %d", response.StatusCode)
+	}
+
+	if !hasExpiredCookie(response.Cookies(), "access_token") || !hasExpiredCookie(response.Cookies(), "refresh_token") {
+		t.Fatalf("expected expired auth cookies, got %#v", response.Cookies())
+	}
+}
+
+func TestOTPHandlerReturnsSessionForValidAccessCookie(t *testing.T) {
+	service := &fakeOTPRequestService{}
+	tokenService := &fakeSessionTokenService{subject: "1"}
+	app := newTestAppWithTokenService(service, tokenService)
+
+	response := performSessionRequest(t, app, "access-token")
+	defer response.Body.Close()
+
+	if response.StatusCode != fiber.StatusOK {
+		t.Fatalf("expected status 200, got %d", response.StatusCode)
+	}
+
+	body := readBody(t, response.Body)
+	if !strings.Contains(body, `"user_id":"1"`) {
+		t.Fatalf("expected session user id, got %s", body)
+	}
+}
+
 func newTestApp(service *fakeOTPRequestService) *fiber.App {
+	return newTestAppWithTokenService(service, &fakeSessionTokenService{
+		accessToken:  "access-token",
+		refreshToken: "refresh-token",
+		subject:      "1",
+	})
+}
+
+func newTestAppWithTokenService(service *fakeOTPRequestService, tokenService *fakeSessionTokenService) *fiber.App {
 	app := fiber.New()
-	handler := NewOTPHandler(service)
+	handler := NewOTPHandler(service, tokenService, SessionConfig{
+		AccessTTL:      time.Minute,
+		RefreshTTL:     time.Hour,
+		CookieSameSite: "Lax",
+	})
 	app.Post("/api/v1/auth/otp/request", handler.RequestOTP)
 	app.Post("/api/v1/auth/otp/verify", handler.VerifyOTP)
 	app.Post("/api/v1/auth/password/login", handler.LoginWithPassword)
+	app.Post("/api/v1/auth/refresh", handler.RefreshSession)
+	app.Post("/api/v1/auth/logout", handler.Logout)
+	app.Get("/api/v1/auth/session", handler.Session)
 
 	return app
 }
@@ -326,6 +447,50 @@ func performPasswordLoginRequest(t *testing.T, app *fiber.App, body string) *htt
 	return response
 }
 
+func performRefreshRequest(t *testing.T, app *fiber.App, refreshToken string) *http.Response {
+	t.Helper()
+
+	request := httptest.NewRequest("POST", "/api/v1/auth/refresh", nil)
+	if refreshToken != "" {
+		request.AddCookie(&http.Cookie{Name: "refresh_token", Value: refreshToken})
+	}
+
+	response, err := app.Test(request)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+
+	return response
+}
+
+func performLogoutRequest(t *testing.T, app *fiber.App) *http.Response {
+	t.Helper()
+
+	request := httptest.NewRequest("POST", "/api/v1/auth/logout", nil)
+	response, err := app.Test(request)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+
+	return response
+}
+
+func performSessionRequest(t *testing.T, app *fiber.App, accessToken string) *http.Response {
+	t.Helper()
+
+	request := httptest.NewRequest("GET", "/api/v1/auth/session", nil)
+	if accessToken != "" {
+		request.AddCookie(&http.Cookie{Name: "access_token", Value: accessToken})
+	}
+
+	response, err := app.Test(request)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+
+	return response
+}
+
 func readBody(t *testing.T, reader io.Reader) string {
 	t.Helper()
 
@@ -335,4 +500,24 @@ func readBody(t *testing.T, reader io.Reader) string {
 	}
 
 	return string(body)
+}
+
+func hasCookie(cookies []*http.Cookie, name string) bool {
+	for _, cookie := range cookies {
+		if cookie.Name == name && cookie.Value != "" {
+			return true
+		}
+	}
+
+	return false
+}
+
+func hasExpiredCookie(cookies []*http.Cookie, name string) bool {
+	for _, cookie := range cookies {
+		if cookie.Name == name && cookie.Value == "" {
+			return true
+		}
+	}
+
+	return false
 }

@@ -18,6 +18,11 @@ type Config struct {
 	UmramonlineOTPVerifyPath  string `env:"UMRAMONLINE_OTP_VERIFY_PATH" envDefault:"/api/v1/crm/auth/otp/verify"`
 	UmramonlinePasswordPath   string `env:"UMRAMONLINE_PASSWORD_LOGIN_PATH" envDefault:"/api/v1/crm/auth/password/login"`
 	UmramonlineTimeoutSeconds int    `env:"UMRAMONLINE_TIMEOUT_SECONDS" envDefault:"10"`
+	SessionTokenSecret        string `env:"SESSION_TOKEN_SECRET" envDefault:"dev-session-token-secret-change-me"`
+	AccessTokenTTLMinutes     int    `env:"ACCESS_TOKEN_TTL_MINUTES" envDefault:"15"`
+	RefreshTokenTTLDays       int    `env:"REFRESH_TOKEN_TTL_DAYS" envDefault:"30"`
+	AuthCookieSecure          bool   `env:"AUTH_COOKIE_SECURE" envDefault:"false"`
+	AuthCookieSameSite        string `env:"AUTH_COOKIE_SAME_SITE" envDefault:"Lax"`
 	ShutdownTimeoutSeconds    int    `env:"SHUTDOWN_TIMEOUT_SECONDS" envDefault:"10"`
 }
 
@@ -38,6 +43,14 @@ func (c Config) Addr() string {
 
 func (c Config) UmramonlineTimeout() time.Duration {
 	return time.Duration(c.UmramonlineTimeoutSeconds) * time.Second
+}
+
+func (c Config) AccessTokenTTL() time.Duration {
+	return time.Duration(c.AccessTokenTTLMinutes) * time.Minute
+}
+
+func (c Config) RefreshTokenTTL() time.Duration {
+	return time.Duration(c.RefreshTokenTTLDays) * 24 * time.Hour
 }
 
 func (c Config) ShutdownTimeout() time.Duration {

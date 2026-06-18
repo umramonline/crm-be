@@ -40,6 +40,9 @@ func NewServer(config Config, otpHandler *authhttp.OTPHandler) *Server {
 	apiV1.Post("/auth/otp/request", otpHandler.RequestOTP)
 	apiV1.Post("/auth/otp/verify", otpHandler.VerifyOTP)
 	apiV1.Post("/auth/password/login", otpHandler.LoginWithPassword)
+	apiV1.Post("/auth/refresh", otpHandler.RefreshSession)
+	apiV1.Post("/auth/logout", otpHandler.Logout)
+	apiV1.Get("/auth/session", otpHandler.Session)
 
 	return &Server{
 		addr: config.Addr,

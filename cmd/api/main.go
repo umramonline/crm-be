@@ -29,7 +29,13 @@ func main() {
 		Timeout:           cfg.UmramonlineTimeout(),
 	})
 	otpRequestService := authapp.NewOTPRequestService(umramonlineClient)
-	otpHandler := authhttp.NewOTPHandler(otpRequestService)
+	sessionTokenService := authapp.NewSessionTokenService(cfg.SessionTokenSecret)
+	otpHandler := authhttp.NewOTPHandler(otpRequestService, sessionTokenService, authhttp.SessionConfig{
+		AccessTTL:      cfg.AccessTokenTTL(),
+		RefreshTTL:     cfg.RefreshTokenTTL(),
+		CookieSecure:   cfg.AuthCookieSecure,
+		CookieSameSite: cfg.AuthCookieSameSite,
+	})
 
 	server := httpserver.NewServer(httpserver.Config{
 		Addr:                 cfg.Addr(),
