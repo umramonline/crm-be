@@ -6,15 +6,15 @@ on:
       - main
 
 concurrency:
-  group: deploy-test
+  group: deploy-main
   cancel-in-progress: false
 
 jobs:
 
   deploy:
-    name: Deploy to Test
-    runs-on: self-hosted
-    environment: test
+    name: Deploy to Main
+    runs-on: ubuntu-latest
+    environment: main
     timeout-minutes: 15
 
     permissions:
