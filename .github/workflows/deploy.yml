@@ -13,7 +13,7 @@ jobs:
 
   deploy:
     name: Deploy to Main
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     environment: main
     timeout-minutes: 15
 
