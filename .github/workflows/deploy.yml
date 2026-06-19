@@ -35,15 +35,17 @@ jobs:
       - name: Deploy via SSH
         run: |
 
-          ssh ${{ secrets.TEST_SSH_USER }}@${{ secrets.TEST_SSH_HOST }} << 'ENDSSH'
+          ssh ${{ secrets.TEST_SSH_USER }}@${{ secrets.TEST_SSH_HOST }} bash -s << 'ENDSSH'
             set -e
             cd /var/www/testcrm.umram.online/crm-be
+            trap 'go version 2>/dev/null || true' EXIT
 
             git pull origin main
             go mod download
             go build -o app ./cmd/api/main.go
             chmod +x app
             ./app
-          ENDSSH
+            trap - EXIT
 
-      
+            echo "Test deployment complete"
+          ENDSSH
