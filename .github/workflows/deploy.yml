@@ -1,0 +1,36 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Kodları çek
+        uses: actions/checkout@v4
+
+      - name: SSH key yükle
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SERVER_SSH_KEY }}
+
+      - name: Kodları sunucuya gönder
+        run: |
+          rsync -avz -e "ssh -o StrictHostKeyChecking=no" \
+          ./ umram@192.168.10.238:/var/www/testcrm.umram.online/crm-be
+
+      - name: Sunucuda build + restart
+        run: |
+          ssh -o StrictHostKeyChecking=no umram@192.168.10.238 "
+            cd /var/www/testcrm.umram.online/crm-be
+
+            go mod download
+            go build -o app ./cmd/api/main.go
+
+            chmod +x app
+            systemctl restart crm-backend.service
+          "
