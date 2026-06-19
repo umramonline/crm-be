@@ -19,6 +19,7 @@ type Config struct {
 	OTPRequestPath    string
 	OTPVerifyPath     string
 	PasswordLoginPath string
+	UserRolesPath     string
 	Timeout           time.Duration
 }
 
@@ -28,6 +29,7 @@ type Client struct {
 	otpRequestPath    string
 	otpVerifyPath     string
 	passwordLoginPath string
+	userRolesPath     string
 	httpClient        *http.Client
 }
 
@@ -51,6 +53,25 @@ type apiResponse struct {
 	Data    json.RawMessage `json:"data"`
 }
 
+type listResponse[T any] struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	Items   []T    `json:"items"`
+}
+
+type Role struct {
+	ID   uint64 `json:"id"`
+	Name string `json:"name"`
+}
+
+type User struct {
+	ID       uint64 `json:"id"`
+	Name     string `json:"name"`
+	Phone    string `json:"phone,omitempty"`
+	RoleID   uint64 `json:"role_id"`
+	RoleName string `json:"role_name"`
+}
+
 func NewClient(config Config) *Client {
 	timeout := config.Timeout
 	if timeout <= 0 {
@@ -63,6 +84,7 @@ func NewClient(config Config) *Client {
 		otpRequestPath:    "/" + strings.Trim(config.OTPRequestPath, "/"),
 		otpVerifyPath:     "/" + strings.Trim(config.OTPVerifyPath, "/"),
 		passwordLoginPath: "/" + strings.Trim(config.PasswordLoginPath, "/"),
+		userRolesPath:     "/" + strings.Trim(config.UserRolesPath, "/"),
 		httpClient: &http.Client{
 			Timeout: timeout,
 		},
@@ -199,4 +221,35 @@ func (c *Client) LoginWithPassword(ctx context.Context, phone string, password s
 	}
 
 	return data, nil
+}
+
+func (c *Client) ListRoles(ctx context.Context) ([]Role, error) {
+	if c.baseURL == "" || c.apiKey == "" || c.userRolesPath == "/" {
+		return nil, ErrRequestFailed
+	}
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+c.userRolesPath, nil)
+	if err != nil {
+		return nil, ErrRequestFailed
+	}
+
+	request.Header.Set("Accept", "application/json")
+	request.Header.Set("X-API-KEY", c.apiKey)
+
+	response, err := c.httpClient.Do(request)
+	if err != nil {
+		return nil, ErrRequestFailed
+	}
+	defer response.Body.Close()
+
+	var apiResponse listResponse[Role]
+	if err := json.NewDecoder(response.Body).Decode(&apiResponse); err != nil {
+		return nil, ErrRequestFailed
+	}
+
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices || !apiResponse.Success {
+		return nil, fmt.Errorf("%w: status=%d", ErrRequestFailed, response.StatusCode)
+	}
+
+	return apiResponse.Items, nil
 }

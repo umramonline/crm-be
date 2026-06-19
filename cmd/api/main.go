@@ -9,8 +9,13 @@ import (
 
 	authapp "github.com/umran/new.crm/backend/internal/auth/application"
 	authhttp "github.com/umran/new.crm/backend/internal/auth/infrastructure/http"
+	authzapp "github.com/umran/new.crm/backend/internal/authorization/application"
+	authzhttp "github.com/umran/new.crm/backend/internal/authorization/infrastructure/http"
+	authzpersistence "github.com/umran/new.crm/backend/internal/authorization/infrastructure/persistence"
+	authzumramonline "github.com/umran/new.crm/backend/internal/authorization/infrastructure/umramonline"
 	"github.com/umran/new.crm/backend/internal/infrastructure/config"
 	httpserver "github.com/umran/new.crm/backend/internal/infrastructure/http"
+	dbpersistence "github.com/umran/new.crm/backend/internal/infrastructure/persistence"
 	"github.com/umran/new.crm/backend/internal/umramonline"
 )
 
@@ -26,22 +31,47 @@ func main() {
 		OTPRequestPath:    cfg.UmramonlineOTPRequestPath,
 		OTPVerifyPath:     cfg.UmramonlineOTPVerifyPath,
 		PasswordLoginPath: cfg.UmramonlinePasswordPath,
+		UserRolesPath:     cfg.UmramonlineUserRolesPath,
 		Timeout:           cfg.UmramonlineTimeout(),
 	})
 	otpRequestService := authapp.NewOTPRequestService(umramonlineClient)
 	sessionTokenService := authapp.NewSessionTokenService(cfg.SessionTokenSecret)
+	authorizationProvider := authzumramonline.NewProvider(umramonlineClient)
+	var permissionRepository authzapp.PermissionRepository
+	var moduleRepository authzapp.ModuleRepository
+	if cfg.DatabaseDSN != "" {
+		db, err := dbpersistence.OpenMySQL(cfg.DatabaseDSN)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		if err := authzpersistence.AutoMigrate(db); err != nil {
+			log.Fatal(err)
+		}
+
+		authorizationRepository := authzpersistence.NewRepository(db)
+		permissionRepository = authorizationRepository
+		moduleRepository = authorizationRepository
+	} else {
+		log.Println("DATABASE_DSN is empty; authorization persistence is disabled")
+	}
+
+	authorizationService := authzapp.NewService(authorizationProvider, permissionRepository, moduleRepository)
 	otpHandler := authhttp.NewOTPHandler(otpRequestService, sessionTokenService, authhttp.SessionConfig{
 		AccessTTL:      cfg.AccessTokenTTL(),
 		RefreshTTL:     cfg.RefreshTokenTTL(),
 		CookieSecure:   cfg.AuthCookieSecure,
 		CookieSameSite: cfg.AuthCookieSameSite,
 	})
+	otpHandler.SetAuthorizationService(authzhttp.NewSessionAdapter(authorizationService))
+	authorizationHandler := authzhttp.NewHandler(authorizationService)
+	authRequired := authzhttp.RequirePermission(authorizationService, sessionTokenService, authzhttp.AuthMiddlewareConfig{})
 
 	server := httpserver.NewServer(httpserver.Config{
 		Addr:                 cfg.Addr(),
 		CORSAllowedOrigins:   cfg.CORSAllowedOrigins,
 		CORSAllowCredentials: cfg.CORSAllowCredentials,
-	}, otpHandler)
+	}, otpHandler, authorizationHandler, authRequired)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

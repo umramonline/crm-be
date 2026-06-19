@@ -24,6 +24,8 @@ type SessionTokenClaims struct {
 	Subject   string `json:"sub"`
 	TokenType string `json:"typ"`
 	ExpiresAt int64  `json:"exp"`
+	RoleID    uint64 `json:"role_id,omitempty"`
+	RoleName  string `json:"role_name,omitempty"`
 }
 
 type SessionTokenService struct {
@@ -38,7 +40,7 @@ func NewSessionTokenService(secret string) *SessionTokenService {
 	}
 }
 
-func (s *SessionTokenService) Issue(subject string, tokenType string, ttl time.Duration) (string, error) {
+func (s *SessionTokenService) Issue(subject string, tokenType string, ttl time.Duration, roleID uint64, roleName string) (string, error) {
 	if strings.TrimSpace(subject) == "" || strings.TrimSpace(tokenType) == "" || len(s.secret) == 0 || ttl <= 0 {
 		return "", ErrTokenInvalid
 	}
@@ -51,6 +53,8 @@ func (s *SessionTokenService) Issue(subject string, tokenType string, ttl time.D
 		Subject:   subject,
 		TokenType: tokenType,
 		ExpiresAt: s.now().Add(ttl).Unix(),
+		RoleID:    roleID,
+		RoleName:  roleName,
 	}
 
 	headerJSON, err := json.Marshal(header)

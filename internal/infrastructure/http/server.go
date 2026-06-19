@@ -8,6 +8,7 @@ import (
 
 	app "github.com/umran/new.crm/backend/internal/application/greeting"
 	authhttp "github.com/umran/new.crm/backend/internal/auth/infrastructure/http"
+	authzhttp "github.com/umran/new.crm/backend/internal/authorization/infrastructure/http"
 	"github.com/umran/new.crm/backend/internal/infrastructure/http/handler"
 )
 
@@ -22,7 +23,10 @@ type Config struct {
 	CORSAllowCredentials bool
 }
 
-func NewServer(config Config, otpHandler *authhttp.OTPHandler) *Server {
+func NewServer(config Config,
+	otpHandler *authhttp.OTPHandler,
+	authorizationHandler *authzhttp.Handler,
+	authRequired fiber.Handler) *Server {
 	greetingService := app.NewService()
 	helloHandler := handler.NewHelloHandler(greetingService)
 
@@ -43,6 +47,7 @@ func NewServer(config Config, otpHandler *authhttp.OTPHandler) *Server {
 	apiV1.Post("/auth/refresh", otpHandler.RefreshSession)
 	apiV1.Post("/auth/logout", otpHandler.Logout)
 	apiV1.Get("/auth/session", otpHandler.Session)
+	authorizationHandler.RegisterRoutes(apiV1.Group("", authRequired))
 
 	return &Server{
 		addr: config.Addr,

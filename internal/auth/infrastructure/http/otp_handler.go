@@ -20,8 +20,37 @@ type OTPRequestService interface {
 }
 
 type SessionTokenService interface {
-	Issue(subject string, tokenType string, ttl time.Duration) (string, error)
+	Issue(subject string, tokenType string, ttl time.Duration, roleID uint64, roleName string) (string, error)
 	Validate(token string, expectedType string) (application.SessionTokenClaims, error)
+}
+
+type Permission struct {
+	ModuleID       uint64 `json:"module_id"`
+	ModuleName     string `json:"module_name"`
+	ModuleMethodID uint64 `json:"module_method_id"`
+	Name           string `json:"name"`
+	Description    string `json:"description,omitempty"`
+	Method         string `json:"method,omitempty"`
+	Path           string `json:"path,omitempty"`
+}
+
+type SessionUser struct {
+	ID       uint64 `json:"id"`
+	Name     string `json:"name,omitempty"`
+	Phone    string `json:"phone,omitempty"`
+	RoleID   uint64 `json:"role_id"`
+	RoleName string `json:"role_name,omitempty"`
+}
+
+type SessionData struct {
+	UserID      string       `json:"user_id"`
+	User        SessionUser  `json:"user"`
+	Permissions []Permission `json:"permissions"`
+}
+
+type AuthorizationService interface {
+	SessionFromLoginData(ctx context.Context, data map[string]any) (SessionData, error)
+	SessionForUser(ctx context.Context, user SessionUser) (SessionData, error)
 }
 
 type SessionConfig struct {
@@ -36,6 +65,7 @@ type SessionConfig struct {
 type OTPHandler struct {
 	service       OTPRequestService
 	tokenService  SessionTokenService
+	authorization AuthorizationService
 	sessionConfig SessionConfig
 }
 
@@ -75,6 +105,10 @@ func NewOTPHandler(service OTPRequestService, tokenService SessionTokenService, 
 	}
 
 	return &OTPHandler{service: service, tokenService: tokenService, sessionConfig: sessionConfig}
+}
+
+func (h *OTPHandler) SetAuthorizationService(service AuthorizationService) {
+	h.authorization = service
 }
 
 func (h *OTPHandler) RequestOTP(c *fiber.Ctx) error {
@@ -158,16 +192,16 @@ func (h *OTPHandler) LoginWithPassword(c *fiber.Ctx) error {
 		return response.Error(c, fiber.StatusInternalServerError, "Giriş işlemi şu anda tamamlanamadı.", nil)
 	}
 
-	userID, err := extractUserID(data)
+	sessionData, err := h.sessionDataFromLoginData(c.UserContext(), data)
 	if err != nil {
 		return response.Error(c, fiber.StatusInternalServerError, "Giriş işlemi şu anda tamamlanamadı.", nil)
 	}
 
-	if err := h.setSessionCookies(c, userID); err != nil {
+	if err := h.setSessionCookies(c, sessionData.User); err != nil {
 		return response.Error(c, fiber.StatusInternalServerError, "Giriş işlemi şu anda tamamlanamadı.", nil)
 	}
 
-	return response.Success(c, fiber.StatusOK, "Giriş başarılı.", data)
+	return response.Success(c, fiber.StatusOK, "Giriş başarılı.", sessionData)
 }
 
 func (h *OTPHandler) RefreshSession(c *fiber.Ctx) error {
@@ -181,14 +215,19 @@ func (h *OTPHandler) RefreshSession(c *fiber.Ctx) error {
 		return response.Error(c, fiber.StatusUnauthorized, "Oturum geçersiz.", nil)
 	}
 
-	accessToken, err := h.tokenService.Issue(claims.Subject, application.TokenTypeAccess, h.sessionConfig.AccessTTL)
+	accessToken, err := h.tokenService.Issue(claims.Subject, application.TokenTypeAccess, h.sessionConfig.AccessTTL, claims.RoleID, claims.RoleName)
 	if err != nil {
 		return response.Error(c, fiber.StatusInternalServerError, "Oturum yenilenemedi.", nil)
 	}
 
 	h.setCookie(c, h.sessionConfig.AccessCookieName, accessToken, h.sessionConfig.AccessTTL, "/")
 
-	return response.Success(c, fiber.StatusOK, "Oturum yenilendi.", fiber.Map{})
+	sessionData, err := h.sessionDataFromClaims(c.UserContext(), claims)
+	if err != nil {
+		return response.Error(c, fiber.StatusInternalServerError, "Oturum yenilenemedi.", nil)
+	}
+
+	return response.Success(c, fiber.StatusOK, "Oturum yenilendi.", sessionData)
 }
 
 func (h *OTPHandler) Logout(c *fiber.Ctx) error {
@@ -209,18 +248,22 @@ func (h *OTPHandler) Session(c *fiber.Ctx) error {
 		return response.Error(c, fiber.StatusUnauthorized, "Oturum geçersiz.", nil)
 	}
 
-	return response.Success(c, fiber.StatusOK, "Oturum geçerli.", fiber.Map{
-		"user_id": claims.Subject,
-	})
+	sessionData, err := h.sessionDataFromClaims(c.UserContext(), claims)
+	if err != nil {
+		return response.Error(c, fiber.StatusInternalServerError, "Oturum bilgisi getirilemedi.", nil)
+	}
+
+	return response.Success(c, fiber.StatusOK, "Oturum geçerli.", sessionData)
 }
 
-func (h *OTPHandler) setSessionCookies(c *fiber.Ctx, userID string) error {
-	accessToken, err := h.tokenService.Issue(userID, application.TokenTypeAccess, h.sessionConfig.AccessTTL)
+func (h *OTPHandler) setSessionCookies(c *fiber.Ctx, user SessionUser) error {
+	userID := strconv.FormatUint(user.ID, 10)
+	accessToken, err := h.tokenService.Issue(userID, application.TokenTypeAccess, h.sessionConfig.AccessTTL, user.RoleID, user.RoleName)
 	if err != nil {
 		return err
 	}
 
-	refreshToken, err := h.tokenService.Issue(userID, application.TokenTypeRefresh, h.sessionConfig.RefreshTTL)
+	refreshToken, err := h.tokenService.Issue(userID, application.TokenTypeRefresh, h.sessionConfig.RefreshTTL, user.RoleID, user.RoleName)
 	if err != nil {
 		return err
 	}
@@ -275,4 +318,85 @@ func extractUserID(data map[string]any) (string, error) {
 	default:
 		return "", fmt.Errorf("unsupported user id type: %T", id)
 	}
+}
+
+func (h *OTPHandler) sessionDataFromLoginData(ctx context.Context, data map[string]any) (SessionData, error) {
+	if h.authorization == nil {
+		return fallbackSessionDataFromLoginData(data)
+	}
+
+	return h.authorization.SessionFromLoginData(ctx, data)
+}
+
+func (h *OTPHandler) sessionDataFromClaims(ctx context.Context, claims application.SessionTokenClaims) (SessionData, error) {
+	userID, err := strconv.ParseUint(claims.Subject, 10, 64)
+	if err != nil {
+		return SessionData{}, err
+	}
+
+	user := SessionUser{
+		ID:       userID,
+		RoleID:   claims.RoleID,
+		RoleName: claims.RoleName,
+	}
+
+	if h.authorization == nil {
+		return SessionData{
+			UserID:      claims.Subject,
+			User:        user,
+			Permissions: []Permission{},
+		}, nil
+	}
+
+	return h.authorization.SessionForUser(ctx, user)
+}
+
+func fallbackSessionDataFromLoginData(data map[string]any) (SessionData, error) {
+	userID, err := extractUserID(data)
+	if err != nil {
+		return SessionData{}, err
+	}
+
+	id, err := strconv.ParseUint(userID, 10, 64)
+	if err != nil {
+		return SessionData{}, err
+	}
+
+	rawUser, _ := data["user"].(map[string]any)
+	roleID, _ := uintFromAny(rawUser["role_id"])
+
+	return SessionData{
+		UserID: userID,
+		User: SessionUser{
+			ID:       id,
+			Name:     stringFromAny(rawUser["name"]),
+			Phone:    stringFromAny(rawUser["phone"]),
+			RoleID:   roleID,
+			RoleName: stringFromAny(rawUser["role_name"]),
+		},
+		Permissions: []Permission{},
+	}, nil
+}
+
+func uintFromAny(value any) (uint64, error) {
+	switch id := value.(type) {
+	case float64:
+		return uint64(id), nil
+	case int:
+		return uint64(id), nil
+	case uint64:
+		return id, nil
+	case string:
+		return strconv.ParseUint(id, 10, 64)
+	default:
+		return 0, errors.New("unsupported uint value")
+	}
+}
+
+func stringFromAny(value any) string {
+	if text, ok := value.(string); ok {
+		return text
+	}
+
+	return ""
 }

@@ -29,6 +29,8 @@ type fakeSessionTokenService struct {
 	accessToken  string
 	refreshToken string
 	subject      string
+	roleID       uint64
+	roleName     string
 	validateErr  error
 	issueErr     error
 }
@@ -53,12 +55,14 @@ func (f *fakeOTPRequestService) LoginWithPassword(_ context.Context, phone strin
 	return f.loginData, f.loginErr
 }
 
-func (f *fakeSessionTokenService) Issue(subject string, tokenType string, _ time.Duration) (string, error) {
+func (f *fakeSessionTokenService) Issue(subject string, tokenType string, _ time.Duration, roleID uint64, roleName string) (string, error) {
 	if f.issueErr != nil {
 		return "", f.issueErr
 	}
 
 	f.subject = subject
+	f.roleID = roleID
+	f.roleName = roleName
 
 	if tokenType == application.TokenTypeRefresh {
 		return f.refreshToken, nil
@@ -76,6 +80,8 @@ func (f *fakeSessionTokenService) Validate(_ string, expectedType string) (appli
 		Subject:   f.subject,
 		TokenType: expectedType,
 		ExpiresAt: time.Now().Add(time.Minute).Unix(),
+		RoleID:    f.roleID,
+		RoleName:  f.roleName,
 	}, nil
 }
 
