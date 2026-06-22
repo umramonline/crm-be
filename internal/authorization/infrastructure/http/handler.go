@@ -33,18 +33,18 @@ func NewHandler(service *application.Service) *Handler {
 	return &Handler{service: service}
 }
 
-func (h *Handler) RegisterRoutes(router fiber.Router) {
-	router.Get("/authorization/roles", h.ListRoles)
-	router.Get("/authorization/modules", h.ListModules)
-	router.Post("/authorization/modules", h.CreateModule)
-	router.Put("/authorization/modules/:id", h.UpdateModule)
-	router.Delete("/authorization/modules/:id", h.DeleteModule)
-	router.Get("/authorization/module-methods", h.ListModuleMethods)
-	router.Post("/authorization/module-methods", h.CreateModuleMethod)
-	router.Put("/authorization/module-methods/:id", h.UpdateModuleMethod)
-	router.Delete("/authorization/module-methods/:id", h.DeleteModuleMethod)
-	router.Get("/authorization/role-permissions", h.ListRolePermissions)
-	router.Put("/authorization/role-permissions/:role_id", h.ReplaceRolePermissions)
+func (h *Handler) RegisterRoutes(router fiber.Router, authRequired fiber.Handler) {
+	router.Get("/authorization/roles", authRequired, h.ListRoles)
+	router.Get("/authorization/modules", authRequired, h.ListModules)
+	router.Post("/authorization/modules", authRequired, h.CreateModule)
+	router.Put("/authorization/modules/:id", authRequired, h.UpdateModule)
+	router.Delete("/authorization/modules/:id", authRequired, h.DeleteModule)
+	router.Get("/authorization/module-methods", authRequired, h.ListModuleMethods)
+	router.Post("/authorization/module-methods", authRequired, h.CreateModuleMethod)
+	router.Put("/authorization/module-methods/:id", authRequired, h.UpdateModuleMethod)
+	router.Delete("/authorization/module-methods/:id", authRequired, h.DeleteModuleMethod)
+	router.Get("/authorization/role-permissions", authRequired, h.ListRolePermissions)
+	router.Put("/authorization/role-permissions/:role_id", authRequired, h.ReplaceRolePermissions)
 }
 
 func (h *Handler) ListRoles(c *fiber.Ctx) error {

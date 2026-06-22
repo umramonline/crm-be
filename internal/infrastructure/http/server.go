@@ -47,7 +47,7 @@ func NewServer(config Config,
 	apiV1.Post("/auth/refresh", otpHandler.RefreshSession)
 	apiV1.Post("/auth/logout", otpHandler.Logout)
 	apiV1.Get("/auth/session", otpHandler.Session)
-	authorizationHandler.RegisterRoutes(apiV1.Group("", authRequired))
+	authorizationHandler.RegisterRoutes(apiV1, authRequired)
 
 	return &Server{
 		addr: config.Addr,
