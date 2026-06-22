@@ -57,5 +57,9 @@ func normalizedRoutePath(c *fiber.Ctx) string {
 		path = "/" + path
 	}
 
+	if !strings.HasPrefix(path, "/api/v1/") && strings.HasPrefix(path, "/authorization/") {
+		return "/api/v1" + path
+	}
+
 	return path
 }
