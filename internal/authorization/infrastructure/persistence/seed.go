@@ -17,6 +17,18 @@ var authorizationMethodSeeds = []authorizationMethodSeed{
 		Description: "Sol menüde İzinler menüsünü gösterir.",
 	},
 	{
+		Name:        "modules.form",
+		Description: "İzinler sayfasında Modüller formunu gösterir.",
+	},
+	{
+		Name:        "module_methods.form",
+		Description: "İzinler sayfasında Methodlar formunu gösterir.",
+	},
+	{
+		Name:        "role_permissions.form",
+		Description: "İzinler sayfasında Rol İzinleri formunu gösterir.",
+	},
+	{
 		Name:        "roles.list",
 		Description: "Umramonline aktif rollerini listeler.",
 		Method:      stringPointer("GET"),
@@ -96,9 +108,15 @@ func SeedAuthorization(db *gorm.DB) error {
 			if err != nil {
 				return err
 			}
-
-			if err := seedAdminPermission(tx, method.ID); err != nil {
-				return err
+			if methodSeed.Name == "role_permissions.update" ||
+				methodSeed.Name == "role_permissions.list" ||
+				methodSeed.Name == "module_methods.list" ||
+				methodSeed.Name == "roles.list" ||
+				methodSeed.Name == "role_permissions.form" ||
+				methodSeed.Name == "authorization.menu" {
+				if err := seedAdminPermission(tx, method.ID); err != nil {
+					return err
+				}
 			}
 		}
 
