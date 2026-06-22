@@ -27,8 +27,8 @@ type ModuleMethodModel struct {
 	ModuleID    uint64         `gorm:"not null;index:idx_module_methods_module_id;uniqueIndex:idx_module_method_name;uniqueIndex:idx_module_method_path"`
 	Name        string         `gorm:"size:120;not null;uniqueIndex:idx_module_method_name"`
 	Description string         `gorm:"size:250"`
-	Method      string         `gorm:"type:enum('GET','POST','PUT','PATCH','DELETE','HEAD','OPTIONS');default:null;uniqueIndex:idx_module_method_path"`
-	Path        string         `gorm:"size:255;default:null;uniqueIndex:idx_module_method_path"`
+	Method      *string        `gorm:"type:enum('GET','POST','PUT','PATCH','DELETE','HEAD','OPTIONS');default:null;uniqueIndex:idx_module_method_path"`
+	Path        *string        `gorm:"size:255;default:null;uniqueIndex:idx_module_method_path"`
 	CreatedAt   time.Time      `gorm:"precision:3"`
 	UpdatedAt   time.Time      `gorm:"precision:3"`
 	DeletedAt   gorm.DeletedAt `gorm:"precision:3;index"`
@@ -83,8 +83,8 @@ func (r *Repository) ListPermissionsByRoleID(ctx context.Context, roleID uint64)
 			ModuleMethodID: method.ID,
 			Name:           method.Name,
 			Description:    method.Description,
-			Method:         method.Method,
-			Path:           method.Path,
+			Method:         stringValue(method.Method),
+			Path:           stringValue(method.Path),
 		})
 	}
 
@@ -171,8 +171,8 @@ func (r *Repository) CreateModuleMethod(ctx context.Context, input authapp.Modul
 		ModuleID:    input.ModuleID,
 		Name:        input.Name,
 		Description: input.Description,
-		Method:      input.Method,
-		Path:        input.Path,
+		Method:      stringPointer(input.Method),
+		Path:        stringPointer(input.Path),
 	}
 	if err := r.db.WithContext(ctx).Create(&method).Error; err != nil {
 		return domain.ModuleMethod{}, err
@@ -194,8 +194,8 @@ func (r *Repository) UpdateModuleMethod(ctx context.Context, id uint64, input au
 	method.ModuleID = input.ModuleID
 	method.Name = input.Name
 	method.Description = input.Description
-	method.Method = input.Method
-	method.Path = input.Path
+	method.Method = stringPointer(input.Method)
+	method.Path = stringPointer(input.Path)
 	if err := r.db.WithContext(ctx).Save(&method).Error; err != nil {
 		return domain.ModuleMethod{}, err
 	}
@@ -289,9 +289,25 @@ func moduleMethodToDomain(method ModuleMethodModel) domain.ModuleMethod {
 		ModuleName:  method.Module.Name,
 		Name:        method.Name,
 		Description: method.Description,
-		Method:      method.Method,
-		Path:        method.Path,
+		Method:      stringValue(method.Method),
+		Path:        stringValue(method.Path),
 		CreatedAt:   method.CreatedAt,
 		UpdatedAt:   method.UpdatedAt,
 	}
+}
+
+func stringPointer(value string) *string {
+	if value == "" {
+		return nil
+	}
+
+	return &value
+}
+
+func stringValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+
+	return *value
 }

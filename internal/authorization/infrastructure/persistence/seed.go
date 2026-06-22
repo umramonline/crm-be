@@ -7,76 +7,80 @@ const adminRoleID uint64 = 30
 type authorizationMethodSeed struct {
 	Name        string
 	Description string
-	Method      string
-	Path        string
+	Method      *string
+	Path        *string
 }
 
 var authorizationMethodSeeds = []authorizationMethodSeed{
 	{
-		Name:        "Rol Listesi",
+		Name:        "authorization.menu",
+		Description: "Sol menüde İzinler menüsünü gösterir.",
+	},
+	{
+		Name:        "roles.list",
 		Description: "Umramonline aktif rollerini listeler.",
-		Method:      "GET",
-		Path:        "/api/v1/authorization/roles",
+		Method:      stringPointer("GET"),
+		Path:        stringPointer("/api/v1/authorization/roles"),
 	},
 	{
-		Name:        "Modül Listesi",
+		Name:        "modules.list",
 		Description: "Authorization modüllerini listeler.",
-		Method:      "GET",
-		Path:        "/api/v1/authorization/modules",
+		Method:      stringPointer("GET"),
+		Path:        stringPointer("/api/v1/authorization/modules"),
 	},
 	{
-		Name:        "Modül Oluşturma",
+		Name:        "modules.create",
 		Description: "Authorization modülü oluşturur.",
-		Method:      "POST",
-		Path:        "/api/v1/authorization/modules",
+		Method:      stringPointer("POST"),
+		Path:        stringPointer("/api/v1/authorization/modules"),
 	},
 	{
-		Name:        "Modül Güncelleme",
+		Name:        "modules.update",
 		Description: "Authorization modülünü günceller.",
-		Method:      "PUT",
-		Path:        "/api/v1/authorization/modules/:id",
+		Method:      stringPointer("PUT"),
+		Path:        stringPointer("/api/v1/authorization/modules/:id"),
 	},
 	{
-		Name:        "Modül Silme",
+		Name:        "modules.delete",
 		Description: "Authorization modülünü siler.",
-		Method:      "DELETE",
-		Path:        "/api/v1/authorization/modules/:id",
+		Method:      stringPointer("DELETE"),
+		Path:        stringPointer("/api/v1/authorization/modules/:id"),
 	},
 	{
-		Name:        "Modül Method Listesi",
+		Name:        "module_methods.list",
 		Description: "Authorization modül methodlarını listeler.",
-		Method:      "GET",
-		Path:        "/api/v1/authorization/module-methods",
+		Method:      stringPointer("GET"),
+		Path:        stringPointer("/api/v1/authorization/module-methods"),
 	},
 	{
-		Name:        "Modül Method Oluşturma",
+		Name:        "module_methods.create",
 		Description: "Authorization modül methodu oluşturur.",
-		Method:      "POST",
-		Path:        "/api/v1/authorization/module-methods",
+		Method:      stringPointer("POST"),
+		Path:        stringPointer("/api/v1/authorization/module-methods"),
 	},
 	{
-		Name:        "Modül Method Güncelleme",
+		Name:        "module_methods.update",
 		Description: "Authorization modül methodunu günceller.",
-		Method:      "PUT",
-		Path:        "/api/v1/authorization/module-methods/:id",
+		Method:      stringPointer("PUT"),
+		Path:        stringPointer("/api/v1/authorization/module-methods/:id"),
 	},
 	{
-		Name:        "Modül Method Silme",
+		Name:        "module_methods.delete",
 		Description: "Authorization modül methodunu siler.",
-		Method:      "DELETE",
-		Path:        "/api/v1/authorization/module-methods/:id",
+		Method:      stringPointer("DELETE"),
+		Path:        stringPointer("/api/v1/authorization/module-methods/:id"),
 	},
 	{
-		Name:        "Rol İzin Listesi",
+		Name:        "role_permissions.list",
 		Description: "Role ait authorization izinlerini listeler.",
-		Method:      "GET",
-		Path:        "/api/v1/authorization/role-permissions",
+		Method:      stringPointer("GET"),
+		Path:        stringPointer("/api/v1/authorization/role-permissions"),
 	},
 	{
-		Name:        "Rol İzin Güncelleme",
+		Name:        "role_permissions.update",
 		Description: "Role ait authorization izinlerini topluca günceller.",
-		Method:      "PUT",
-		Path:        "/api/v1/authorization/role-permissions/:role_id",
+		Method:      stringPointer("PUT"),
+		Path:        stringPointer("/api/v1/authorization/role-permissions/:role_id"),
 	},
 }
 
@@ -130,13 +134,19 @@ func seedAuthorizationModule(tx *gorm.DB) (ModuleModel, error) {
 
 func seedAuthorizationMethod(tx *gorm.DB, moduleID uint64, seed authorizationMethodSeed) (ModuleMethodModel, error) {
 	var method ModuleMethodModel
-	err := tx.Unscoped().
-		Where("module_id = ? AND method = ? AND path = ?", moduleID, seed.Method, seed.Path).
-		First(&method).Error
+	err := tx.Unscoped().Where("module_id = ? AND name = ?", moduleID, seed.Name).First(&method).Error
+	if err == gorm.ErrRecordNotFound && seed.Method != nil && seed.Path != nil {
+		err = tx.Unscoped().
+			Where("module_id = ? AND method = ? AND path = ?", moduleID, *seed.Method, *seed.Path).
+			First(&method).Error
+	}
+
 	if err == nil {
 		updates := map[string]any{
 			"name":        seed.Name,
 			"description": seed.Description,
+			"method":      seed.Method,
+			"path":        seed.Path,
 			"deleted_at":  nil,
 		}
 		if err := tx.Unscoped().Model(&method).Updates(updates).Error; err != nil {
@@ -145,6 +155,8 @@ func seedAuthorizationMethod(tx *gorm.DB, moduleID uint64, seed authorizationMet
 
 		method.Name = seed.Name
 		method.Description = seed.Description
+		method.Method = seed.Method
+		method.Path = seed.Path
 		method.DeletedAt = gorm.DeletedAt{}
 
 		return method, nil
