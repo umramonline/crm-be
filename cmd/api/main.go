@@ -13,6 +13,7 @@ import (
 	authzhttp "github.com/umran/new.crm/backend/internal/authorization/infrastructure/http"
 	authzpersistence "github.com/umran/new.crm/backend/internal/authorization/infrastructure/persistence"
 	authzumramonline "github.com/umran/new.crm/backend/internal/authorization/infrastructure/umramonline"
+	customerpersistence "github.com/umran/new.crm/backend/internal/customer/infrastructure/persistence"
 	"github.com/umran/new.crm/backend/internal/infrastructure/config"
 	httpserver "github.com/umran/new.crm/backend/internal/infrastructure/http"
 	dbpersistence "github.com/umran/new.crm/backend/internal/infrastructure/persistence"
@@ -46,6 +47,10 @@ func main() {
 		}
 
 		if err := authzpersistence.AutoMigrate(db); err != nil {
+			log.Fatal(err)
+		}
+
+		if err := customerpersistence.AutoMigrate(db); err != nil {
 			log.Fatal(err)
 		}
 
