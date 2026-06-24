@@ -9,6 +9,7 @@ import (
 	app "github.com/umran/new.crm/backend/internal/application/greeting"
 	authhttp "github.com/umran/new.crm/backend/internal/auth/infrastructure/http"
 	authzhttp "github.com/umran/new.crm/backend/internal/authorization/infrastructure/http"
+	customerhttp "github.com/umran/new.crm/backend/internal/customer/infrastructure/http"
 	"github.com/umran/new.crm/backend/internal/infrastructure/http/handler"
 )
 
@@ -26,6 +27,7 @@ type Config struct {
 func NewServer(config Config,
 	otpHandler *authhttp.OTPHandler,
 	authorizationHandler *authzhttp.Handler,
+	customerHandler *customerhttp.Handler,
 	authRequired fiber.Handler) *Server {
 	greetingService := app.NewService()
 	helloHandler := handler.NewHelloHandler(greetingService)
@@ -48,6 +50,7 @@ func NewServer(config Config,
 	apiV1.Post("/auth/logout", otpHandler.Logout)
 	apiV1.Get("/auth/session", otpHandler.Session)
 	authorizationHandler.RegisterRoutes(apiV1, authRequired)
+	customerHandler.RegisterRoutes(apiV1, authRequired)
 
 	return &Server{
 		addr: config.Addr,

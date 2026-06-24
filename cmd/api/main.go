@@ -13,7 +13,10 @@ import (
 	authzhttp "github.com/umran/new.crm/backend/internal/authorization/infrastructure/http"
 	authzpersistence "github.com/umran/new.crm/backend/internal/authorization/infrastructure/persistence"
 	authzumramonline "github.com/umran/new.crm/backend/internal/authorization/infrastructure/umramonline"
+	customerapp "github.com/umran/new.crm/backend/internal/customer/application"
+	customerhttp "github.com/umran/new.crm/backend/internal/customer/infrastructure/http"
 	customerpersistence "github.com/umran/new.crm/backend/internal/customer/infrastructure/persistence"
+	customerumramonline "github.com/umran/new.crm/backend/internal/customer/infrastructure/umramonline"
 	"github.com/umran/new.crm/backend/internal/infrastructure/config"
 	httpserver "github.com/umran/new.crm/backend/internal/infrastructure/http"
 	dbpersistence "github.com/umran/new.crm/backend/internal/infrastructure/persistence"
@@ -33,6 +36,7 @@ func main() {
 		OTPVerifyPath:     cfg.UmramonlineOTPVerifyPath,
 		PasswordLoginPath: cfg.UmramonlinePasswordPath,
 		UserRolesPath:     cfg.UmramonlineUserRolesPath,
+		CustomersPath:     cfg.UmramonlineCustomersPath,
 		Timeout:           cfg.UmramonlineTimeout(),
 	})
 	otpRequestService := authapp.NewOTPRequestService(umramonlineClient)
@@ -58,6 +62,10 @@ func main() {
 			log.Fatal(err)
 		}
 
+		if err := authzpersistence.SeedCustomers(db); err != nil {
+			log.Fatal(err)
+		}
+
 		authorizationRepository := authzpersistence.NewRepository(db)
 		permissionRepository = authorizationRepository
 		moduleRepository = authorizationRepository
@@ -74,13 +82,15 @@ func main() {
 	})
 	otpHandler.SetAuthorizationService(authzhttp.NewSessionAdapter(authorizationService))
 	authorizationHandler := authzhttp.NewHandler(authorizationService)
+	customerService := customerapp.NewService(customerumramonline.NewProvider(umramonlineClient))
+	customerHandler := customerhttp.NewHandler(customerService)
 	authRequired := authzhttp.RequirePermission(authorizationService, sessionTokenService, authzhttp.AuthMiddlewareConfig{})
 
 	server := httpserver.NewServer(httpserver.Config{
 		Addr:                 cfg.Addr(),
 		CORSAllowedOrigins:   cfg.CORSAllowedOrigins,
 		CORSAllowCredentials: cfg.CORSAllowCredentials,
-	}, otpHandler, authorizationHandler, authRequired)
+	}, otpHandler, authorizationHandler, customerHandler, authRequired)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
