@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -97,21 +96,21 @@ type CustomerListQuery struct {
 }
 
 type CustomerListItem struct {
-	Situation    string     `json:"situation"`
-	Unvan        string     `json:"unvan"`
-	Cep          string     `json:"cep"`
-	Ad           string     `json:"ad"`
-	Soyad        string     `json:"soyad"`
-	BranchName   string     `json:"branch_name"`
-	PlusCardNo   string     `json:"plus_card_no"`
-	Credit       float64    `json:"credit"`
-	Source       string     `json:"source"`
-	City         string     `json:"city"`
-	Town         string     `json:"town"`
-	CreatedAt    *time.Time `json:"created_at"`
-	Type         string     `json:"type"`
-	DaysSpending *int       `json:"daysSpending"`
-	DaysLoading  *int       `json:"daysLoading"`
+	Situation    string  `json:"situation"`
+	Unvan        string  `json:"unvan"`
+	Cep          string  `json:"cep"`
+	Ad           string  `json:"ad"`
+	Soyad        string  `json:"soyad"`
+	BranchName   string  `json:"branch_name"`
+	PlusCardNo   string  `json:"plus_card_no"`
+	Credit       string  `json:"credit"`
+	Source       string  `json:"source"`
+	City         string  `json:"city"`
+	Town         string  `json:"town"`
+	CreatedAt    *string `json:"created_at"`
+	Type         string  `json:"type"`
+	DaysSpending *int    `json:"daysSpending"`
+	DaysLoading  *int    `json:"daysLoading"`
 }
 
 type Pagination struct {
@@ -334,15 +333,6 @@ func (c *Client) ListCustomers(ctx context.Context, query CustomerListQuery) (Cu
 		return CustomerListResult{}, ErrRequestFailed
 	}
 	defer response.Body.Close()
-
-	fmt.Println("response", response)
-	fmt.Println("response.Body", response.Body)
-	bodyx, err := io.ReadAll(response.Body)
-	if err != nil {
-		fmt.Println("read error:", err)
-	}
-
-	fmt.Println("response:", string(bodyx))
 
 	var apiResponse customerListResponse
 	if err := json.NewDecoder(response.Body).Decode(&apiResponse); err != nil {

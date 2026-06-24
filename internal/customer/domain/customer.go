@@ -1,23 +1,21 @@
 package domain
 
-import "time"
-
 type Customer struct {
-	Situation   string     `json:"situation"`
-	Unvan       string     `json:"unvan"`
-	Cep         string     `json:"cep"`
-	Ad          string     `json:"ad"`
-	Soyad       string     `json:"soyad"`
-	BranchName  string     `json:"branch_name"`
-	PlusCardNo  string     `json:"plus_card_no"`
-	Credit      float64    `json:"credit"`
-	Source      string     `json:"source"`
-	City        string     `json:"city"`
-	Town        string     `json:"town"`
-	CreatedAt   *time.Time `json:"created_at,omitempty"`
-	Type        string     `json:"type"`
-	DaysSpending *int      `json:"days_spending,omitempty"`
-	DaysLoading  *int      `json:"days_loading,omitempty"`
+	Situation    string  `json:"situation"`
+	Unvan        string  `json:"unvan"`
+	Cep          string  `json:"cep"`
+	Ad           string  `json:"ad"`
+	Soyad        string  `json:"soyad"`
+	BranchName   string  `json:"branch_name"`
+	PlusCardNo   string  `json:"plus_card_no"`
+	Credit       string  `json:"credit"`
+	Source       string  `json:"source"`
+	City         string  `json:"city"`
+	Town         string  `json:"town"`
+	CreatedAt    *string `json:"created_at,omitempty"`
+	Type         string  `json:"type"`
+	DaysSpending *int    `json:"days_spending,omitempty"`
+	DaysLoading  *int    `json:"days_loading,omitempty"`
 }
 
 type Pagination struct {
@@ -35,20 +33,20 @@ type ListResult struct {
 }
 
 type ListQuery struct {
-	Page        int
-	PerPage     int
-	Situation   string
-	Unvan       string
-	Cep         string
-	Ad          string
-	Soyad       string
-	BranchName  string
-	PlusCardNo  string
-	Source      string
-	City        string
-	Town        string
-	CreatedAt   string
-	Type        string
-	SortBy      string
-	SortOrder   string
+	Page       int
+	PerPage    int
+	Situation  string
+	Unvan      string
+	Cep        string
+	Ad         string
+	Soyad      string
+	BranchName string
+	PlusCardNo string
+	Source     string
+	City       string
+	Town       string
+	CreatedAt  string
+	Type       string
+	SortBy     string
+	SortOrder  string
 }
