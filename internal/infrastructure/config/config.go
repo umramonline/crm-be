@@ -14,6 +14,7 @@ type Config struct {
 	CORSAllowCredentials      bool   `env:"CORS_ALLOW_CREDENTIALS" envDefault:"true"`
 	UmramonlineBaseURL        string `env:"UMRAMONLINE_BASE_URL"`
 	UmramonlineAPIKey         string `env:"UMRAMONLINE_API_KEY"`
+	UmramonlineAPIToken       string `env:"UMRAMONLINE_API_TOKEN"`
 	UmramonlineOTPRequestPath string `env:"UMRAMONLINE_OTP_REQUEST_PATH" envDefault:"/api/v1/crm/auth/otp/request"`
 	UmramonlineOTPVerifyPath  string `env:"UMRAMONLINE_OTP_VERIFY_PATH" envDefault:"/api/v1/crm/auth/otp/verify"`
 	UmramonlinePasswordPath   string `env:"UMRAMONLINE_PASSWORD_LOGIN_PATH" envDefault:"/api/v1/crm/auth/password/login"`

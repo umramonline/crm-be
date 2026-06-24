@@ -18,6 +18,7 @@ var ErrRequestFailed = errors.New("umramonline request failed")
 type Config struct {
 	BaseURL           string
 	APIKey            string
+	APIToken          string
 	OTPRequestPath    string
 	OTPVerifyPath     string
 	PasswordLoginPath string
@@ -29,6 +30,7 @@ type Config struct {
 type Client struct {
 	baseURL           string
 	apiKey            string
+	apiToken          string
 	otpRequestPath    string
 	otpVerifyPath     string
 	passwordLoginPath string
@@ -136,6 +138,7 @@ func NewClient(config Config) *Client {
 	return &Client{
 		baseURL:           strings.TrimRight(config.BaseURL, "/"),
 		apiKey:            config.APIKey,
+		apiToken:          config.APIToken,
 		otpRequestPath:    "/" + strings.Trim(config.OTPRequestPath, "/"),
 		otpVerifyPath:     "/" + strings.Trim(config.OTPVerifyPath, "/"),
 		passwordLoginPath: "/" + strings.Trim(config.PasswordLoginPath, "/"),
@@ -148,7 +151,7 @@ func NewClient(config Config) *Client {
 }
 
 func (c *Client) RequestOTP(ctx context.Context, phone string) error {
-	if c.baseURL == "" || c.apiKey == "" || c.otpRequestPath == "/" {
+	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.otpRequestPath == "/" {
 		return ErrRequestFailed
 	}
 
@@ -165,6 +168,7 @@ func (c *Client) RequestOTP(ctx context.Context, phone string) error {
 	request.Header.Set("Accept", "application/json")
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("X-API-KEY", c.apiKey)
+	request.Header.Set("Authorization", "Bearer "+c.apiToken)
 
 	response, err := c.httpClient.Do(request)
 	if err != nil {
@@ -185,7 +189,7 @@ func (c *Client) RequestOTP(ctx context.Context, phone string) error {
 }
 
 func (c *Client) VerifyOTP(ctx context.Context, phone string, otpCode string) (bool, error) {
-	if c.baseURL == "" || c.apiKey == "" || c.otpVerifyPath == "/" {
+	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.otpVerifyPath == "/" {
 		return false, ErrRequestFailed
 	}
 
@@ -202,6 +206,7 @@ func (c *Client) VerifyOTP(ctx context.Context, phone string, otpCode string) (b
 	request.Header.Set("Accept", "application/json")
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("X-API-KEY", c.apiKey)
+	request.Header.Set("Authorization", "Bearer "+c.apiToken)
 
 	response, err := c.httpClient.Do(request)
 	if err != nil {
@@ -226,7 +231,7 @@ func (c *Client) VerifyOTP(ctx context.Context, phone string, otpCode string) (b
 }
 
 func (c *Client) LoginWithPassword(ctx context.Context, phone string, password string) (map[string]any, error) {
-	if c.baseURL == "" || c.apiKey == "" || c.passwordLoginPath == "/" {
+	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.passwordLoginPath == "/" {
 		return nil, ErrRequestFailed
 	}
 
@@ -243,6 +248,7 @@ func (c *Client) LoginWithPassword(ctx context.Context, phone string, password s
 	request.Header.Set("Accept", "application/json")
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("X-API-KEY", c.apiKey)
+	request.Header.Set("Authorization", "Bearer "+c.apiToken)
 
 	response, err := c.httpClient.Do(request)
 	if err != nil {
@@ -280,7 +286,7 @@ func (c *Client) LoginWithPassword(ctx context.Context, phone string, password s
 }
 
 func (c *Client) ListRoles(ctx context.Context) ([]Role, error) {
-	if c.baseURL == "" || c.apiKey == "" || c.userRolesPath == "/" {
+	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.userRolesPath == "/" {
 		return nil, ErrRequestFailed
 	}
 
@@ -290,7 +296,9 @@ func (c *Client) ListRoles(ctx context.Context) ([]Role, error) {
 	}
 
 	request.Header.Set("Accept", "application/json")
+	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("X-API-KEY", c.apiKey)
+	request.Header.Set("Authorization", "Bearer "+c.apiToken)
 
 	response, err := c.httpClient.Do(request)
 	if err != nil {
@@ -311,7 +319,7 @@ func (c *Client) ListRoles(ctx context.Context) ([]Role, error) {
 }
 
 func (c *Client) ListCustomers(ctx context.Context, query CustomerListQuery) (CustomerListResult, error) {
-	if c.baseURL == "" || c.apiKey == "" || c.customersPath == "/" {
+	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.customersPath == "/" {
 		return CustomerListResult{}, ErrRequestFailed
 	}
 
@@ -326,7 +334,9 @@ func (c *Client) ListCustomers(ctx context.Context, query CustomerListQuery) (Cu
 	}
 
 	request.Header.Set("Accept", "application/json")
+	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("X-API-KEY", c.apiKey)
+	request.Header.Set("Authorization", "Bearer "+c.apiToken)
 
 	response, err := c.httpClient.Do(request)
 	if err != nil {

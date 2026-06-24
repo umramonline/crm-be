@@ -32,6 +32,7 @@ func main() {
 	umramonlineClient := umramonline.NewClient(umramonline.Config{
 		BaseURL:           cfg.UmramonlineBaseURL,
 		APIKey:            cfg.UmramonlineAPIKey,
+		APIToken:          cfg.UmramonlineAPIToken,
 		OTPRequestPath:    cfg.UmramonlineOTPRequestPath,
 		OTPVerifyPath:     cfg.UmramonlineOTPVerifyPath,
 		PasswordLoginPath: cfg.UmramonlinePasswordPath,
