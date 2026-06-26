@@ -87,6 +87,7 @@ type CustomerListQuery struct {
 	Ad         string
 	Soyad      string
 	BranchName string
+	ZoneName   string
 	PlusCardNo string
 	Source     string
 	City       string
@@ -113,6 +114,7 @@ type CustomerListItem struct {
 	Type         string  `json:"type"`
 	DaysSpending *int    `json:"daysSpending"`
 	DaysLoading  *int    `json:"daysLoading"`
+	ZoneName     string  `json:"zone_name"`
 }
 
 type Pagination struct {
@@ -175,6 +177,9 @@ func (c *Client) RequestOTP(ctx context.Context, phone string) error {
 		return ErrRequestFailed
 	}
 	defer response.Body.Close()
+
+	// responseBody, err := io.ReadAll(response.Body)
+	// fmt.Println(string(responseBody))
 
 	var apiResponse apiResponse
 	if err := json.NewDecoder(response.Body).Decode(&apiResponse); err != nil {
@@ -377,6 +382,7 @@ func customerListQueryValues(query CustomerListQuery) url.Values {
 	setQueryString(values, "ad", query.Ad)
 	setQueryString(values, "soyad", query.Soyad)
 	setQueryString(values, "branch_name", query.BranchName)
+	setQueryString(values, "zone_name", query.ZoneName)
 	setQueryString(values, "plus_card_no", query.PlusCardNo)
 	setQueryString(values, "source", query.Source)
 	setQueryString(values, "city", query.City)

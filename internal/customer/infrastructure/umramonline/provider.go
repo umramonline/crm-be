@@ -26,6 +26,7 @@ func (p *Provider) ListCustomers(ctx context.Context, query domain.ListQuery) (d
 		Ad:         query.Ad,
 		Soyad:      query.Soyad,
 		BranchName: query.BranchName,
+		ZoneName:   query.ZoneName,
 		PlusCardNo: query.PlusCardNo,
 		Source:     query.Source,
 		City:       query.City,
@@ -57,6 +58,7 @@ func (p *Provider) ListCustomers(ctx context.Context, query domain.ListQuery) (d
 			Type:         item.Type,
 			DaysSpending: item.DaysSpending,
 			DaysLoading:  item.DaysLoading,
+			ZoneName:     item.ZoneName,
 		})
 	}
 

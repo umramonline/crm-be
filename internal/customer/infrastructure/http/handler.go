@@ -32,6 +32,7 @@ func (h *Handler) ListCustomers(c *fiber.Ctx) error {
 		Ad:         c.Query("ad"),
 		Soyad:      c.Query("soyad"),
 		BranchName: c.Query("branch_name"),
+		ZoneName:   c.Query("zone_name"),
 		PlusCardNo: firstNonEmpty(c.Query("plus_card_no"), c.Query("no")),
 		Source:     c.Query("source"),
 		City:       firstNonEmpty(c.Query("city"), c.Query("title")),
