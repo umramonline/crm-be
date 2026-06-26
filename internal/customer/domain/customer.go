@@ -7,6 +7,7 @@ type Customer struct {
 	Ad           string  `json:"ad"`
 	Soyad        string  `json:"soyad"`
 	BranchName   string  `json:"branch_name"`
+	ZoneName     string  `json:"zone_name"`
 	PlusCardNo   string  `json:"plus_card_no"`
 	Credit       string  `json:"credit"`
 	Source       string  `json:"source"`

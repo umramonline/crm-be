@@ -49,6 +49,7 @@ func (p *Provider) ListCustomers(ctx context.Context, query domain.ListQuery) (d
 			Ad:           item.Ad,
 			Soyad:        item.Soyad,
 			BranchName:   item.BranchName,
+			ZoneName:     item.ZoneName,
 			PlusCardNo:   item.PlusCardNo,
 			Credit:       item.Credit,
 			Source:       item.Source,
