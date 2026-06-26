@@ -13,6 +13,12 @@ var customerMethodSeeds = []authorizationMethodSeed{
 		Method:      stringPointer("GET"),
 		Path:        stringPointer("/api/v1/customers"),
 	},
+	{
+		Name:        "customers.zones.list",
+		Description: "Müşteri filtresi için bölgeleri listeler.",
+		Method:      stringPointer("GET"),
+		Path:        stringPointer("/api/v1/zones"),
+	},
 }
 
 func SeedCustomers(db *gorm.DB) error {

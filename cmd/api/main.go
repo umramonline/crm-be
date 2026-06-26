@@ -38,6 +38,7 @@ func main() {
 		PasswordLoginPath: cfg.UmramonlinePasswordPath,
 		UserRolesPath:     cfg.UmramonlineUserRolesPath,
 		CustomersPath:     cfg.UmramonlineCustomersPath,
+		ZonesPath:         cfg.UmramonlineZonesPath,
 		Timeout:           cfg.UmramonlineTimeout(),
 	})
 	otpRequestService := authapp.NewOTPRequestService(umramonlineClient)

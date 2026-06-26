@@ -20,6 +20,7 @@ type Config struct {
 	UmramonlinePasswordPath   string `env:"UMRAMONLINE_PASSWORD_LOGIN_PATH" envDefault:"/api/v1/crm/auth/password/login"`
 	UmramonlineUserRolesPath  string `env:"UMRAMONLINE_USER_ROLES_PATH" envDefault:"/api/v1/crm/auth/user-roles"`
 	UmramonlineCustomersPath  string `env:"UMRAMONLINE_CUSTOMERS_PATH" envDefault:"/api/v1/crm/customers"`
+	UmramonlineZonesPath      string `env:"UMRAMONLINE_ZONES_PATH" envDefault:"/api/v1/crm/zones"`
 	UmramonlineTimeoutSeconds int    `env:"UMRAMONLINE_TIMEOUT_SECONDS" envDefault:"10"`
 	DatabaseDSN               string `env:"DATABASE_DSN"`
 	SessionTokenSecret        string `env:"SESSION_TOKEN_SECRET" envDefault:"dev-session-token-secret-change-me"`

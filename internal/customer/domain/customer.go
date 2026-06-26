@@ -16,7 +16,6 @@ type Customer struct {
 	Type         string  `json:"type"`
 	DaysSpending *int    `json:"days_spending,omitempty"`
 	DaysLoading  *int    `json:"days_loading,omitempty"`
-	ZoneName     string  `json:"zone_name"`
 }
 
 type Pagination struct {
@@ -42,7 +41,6 @@ type ListQuery struct {
 	Ad         string
 	Soyad      string
 	BranchName string
-	ZoneName   string
 	PlusCardNo string
 	Source     string
 	City       string
@@ -51,4 +49,5 @@ type ListQuery struct {
 	Type       string
 	SortBy     string
 	SortOrder  string
+	ZoneID     int
 }

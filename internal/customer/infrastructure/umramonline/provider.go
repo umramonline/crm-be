@@ -26,7 +26,6 @@ func (p *Provider) ListCustomers(ctx context.Context, query domain.ListQuery) (d
 		Ad:         query.Ad,
 		Soyad:      query.Soyad,
 		BranchName: query.BranchName,
-		ZoneName:   query.ZoneName,
 		PlusCardNo: query.PlusCardNo,
 		Source:     query.Source,
 		City:       query.City,
@@ -35,6 +34,7 @@ func (p *Provider) ListCustomers(ctx context.Context, query domain.ListQuery) (d
 		Type:       query.Type,
 		SortBy:     query.SortBy,
 		SortOrder:  query.SortOrder,
+		ZoneID:     query.ZoneID,
 	})
 	if err != nil {
 		return domain.ListResult{}, err
@@ -58,7 +58,6 @@ func (p *Provider) ListCustomers(ctx context.Context, query domain.ListQuery) (d
 			Type:         item.Type,
 			DaysSpending: item.DaysSpending,
 			DaysLoading:  item.DaysLoading,
-			ZoneName:     item.ZoneName,
 		})
 	}
 
@@ -73,6 +72,23 @@ func (p *Provider) ListCustomers(ctx context.Context, query domain.ListQuery) (d
 			To:          result.Pagination.To,
 		},
 	}, nil
+}
+
+func (p *Provider) ListZones(ctx context.Context) ([]domain.Zone, error) {
+	zones, err := p.client.ListZones(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]domain.Zone, 0, len(zones))
+	for _, zone := range zones {
+		result = append(result, domain.Zone{
+			ID:   zone.ID,
+			Name: zone.Name,
+		})
+	}
+
+	return result, nil
 }
 
 var _ customerapp.CustomerProvider = (*Provider)(nil)

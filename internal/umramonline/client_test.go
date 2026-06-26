@@ -144,6 +144,34 @@ func TestClientListCustomersForwardsQueryParameters(t *testing.T) {
 	}
 }
 
+func TestClientListZonesReturnsItemsForSuccessfulResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/crm/zones" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"success":true,"items":[{"id":1,"name":"Marmara"}]}`))
+	}))
+	t.Cleanup(server.Close)
+
+	client := NewClient(Config{
+		BaseURL:   server.URL,
+		APIKey:    "test-key",
+		ZonesPath: "/api/v1/crm/zones",
+	})
+
+	zones, err := client.ListZones(context.Background())
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+
+	if len(zones) != 1 || zones[0].Name != "Marmara" {
+		t.Fatalf("unexpected zones: %#v", zones)
+	}
+}
+
 func newCustomersTestClient(server *httptest.Server) *Client {
 	return NewClient(Config{
 		BaseURL:       server.URL,

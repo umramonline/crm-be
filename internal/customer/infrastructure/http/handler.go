@@ -20,6 +20,7 @@ func NewHandler(service *application.Service) *Handler {
 
 func (h *Handler) RegisterRoutes(router fiber.Router, authRequired fiber.Handler) {
 	router.Get("/customers", authRequired, h.ListCustomers)
+	router.Get("/zones", authRequired, h.ListZones)
 }
 
 func (h *Handler) ListCustomers(c *fiber.Ctx) error {
@@ -32,7 +33,6 @@ func (h *Handler) ListCustomers(c *fiber.Ctx) error {
 		Ad:         c.Query("ad"),
 		Soyad:      c.Query("soyad"),
 		BranchName: c.Query("branch_name"),
-		ZoneName:   c.Query("zone_name"),
 		PlusCardNo: firstNonEmpty(c.Query("plus_card_no"), c.Query("no")),
 		Source:     c.Query("source"),
 		City:       firstNonEmpty(c.Query("city"), c.Query("title")),
@@ -41,6 +41,7 @@ func (h *Handler) ListCustomers(c *fiber.Ctx) error {
 		Type:       c.Query("type"),
 		SortBy:     c.Query("sort_by"),
 		SortOrder:  c.Query("sort_order"),
+		ZoneID:     queryInt(c, "zone_id", 0),
 	}
 
 	result, err := h.service.ListCustomers(c.UserContext(), query)
@@ -51,6 +52,15 @@ func (h *Handler) ListCustomers(c *fiber.Ctx) error {
 	return response.Success(c, fiber.StatusOK, "Müşteriler getirildi.", result)
 }
 
+func (h *Handler) ListZones(c *fiber.Ctx) error {
+	zones, err := h.service.ListZones(c.UserContext())
+	if err != nil {
+		return response.Error(c, fiber.StatusServiceUnavailable, "Bölge listesi şu anda getirilemedi.", nil)
+	}
+
+	return response.Success(c, fiber.StatusOK, "Bölgeler getirildi.", fiber.Map{"items": zones})
+}
+
 func queryInt(c *fiber.Ctx, name string, defaultValue int) int {
 	value := c.Query(name)
 	if value == "" {
@@ -58,7 +68,19 @@ func queryInt(c *fiber.Ctx, name string, defaultValue int) int {
 	}
 
 	parsed, err := strconv.Atoi(value)
-	if err != nil || parsed <= 0 {
+	if err != nil {
+		return defaultValue
+	}
+
+	if name == "zone_id" {
+		if parsed < 0 {
+			return defaultValue
+		}
+
+		return parsed
+	}
+
+	if parsed <= 0 {
 		return defaultValue
 	}
 

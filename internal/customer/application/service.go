@@ -9,8 +9,11 @@ import (
 
 var ErrCustomerListUnavailable = errors.New("customer list unavailable")
 
+var ErrZoneListUnavailable = errors.New("zone list unavailable")
+
 type CustomerProvider interface {
 	ListCustomers(ctx context.Context, query domain.ListQuery) (domain.ListResult, error)
+	ListZones(ctx context.Context) ([]domain.Zone, error)
 }
 
 type Service struct {
@@ -27,4 +30,12 @@ func (s *Service) ListCustomers(ctx context.Context, query domain.ListQuery) (do
 	}
 
 	return s.provider.ListCustomers(ctx, query)
+}
+
+func (s *Service) ListZones(ctx context.Context) ([]domain.Zone, error) {
+	if s == nil || s.provider == nil {
+		return nil, ErrZoneListUnavailable
+	}
+
+	return s.provider.ListZones(ctx)
 }

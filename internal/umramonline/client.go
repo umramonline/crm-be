@@ -24,6 +24,7 @@ type Config struct {
 	PasswordLoginPath string
 	UserRolesPath     string
 	CustomersPath     string
+	ZonesPath         string
 	Timeout           time.Duration
 }
 
@@ -36,6 +37,7 @@ type Client struct {
 	passwordLoginPath string
 	userRolesPath     string
 	customersPath     string
+	zonesPath         string
 	httpClient        *http.Client
 }
 
@@ -70,6 +72,11 @@ type Role struct {
 	Name string `json:"name"`
 }
 
+type Zone struct {
+	ID   uint64 `json:"id"`
+	Name string `json:"name"`
+}
+
 type User struct {
 	ID       uint64 `json:"id"`
 	Name     string `json:"name"`
@@ -87,7 +94,6 @@ type CustomerListQuery struct {
 	Ad         string
 	Soyad      string
 	BranchName string
-	ZoneName   string
 	PlusCardNo string
 	Source     string
 	City       string
@@ -96,6 +102,7 @@ type CustomerListQuery struct {
 	Type       string
 	SortBy     string
 	SortOrder  string
+	ZoneID     int
 }
 
 type CustomerListItem struct {
@@ -114,7 +121,6 @@ type CustomerListItem struct {
 	Type         string  `json:"type"`
 	DaysSpending *int    `json:"daysSpending"`
 	DaysLoading  *int    `json:"daysLoading"`
-	ZoneName     string  `json:"zone_name"`
 }
 
 type Pagination struct {
@@ -146,6 +152,7 @@ func NewClient(config Config) *Client {
 		passwordLoginPath: "/" + strings.Trim(config.PasswordLoginPath, "/"),
 		userRolesPath:     "/" + strings.Trim(config.UserRolesPath, "/"),
 		customersPath:     "/" + strings.Trim(config.CustomersPath, "/"),
+		zonesPath:         "/" + strings.Trim(config.ZonesPath, "/"),
 		httpClient: &http.Client{
 			Timeout: timeout,
 		},
@@ -177,9 +184,6 @@ func (c *Client) RequestOTP(ctx context.Context, phone string) error {
 		return ErrRequestFailed
 	}
 	defer response.Body.Close()
-
-	// responseBody, err := io.ReadAll(response.Body)
-	// fmt.Println(string(responseBody))
 
 	var apiResponse apiResponse
 	if err := json.NewDecoder(response.Body).Decode(&apiResponse); err != nil {
@@ -323,6 +327,39 @@ func (c *Client) ListRoles(ctx context.Context) ([]Role, error) {
 	return apiResponse.Items, nil
 }
 
+func (c *Client) ListZones(ctx context.Context) ([]Zone, error) {
+	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.zonesPath == "/" {
+		return nil, ErrRequestFailed
+	}
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+c.zonesPath, nil)
+	if err != nil {
+		return nil, ErrRequestFailed
+	}
+
+	request.Header.Set("Accept", "application/json")
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-API-KEY", c.apiKey)
+	request.Header.Set("Authorization", "Bearer "+c.apiToken)
+
+	response, err := c.httpClient.Do(request)
+	if err != nil {
+		return nil, ErrRequestFailed
+	}
+	defer response.Body.Close()
+
+	var apiResponse listResponse[Zone]
+	if err := json.NewDecoder(response.Body).Decode(&apiResponse); err != nil {
+		return nil, ErrRequestFailed
+	}
+
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices || !apiResponse.Success {
+		return nil, fmt.Errorf("%w: status=%d", ErrRequestFailed, response.StatusCode)
+	}
+
+	return apiResponse.Items, nil
+}
+
 func (c *Client) ListCustomers(ctx context.Context, query CustomerListQuery) (CustomerListResult, error) {
 	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.customersPath == "/" {
 		return CustomerListResult{}, ErrRequestFailed
@@ -382,7 +419,6 @@ func customerListQueryValues(query CustomerListQuery) url.Values {
 	setQueryString(values, "ad", query.Ad)
 	setQueryString(values, "soyad", query.Soyad)
 	setQueryString(values, "branch_name", query.BranchName)
-	setQueryString(values, "zone_name", query.ZoneName)
 	setQueryString(values, "plus_card_no", query.PlusCardNo)
 	setQueryString(values, "source", query.Source)
 	setQueryString(values, "city", query.City)
@@ -391,6 +427,7 @@ func customerListQueryValues(query CustomerListQuery) url.Values {
 	setQueryString(values, "type", query.Type)
 	setQueryString(values, "sort_by", query.SortBy)
 	setQueryString(values, "sort_order", query.SortOrder)
+	setQueryInt(values, "zone_id", query.ZoneID)
 
 	return values
 }
