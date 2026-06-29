@@ -1,6 +1,7 @@
 package domain
 
 type Customer struct {
+	ID           uint64  `json:"id"`
 	Situation    string  `json:"situation"`
 	Unvan        string  `json:"unvan"`
 	Cep          string  `json:"cep"`

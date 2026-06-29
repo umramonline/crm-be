@@ -43,6 +43,7 @@ func (p *Provider) ListCustomers(ctx context.Context, query domain.ListQuery) (d
 	items := make([]domain.Customer, 0, len(result.Items))
 	for _, item := range result.Items {
 		items = append(items, domain.Customer{
+			ID:           item.ID,
 			Situation:    item.Situation,
 			Unvan:        item.Unvan,
 			Cep:          item.Cep,
@@ -116,6 +117,32 @@ func (p *Provider) SearchCustomer(ctx context.Context, query string) (domain.Cus
 		Type:       customer.Type,
 		CreatedAt:  customer.CreatedAt,
 	}, true, nil
+}
+
+func (p *Provider) GetCustomer(ctx context.Context, id uint64) (domain.CustomerDetail, error) {
+	customer, err := p.client.GetCustomer(ctx, id)
+	if err != nil {
+		return domain.CustomerDetail{}, err
+	}
+
+	return domain.CustomerDetail{
+		ID:         customer.ID,
+		UOId:       customer.UOId,
+		BranchID:   customer.BranchID,
+		Unvan:      customer.Unvan,
+		Ad:         customer.Ad,
+		Soyad:      customer.Soyad,
+		YetkiliAdi: customer.YetkiliAdi,
+		Cep:        customer.Cep,
+		Telefon:    customer.Telefon,
+		Mahalle:    customer.Mahalle,
+		IlKodu:     customer.IlKodu,
+		IlceKodu:   customer.IlceKodu,
+		VergiNo:    customer.VergiNo,
+		TCNo:       customer.TCNo,
+		Type:       customer.Type,
+		CreatedAt:  customer.CreatedAt,
+	}, nil
 }
 
 func (p *Provider) PhoneExists(ctx context.Context, phone string) (bool, error) {

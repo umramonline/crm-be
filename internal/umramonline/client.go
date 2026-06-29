@@ -160,6 +160,7 @@ type CustomerListQuery struct {
 }
 
 type CustomerListItem struct {
+	ID           uint64         `json:"id"`
 	Situation    string         `json:"situation"`
 	Unvan        string         `json:"unvan"`
 	Cep          string         `json:"cep"`
@@ -558,6 +559,23 @@ func (c *Client) ListCustomers(ctx context.Context, query CustomerListQuery) (Cu
 		Items:      apiResponse.Items,
 		Pagination: apiResponse.Pagination,
 	}, nil
+}
+
+func (c *Client) GetCustomer(ctx context.Context, id uint64) (CustomerSearchItem, error) {
+	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.customersPath == "/" || id == 0 {
+		return CustomerSearchItem{}, ErrRequestFailed
+	}
+
+	var apiResponse customerSearchResponse
+	if err := c.getJSON(ctx, c.customersPath+"/"+strconv.FormatUint(id, 10), nil, &apiResponse); err != nil {
+		return CustomerSearchItem{}, err
+	}
+
+	if apiResponse.Data == nil {
+		return CustomerSearchItem{}, ErrRequestFailed
+	}
+
+	return *apiResponse.Data, nil
 }
 
 type customerListResponse struct {

@@ -22,6 +22,7 @@ func (h *Handler) RegisterRoutes(router fiber.Router, authRequired fiber.Handler
 	router.Get("/customers", authRequired, h.ListCustomers)
 	router.Post("/customers", authRequired, h.CreateCustomer)
 	router.Get("/customers/search", authRequired, h.SearchCustomer)
+	router.Get("/customers/:id", authRequired, h.GetCustomer)
 	router.Get("/zones", authRequired, h.ListZones)
 	router.Get("/cities", authRequired, h.ListCities)
 	router.Get("/towns", authRequired, h.ListTowns)
@@ -69,6 +70,15 @@ func (h *Handler) ListCustomers(c *fiber.Ctx) error {
 	}
 
 	return response.Success(c, fiber.StatusOK, "Müşteriler getirildi.", result)
+}
+
+func (h *Handler) GetCustomer(c *fiber.Ctx) error {
+	customer, err := h.service.GetCustomer(c.UserContext(), paramUint64(c, "id", 0))
+	if err != nil {
+		return response.Error(c, fiber.StatusServiceUnavailable, "Müşteri detayı şu anda getirilemedi.", nil)
+	}
+
+	return response.Success(c, fiber.StatusOK, "Müşteri detayı getirildi.", customer)
 }
 
 func (h *Handler) CreateCustomer(c *fiber.Ctx) error {
@@ -182,6 +192,20 @@ func queryInt(c *fiber.Ctx, name string, defaultValue int) int {
 
 func queryUint64(c *fiber.Ctx, name string, defaultValue uint64) uint64 {
 	value := c.Query(name)
+	if value == "" {
+		return defaultValue
+	}
+
+	parsed, err := strconv.ParseUint(value, 10, 64)
+	if err != nil {
+		return defaultValue
+	}
+
+	return parsed
+}
+
+func paramUint64(c *fiber.Ctx, name string, defaultValue uint64) uint64 {
+	value := c.Params(name)
 	if value == "" {
 		return defaultValue
 	}

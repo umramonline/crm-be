@@ -33,6 +33,7 @@ type CustomerProvider interface {
 	ListCustomers(ctx context.Context, query domain.ListQuery) (domain.ListResult, error)
 	ListZones(ctx context.Context) ([]domain.Zone, error)
 	SearchCustomer(ctx context.Context, query string) (domain.CustomerDetail, bool, error)
+	GetCustomer(ctx context.Context, id uint64) (domain.CustomerDetail, error)
 	PhoneExists(ctx context.Context, phone string) (bool, error)
 	ListCities(ctx context.Context) ([]domain.City, error)
 	ListTowns(ctx context.Context, cityID uint64) ([]domain.Town, error)
@@ -73,6 +74,14 @@ func (s *Service) ListZones(ctx context.Context) ([]domain.Zone, error) {
 	}
 
 	return s.provider.ListZones(ctx)
+}
+
+func (s *Service) GetCustomer(ctx context.Context, id uint64) (domain.CustomerDetail, error) {
+	if s == nil || s.provider == nil || id == 0 {
+		return domain.CustomerDetail{}, ErrCustomerSearchUnavailable
+	}
+
+	return s.provider.GetCustomer(ctx, id)
 }
 
 func (s *Service) SearchCustomer(ctx context.Context, query string) (domain.CustomerSearchResult, error) {
