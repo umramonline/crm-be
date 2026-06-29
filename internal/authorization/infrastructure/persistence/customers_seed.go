@@ -14,6 +14,18 @@ var customerMethodSeeds = []authorizationMethodSeed{
 		Path:        stringPointer("/api/v1/customers"),
 	},
 	{
+		Name:        "customers.list.umramonline",
+		Description: "Umramonline müşteri listesini görüntüler.",
+		Method:      stringPointer("GET"),
+		Path:        stringPointer("/api/v1/customers/umramonline"),
+	},
+	{
+		Name:        "customers.list.backend",
+		Description: "Backend veritabanındaki müşteri listesini görüntüler.",
+		Method:      stringPointer("GET"),
+		Path:        stringPointer("/api/v1/customers/backend"),
+	},
+	{
 		Name:        "customers.search",
 		Description: "Müşteri giriş ekranında müşteriyi arar.",
 		Method:      stringPointer("GET"),
@@ -24,6 +36,18 @@ var customerMethodSeeds = []authorizationMethodSeed{
 		Description: "Müşteri detayını görüntüler.",
 		Method:      stringPointer("GET"),
 		Path:        stringPointer("/api/v1/customers/:id"),
+	},
+	{
+		Name:        "customers.detail.umramonline",
+		Description: "Umramonline müşteri detayını görüntüler.",
+		Method:      stringPointer("GET"),
+		Path:        stringPointer("/api/v1/customers/umramonline/:id"),
+	},
+	{
+		Name:        "customers.detail.backend",
+		Description: "Backend veritabanındaki müşteri detayını görüntüler.",
+		Method:      stringPointer("GET"),
+		Path:        stringPointer("/api/v1/customers/backend/:id"),
 	},
 	{
 		Name:        "customers.create",

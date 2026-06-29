@@ -94,6 +94,7 @@ type ListResult struct {
 type ListQuery struct {
 	Page       int
 	PerPage    int
+	DataSource string
 	Situation  string
 	Unvan      string
 	Cep        string
@@ -109,4 +110,7 @@ type ListQuery struct {
 	SortBy     string
 	SortOrder  string
 	ZoneID     int
+	BranchIDs  []int32
+	CityIDs    []string
+	TownIDs    []string
 }

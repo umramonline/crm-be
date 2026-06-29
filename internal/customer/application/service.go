@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/umran/new.crm/backend/internal/customer/domain"
@@ -41,7 +42,9 @@ type CustomerProvider interface {
 }
 
 type CustomerRepository interface {
+	ListCustomers(ctx context.Context, query domain.ListQuery) (domain.ListResult, error)
 	SearchCustomer(ctx context.Context, query string) (domain.CustomerDetail, bool, error)
+	GetCustomer(ctx context.Context, id uint64) (domain.CustomerDetail, error)
 	PhoneExists(ctx context.Context, phone string) (bool, error)
 	CreateCustomer(ctx context.Context, input domain.CreateCustomerInput) (domain.CustomerDetail, error)
 }
@@ -65,6 +68,14 @@ func (s *Service) ListCustomers(ctx context.Context, query domain.ListQuery) (do
 		return domain.ListResult{}, ErrCustomerListUnavailable
 	}
 
+	if customerDataSource(query.DataSource) == "backend" {
+		if s.repository == nil {
+			return domain.ListResult{}, ErrCustomerListUnavailable
+		}
+
+		return s.listBackendCustomers(ctx, query)
+	}
+
 	return s.provider.ListCustomers(ctx, query)
 }
 
@@ -76,9 +87,17 @@ func (s *Service) ListZones(ctx context.Context) ([]domain.Zone, error) {
 	return s.provider.ListZones(ctx)
 }
 
-func (s *Service) GetCustomer(ctx context.Context, id uint64) (domain.CustomerDetail, error) {
+func (s *Service) GetCustomer(ctx context.Context, id uint64, dataSource string) (domain.CustomerDetail, error) {
 	if s == nil || s.provider == nil || id == 0 {
 		return domain.CustomerDetail{}, ErrCustomerSearchUnavailable
+	}
+
+	if customerDataSource(dataSource) == "backend" {
+		if s.repository == nil {
+			return domain.CustomerDetail{}, ErrCustomerSearchUnavailable
+		}
+
+		return s.repository.GetCustomer(ctx, id)
 	}
 
 	return s.provider.GetCustomer(ctx, id)
@@ -193,6 +212,176 @@ func (s *Service) ListBranches(ctx context.Context) ([]domain.Branch, error) {
 	}
 
 	return s.provider.ListBranches(ctx)
+}
+
+func (s *Service) listBackendCustomers(ctx context.Context, query domain.ListQuery) (domain.ListResult, error) {
+	if query.Situation != "" && query.Situation != "Potansiyel Müşteri" {
+		return emptyListResult(query), nil
+	}
+
+	if query.Source != "" && query.Source != "Manuel" {
+		return emptyListResult(query), nil
+	}
+
+	if strings.TrimSpace(query.PlusCardNo) != "" {
+		return emptyListResult(query), nil
+	}
+
+	branches, err := s.provider.ListBranches(ctx)
+	if err != nil {
+		return domain.ListResult{}, ErrCustomerListUnavailable
+	}
+
+	cities, err := s.provider.ListCities(ctx)
+	if err != nil {
+		return domain.ListResult{}, ErrCustomerListUnavailable
+	}
+
+	towns, err := s.provider.ListTowns(ctx, 0)
+	if err != nil {
+		return domain.ListResult{}, ErrCustomerListUnavailable
+	}
+
+	localQuery := query
+	localQuery.BranchIDs = matchingBranchIDs(branches, query.BranchName)
+	localQuery.CityIDs = matchingCityIDs(cities, query.City)
+	localQuery.TownIDs = matchingTownIDs(towns, query.Town)
+
+	if strings.TrimSpace(query.BranchName) != "" && len(localQuery.BranchIDs) == 0 {
+		return emptyListResult(query), nil
+	}
+
+	if strings.TrimSpace(query.City) != "" && len(localQuery.CityIDs) == 0 {
+		return emptyListResult(query), nil
+	}
+
+	if strings.TrimSpace(query.Town) != "" && len(localQuery.TownIDs) == 0 {
+		return emptyListResult(query), nil
+	}
+
+	result, err := s.repository.ListCustomers(ctx, localQuery)
+	if err != nil {
+		return domain.ListResult{}, ErrCustomerListUnavailable
+	}
+
+	branchNames := branchNameMap(branches)
+	cityNames := cityNameMap(cities)
+	townNames := townNameMap(towns)
+	for index := range result.Items {
+		result.Items[index].Situation = "Potansiyel Müşteri"
+		result.Items[index].Source = "Manuel"
+		result.Items[index].BranchName = branchNames[result.Items[index].BranchName]
+		result.Items[index].City = cityNames[result.Items[index].City]
+		result.Items[index].Town = townNames[result.Items[index].Town]
+	}
+
+	return result, nil
+}
+
+func customerDataSource(dataSource string) string {
+	normalizedDataSource := strings.ToLower(strings.TrimSpace(dataSource))
+	if normalizedDataSource == "backend" {
+		return "backend"
+	}
+
+	return "umramonline"
+}
+
+func emptyListResult(query domain.ListQuery) domain.ListResult {
+	page := query.Page
+	if page <= 0 {
+		page = 1
+	}
+
+	perPage := query.PerPage
+	if perPage <= 0 {
+		perPage = 10
+	}
+
+	return domain.ListResult{
+		Items: []domain.Customer{},
+		Pagination: domain.Pagination{
+			CurrentPage: page,
+			LastPage:    1,
+			PerPage:     perPage,
+			Total:       0,
+		},
+	}
+}
+
+func matchingBranchIDs(branches []domain.Branch, query string) []int32 {
+	normalizedQuery := strings.ToLower(strings.TrimSpace(query))
+	if normalizedQuery == "" {
+		return nil
+	}
+
+	ids := []int32{}
+	for _, branch := range branches {
+		if strings.Contains(strings.ToLower(branch.Name), normalizedQuery) || strings.Contains(strings.ToLower(branch.Title), normalizedQuery) {
+			ids = append(ids, int32(branch.ID))
+		}
+	}
+
+	return ids
+}
+
+func matchingCityIDs(cities []domain.City, query string) []string {
+	normalizedQuery := strings.ToLower(strings.TrimSpace(query))
+	if normalizedQuery == "" {
+		return nil
+	}
+
+	ids := []string{}
+	for _, city := range cities {
+		if strings.Contains(strings.ToLower(city.Title), normalizedQuery) {
+			ids = append(ids, strconv.FormatUint(city.ID, 10))
+		}
+	}
+
+	return ids
+}
+
+func matchingTownIDs(towns []domain.Town, query string) []string {
+	normalizedQuery := strings.ToLower(strings.TrimSpace(query))
+	if normalizedQuery == "" {
+		return nil
+	}
+
+	ids := []string{}
+	for _, town := range towns {
+		if strings.Contains(strings.ToLower(town.Title), normalizedQuery) {
+			ids = append(ids, strconv.FormatUint(town.ID, 10))
+		}
+	}
+
+	return ids
+}
+
+func branchNameMap(branches []domain.Branch) map[string]string {
+	names := map[string]string{}
+	for _, branch := range branches {
+		names[strconv.FormatUint(branch.ID, 10)] = branch.Name
+	}
+
+	return names
+}
+
+func cityNameMap(cities []domain.City) map[string]string {
+	names := map[string]string{}
+	for _, city := range cities {
+		names[strconv.FormatUint(city.ID, 10)] = city.Title
+	}
+
+	return names
+}
+
+func townNameMap(towns []domain.Town) map[string]string {
+	names := map[string]string{}
+	for _, town := range towns {
+		names[strconv.FormatUint(town.ID, 10)] = town.Title
+	}
+
+	return names
 }
 
 func normalizeCreateCustomerInput(input domain.CreateCustomerInput) domain.CreateCustomerInput {

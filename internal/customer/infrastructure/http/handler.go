@@ -22,6 +22,10 @@ func (h *Handler) RegisterRoutes(router fiber.Router, authRequired fiber.Handler
 	router.Get("/customers", authRequired, h.ListCustomers)
 	router.Post("/customers", authRequired, h.CreateCustomer)
 	router.Get("/customers/search", authRequired, h.SearchCustomer)
+	router.Get("/customers/backend", authRequired, h.ListBackendCustomers)
+	router.Get("/customers/backend/:id", authRequired, h.GetBackendCustomer)
+	router.Get("/customers/umramonline", authRequired, h.ListUmramonlineCustomers)
+	router.Get("/customers/umramonline/:id", authRequired, h.GetUmramonlineCustomer)
 	router.Get("/customers/:id", authRequired, h.GetCustomer)
 	router.Get("/zones", authRequired, h.ListZones)
 	router.Get("/cities", authRequired, h.ListCities)
@@ -44,9 +48,22 @@ type createCustomerRequest struct {
 }
 
 func (h *Handler) ListCustomers(c *fiber.Ctx) error {
+	return h.listCustomers(c, c.Query("data_source"))
+}
+
+func (h *Handler) ListBackendCustomers(c *fiber.Ctx) error {
+	return h.listCustomers(c, "backend")
+}
+
+func (h *Handler) ListUmramonlineCustomers(c *fiber.Ctx) error {
+	return h.listCustomers(c, "umramonline")
+}
+
+func (h *Handler) listCustomers(c *fiber.Ctx, dataSource string) error {
 	query := domain.ListQuery{
 		Page:       queryInt(c, "page", 1),
 		PerPage:    queryInt(c, "per_page", 10),
+		DataSource: dataSource,
 		Situation:  c.Query("situation"),
 		Unvan:      c.Query("unvan"),
 		Cep:        c.Query("cep"),
@@ -73,7 +90,25 @@ func (h *Handler) ListCustomers(c *fiber.Ctx) error {
 }
 
 func (h *Handler) GetCustomer(c *fiber.Ctx) error {
-	customer, err := h.service.GetCustomer(c.UserContext(), paramUint64(c, "id", 0))
+	customer, err := h.service.GetCustomer(c.UserContext(), paramUint64(c, "id", 0), c.Query("data_source"))
+	if err != nil {
+		return response.Error(c, fiber.StatusServiceUnavailable, "Müşteri detayı şu anda getirilemedi.", nil)
+	}
+
+	return response.Success(c, fiber.StatusOK, "Müşteri detayı getirildi.", customer)
+}
+
+func (h *Handler) GetBackendCustomer(c *fiber.Ctx) error {
+	customer, err := h.service.GetCustomer(c.UserContext(), paramUint64(c, "id", 0), "backend")
+	if err != nil {
+		return response.Error(c, fiber.StatusServiceUnavailable, "Müşteri detayı şu anda getirilemedi.", nil)
+	}
+
+	return response.Success(c, fiber.StatusOK, "Müşteri detayı getirildi.", customer)
+}
+
+func (h *Handler) GetUmramonlineCustomer(c *fiber.Ctx) error {
+	customer, err := h.service.GetCustomer(c.UserContext(), paramUint64(c, "id", 0), "umramonline")
 	if err != nil {
 		return response.Error(c, fiber.StatusServiceUnavailable, "Müşteri detayı şu anda getirilemedi.", nil)
 	}
