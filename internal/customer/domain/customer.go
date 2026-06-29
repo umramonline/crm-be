@@ -19,6 +19,49 @@ type Customer struct {
 	DaysLoading  *int    `json:"days_loading,omitempty"`
 }
 
+type CustomerDetail struct {
+	ID         uint64  `json:"id"`
+	UOId       uint64  `json:"uo_id,omitempty"`
+	BranchID   *int32  `json:"branch_id,omitempty"`
+	Unvan      string  `json:"unvan"`
+	Ad         string  `json:"ad"`
+	Soyad      string  `json:"soyad"`
+	YetkiliAdi string  `json:"yetkili_adi"`
+	Cep        string  `json:"cep"`
+	Telefon    string  `json:"telefon"`
+	Mahalle    string  `json:"mahalle"`
+	IlKodu     string  `json:"il_kodu"`
+	IlceKodu   string  `json:"ilce_kodu"`
+	VergiNo    string  `json:"vergi_no"`
+	TCNo       string  `json:"tc_no"`
+	Type       string  `json:"type"`
+	CreatedAt  *string `json:"created_at,omitempty"`
+}
+
+type CustomerSearchResult struct {
+	Found    bool            `json:"found"`
+	Source   string          `json:"source,omitempty"`
+	Customer *CustomerDetail `json:"customer,omitempty"`
+}
+
+type City struct {
+	ID    uint64 `json:"id"`
+	Title string `json:"title"`
+}
+
+type Town struct {
+	ID        uint64 `json:"id"`
+	Title     string `json:"title"`
+	CityID    uint64 `json:"city_id"`
+	CityTitle string `json:"city_title,omitempty"`
+}
+
+type Branch struct {
+	ID    uint64 `json:"id"`
+	Name  string `json:"name"`
+	Title string `json:"title,omitempty"`
+}
+
 type Pagination struct {
 	CurrentPage int  `json:"current_page"`
 	LastPage    int  `json:"last_page"`

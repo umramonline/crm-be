@@ -51,7 +51,7 @@ func (p *Provider) ListCustomers(ctx context.Context, query domain.ListQuery) (d
 			BranchName:   item.BranchName,
 			ZoneName:     item.ZoneName,
 			PlusCardNo:   item.PlusCardNo,
-			Credit:       item.Credit,
+			Credit:       string(item.Credit),
 			Source:       item.Source,
 			City:         item.City,
 			Town:         item.Town,
@@ -86,6 +86,86 @@ func (p *Provider) ListZones(ctx context.Context) ([]domain.Zone, error) {
 		result = append(result, domain.Zone{
 			ID:   zone.ID,
 			Name: zone.Name,
+		})
+	}
+
+	return result, nil
+}
+
+func (p *Provider) SearchCustomer(ctx context.Context, query string) (domain.CustomerDetail, bool, error) {
+	customer, found, err := p.client.SearchCustomer(ctx, query)
+	if err != nil || !found {
+		return domain.CustomerDetail{}, false, err
+	}
+
+	return domain.CustomerDetail{
+		ID:         customer.ID,
+		UOId:       customer.UOId,
+		BranchID:   customer.BranchID,
+		Unvan:      customer.Unvan,
+		Ad:         customer.Ad,
+		Soyad:      customer.Soyad,
+		YetkiliAdi: customer.YetkiliAdi,
+		Cep:        customer.Cep,
+		Telefon:    customer.Telefon,
+		Mahalle:    customer.Mahalle,
+		IlKodu:     customer.IlKodu,
+		IlceKodu:   customer.IlceKodu,
+		VergiNo:    customer.VergiNo,
+		TCNo:       customer.TCNo,
+		Type:       customer.Type,
+		CreatedAt:  customer.CreatedAt,
+	}, true, nil
+}
+
+func (p *Provider) ListCities(ctx context.Context) ([]domain.City, error) {
+	cities, err := p.client.ListCities(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]domain.City, 0, len(cities))
+	for _, city := range cities {
+		result = append(result, domain.City{
+			ID:    city.ID,
+			Title: city.Title,
+		})
+	}
+
+	return result, nil
+}
+
+func (p *Provider) ListTowns(ctx context.Context, cityID uint64) ([]domain.Town, error) {
+	towns, err := p.client.ListTowns(ctx, cityID)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]domain.Town, 0, len(towns))
+	for _, town := range towns {
+		result = append(result, domain.Town{
+			ID:        town.ID,
+			Title:     town.Title,
+			CityID:    town.CityID,
+			CityTitle: town.CityTitle,
+		})
+	}
+
+	return result, nil
+}
+
+func (p *Provider) ListBranches(ctx context.Context) ([]domain.Branch, error) {
+	branches, err := p.client.ListBranches(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]domain.Branch, 0, len(branches))
+	for _, branch := range branches {
+		result = append(result, domain.Branch{
+			ID:    branch.ID,
+			Name:  branch.Name,
+			Title: branch.Title,
 		})
 	}
 

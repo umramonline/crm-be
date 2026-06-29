@@ -20,7 +20,11 @@ func NewHandler(service *application.Service) *Handler {
 
 func (h *Handler) RegisterRoutes(router fiber.Router, authRequired fiber.Handler) {
 	router.Get("/customers", authRequired, h.ListCustomers)
+	router.Get("/customers/search", authRequired, h.SearchCustomer)
 	router.Get("/zones", authRequired, h.ListZones)
+	router.Get("/cities", authRequired, h.ListCities)
+	router.Get("/towns", authRequired, h.ListTowns)
+	router.Get("/branches", authRequired, h.ListBranches)
 }
 
 func (h *Handler) ListCustomers(c *fiber.Ctx) error {
@@ -52,6 +56,21 @@ func (h *Handler) ListCustomers(c *fiber.Ctx) error {
 	return response.Success(c, fiber.StatusOK, "Müşteriler getirildi.", result)
 }
 
+func (h *Handler) SearchCustomer(c *fiber.Ctx) error {
+	result, err := h.service.SearchCustomer(c.UserContext(), c.Query("q"))
+	if err != nil {
+		if err == application.ErrInvalidCustomerSearchQuery {
+			return response.Error(c, fiber.StatusUnprocessableEntity, "Arama metni zorunludur.", fiber.Map{
+				"q": "Arama metni zorunludur.",
+			})
+		}
+
+		return response.Error(c, fiber.StatusServiceUnavailable, "Müşteri araması şu anda yapılamıyor.", nil)
+	}
+
+	return response.Success(c, fiber.StatusOK, "Müşteri araması tamamlandı.", result)
+}
+
 func (h *Handler) ListZones(c *fiber.Ctx) error {
 	zones, err := h.service.ListZones(c.UserContext())
 	if err != nil {
@@ -59,6 +78,33 @@ func (h *Handler) ListZones(c *fiber.Ctx) error {
 	}
 
 	return response.Success(c, fiber.StatusOK, "Bölgeler getirildi.", fiber.Map{"items": zones})
+}
+
+func (h *Handler) ListCities(c *fiber.Ctx) error {
+	cities, err := h.service.ListCities(c.UserContext())
+	if err != nil {
+		return response.Error(c, fiber.StatusServiceUnavailable, "Şehir listesi şu anda getirilemedi.", nil)
+	}
+
+	return response.Success(c, fiber.StatusOK, "Şehirler getirildi.", fiber.Map{"items": cities})
+}
+
+func (h *Handler) ListTowns(c *fiber.Ctx) error {
+	towns, err := h.service.ListTowns(c.UserContext(), queryUint64(c, "city_id", 0))
+	if err != nil {
+		return response.Error(c, fiber.StatusServiceUnavailable, "İlçe listesi şu anda getirilemedi.", nil)
+	}
+
+	return response.Success(c, fiber.StatusOK, "İlçeler getirildi.", fiber.Map{"items": towns})
+}
+
+func (h *Handler) ListBranches(c *fiber.Ctx) error {
+	branches, err := h.service.ListBranches(c.UserContext())
+	if err != nil {
+		return response.Error(c, fiber.StatusServiceUnavailable, "Bayi listesi şu anda getirilemedi.", nil)
+	}
+
+	return response.Success(c, fiber.StatusOK, "Bayiler getirildi.", fiber.Map{"items": branches})
 }
 
 func queryInt(c *fiber.Ctx, name string, defaultValue int) int {
@@ -81,6 +127,20 @@ func queryInt(c *fiber.Ctx, name string, defaultValue int) int {
 	}
 
 	if parsed <= 0 {
+		return defaultValue
+	}
+
+	return parsed
+}
+
+func queryUint64(c *fiber.Ctx, name string, defaultValue uint64) uint64 {
+	value := c.Query(name)
+	if value == "" {
+		return defaultValue
+	}
+
+	parsed, err := strconv.ParseUint(value, 10, 64)
+	if err != nil {
 		return defaultValue
 	}
 

@@ -159,6 +159,7 @@ func TestClientListZonesReturnsItemsForSuccessfulResponse(t *testing.T) {
 	client := NewClient(Config{
 		BaseURL:   server.URL,
 		APIKey:    "test-key",
+		APIToken:  "test-token",
 		ZonesPath: "/api/v1/crm/zones",
 	})
 
@@ -176,6 +177,7 @@ func newCustomersTestClient(server *httptest.Server) *Client {
 	return NewClient(Config{
 		BaseURL:       server.URL,
 		APIKey:        "test-key",
+		APIToken:      "test-token",
 		CustomersPath: "/api/v1/crm/customers",
 	})
 }
@@ -206,6 +208,7 @@ func newTestClient(server *httptest.Server) *Client {
 	return NewClient(Config{
 		BaseURL:           server.URL,
 		APIKey:            "test-key",
+		APIToken:          "test-token",
 		OTPRequestPath:    "/api/v1/crm/auth/otp/request",
 		OTPVerifyPath:     "/api/v1/crm/auth/otp/verify",
 		PasswordLoginPath: "/api/v1/crm/auth/password/login",

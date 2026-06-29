@@ -30,22 +30,27 @@ func main() {
 	}
 
 	umramonlineClient := umramonline.NewClient(umramonline.Config{
-		BaseURL:           cfg.UmramonlineBaseURL,
-		APIKey:            cfg.UmramonlineAPIKey,
-		APIToken:          cfg.UmramonlineAPIToken,
-		OTPRequestPath:    cfg.UmramonlineOTPRequestPath,
-		OTPVerifyPath:     cfg.UmramonlineOTPVerifyPath,
-		PasswordLoginPath: cfg.UmramonlinePasswordPath,
-		UserRolesPath:     cfg.UmramonlineUserRolesPath,
-		CustomersPath:     cfg.UmramonlineCustomersPath,
-		ZonesPath:         cfg.UmramonlineZonesPath,
-		Timeout:           cfg.UmramonlineTimeout(),
+		BaseURL:            cfg.UmramonlineBaseURL,
+		APIKey:             cfg.UmramonlineAPIKey,
+		APIToken:           cfg.UmramonlineAPIToken,
+		OTPRequestPath:     cfg.UmramonlineOTPRequestPath,
+		OTPVerifyPath:      cfg.UmramonlineOTPVerifyPath,
+		PasswordLoginPath:  cfg.UmramonlinePasswordPath,
+		UserRolesPath:      cfg.UmramonlineUserRolesPath,
+		CustomersPath:      cfg.UmramonlineCustomersPath,
+		CustomerSearchPath: cfg.UmramonlineCustomerSearchPath,
+		ZonesPath:          cfg.UmramonlineZonesPath,
+		CitiesPath:         cfg.UmramonlineCitiesPath,
+		TownsPath:          cfg.UmramonlineTownsPath,
+		BranchesPath:       cfg.UmramonlineBranchesPath,
+		Timeout:            cfg.UmramonlineTimeout(),
 	})
 	otpRequestService := authapp.NewOTPRequestService(umramonlineClient)
 	sessionTokenService := authapp.NewSessionTokenService(cfg.SessionTokenSecret)
 	authorizationProvider := authzumramonline.NewProvider(umramonlineClient)
 	var permissionRepository authzapp.PermissionRepository
 	var moduleRepository authzapp.ModuleRepository
+	var customerRepository customerapp.CustomerRepository
 	if cfg.DatabaseDSN != "" {
 		db, err := dbpersistence.OpenMySQL(cfg.DatabaseDSN)
 		if err != nil {
@@ -71,6 +76,7 @@ func main() {
 		authorizationRepository := authzpersistence.NewRepository(db)
 		permissionRepository = authorizationRepository
 		moduleRepository = authorizationRepository
+		customerRepository = customerpersistence.NewRepository(db)
 	} else {
 		log.Println("DATABASE_DSN is empty; authorization persistence is disabled")
 	}
@@ -84,7 +90,7 @@ func main() {
 	})
 	otpHandler.SetAuthorizationService(authzhttp.NewSessionAdapter(authorizationService))
 	authorizationHandler := authzhttp.NewHandler(authorizationService)
-	customerService := customerapp.NewService(customerumramonline.NewProvider(umramonlineClient))
+	customerService := customerapp.NewService(customerumramonline.NewProvider(umramonlineClient), customerRepository)
 	customerHandler := customerhttp.NewHandler(customerService)
 	authRequired := authzhttp.RequirePermission(authorizationService, sessionTokenService, authzhttp.AuthMiddlewareConfig{})
 

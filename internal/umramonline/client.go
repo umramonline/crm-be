@@ -16,29 +16,37 @@ import (
 var ErrRequestFailed = errors.New("umramonline request failed")
 
 type Config struct {
-	BaseURL           string
-	APIKey            string
-	APIToken          string
-	OTPRequestPath    string
-	OTPVerifyPath     string
-	PasswordLoginPath string
-	UserRolesPath     string
-	CustomersPath     string
-	ZonesPath         string
-	Timeout           time.Duration
+	BaseURL            string
+	APIKey             string
+	APIToken           string
+	OTPRequestPath     string
+	OTPVerifyPath      string
+	PasswordLoginPath  string
+	UserRolesPath      string
+	CustomersPath      string
+	CustomerSearchPath string
+	ZonesPath          string
+	CitiesPath         string
+	TownsPath          string
+	BranchesPath       string
+	Timeout            time.Duration
 }
 
 type Client struct {
-	baseURL           string
-	apiKey            string
-	apiToken          string
-	otpRequestPath    string
-	otpVerifyPath     string
-	passwordLoginPath string
-	userRolesPath     string
-	customersPath     string
-	zonesPath         string
-	httpClient        *http.Client
+	baseURL            string
+	apiKey             string
+	apiToken           string
+	otpRequestPath     string
+	otpVerifyPath      string
+	passwordLoginPath  string
+	userRolesPath      string
+	customersPath      string
+	customerSearchPath string
+	zonesPath          string
+	citiesPath         string
+	townsPath          string
+	branchesPath       string
+	httpClient         *http.Client
 }
 
 type otpRequest struct {
@@ -67,14 +75,58 @@ type listResponse[T any] struct {
 	Items   []T    `json:"items"`
 }
 
+func (r listResponse[T]) successful() bool {
+	return r.Success
+}
+
 type Role struct {
 	ID   uint64 `json:"id"`
 	Name string `json:"name"`
 }
 
+type FlexibleString string
+
+func (value *FlexibleString) UnmarshalJSON(data []byte) error {
+	var decoded any
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+
+	switch typedValue := decoded.(type) {
+	case nil:
+		*value = ""
+	case string:
+		*value = FlexibleString(typedValue)
+	case float64:
+		*value = FlexibleString(strconv.FormatFloat(typedValue, 'f', -1, 64))
+	default:
+		*value = FlexibleString(fmt.Sprint(typedValue))
+	}
+
+	return nil
+}
+
 type Zone struct {
 	ID   uint64 `json:"id"`
 	Name string `json:"name"`
+}
+
+type City struct {
+	ID    uint64 `json:"id"`
+	Title string `json:"title"`
+}
+
+type Town struct {
+	ID        uint64 `json:"id"`
+	Title     string `json:"title"`
+	CityID    uint64 `json:"city_id"`
+	CityTitle string `json:"city_title"`
+}
+
+type Branch struct {
+	ID    uint64 `json:"id"`
+	Name  string `json:"name"`
+	Title string `json:"title"`
 }
 
 type User struct {
@@ -106,22 +158,41 @@ type CustomerListQuery struct {
 }
 
 type CustomerListItem struct {
-	Situation    string  `json:"situation"`
-	Unvan        string  `json:"unvan"`
-	Cep          string  `json:"cep"`
-	Ad           string  `json:"ad"`
-	Soyad        string  `json:"soyad"`
-	BranchName   string  `json:"branch_name"`
-	ZoneName     string  `json:"zone_name"`
-	PlusCardNo   string  `json:"plus_card_no"`
-	Credit       string  `json:"credit"`
-	Source       string  `json:"source"`
-	City         string  `json:"city"`
-	Town         string  `json:"town"`
-	CreatedAt    *string `json:"created_at"`
-	Type         string  `json:"type"`
-	DaysSpending *int    `json:"daysSpending"`
-	DaysLoading  *int    `json:"daysLoading"`
+	Situation    string         `json:"situation"`
+	Unvan        string         `json:"unvan"`
+	Cep          string         `json:"cep"`
+	Ad           string         `json:"ad"`
+	Soyad        string         `json:"soyad"`
+	BranchName   string         `json:"branch_name"`
+	ZoneName     string         `json:"zone_name"`
+	PlusCardNo   string         `json:"plus_card_no"`
+	Credit       FlexibleString `json:"credit"`
+	Source       string         `json:"source"`
+	City         string         `json:"city"`
+	Town         string         `json:"town"`
+	CreatedAt    *string        `json:"created_at"`
+	Type         string         `json:"type"`
+	DaysSpending *int           `json:"daysSpending"`
+	DaysLoading  *int           `json:"daysLoading"`
+}
+
+type CustomerSearchItem struct {
+	ID         uint64  `json:"id"`
+	UOId       uint64  `json:"uo_id"`
+	BranchID   *int32  `json:"branch_id"`
+	Unvan      string  `json:"unvan"`
+	Ad         string  `json:"ad"`
+	Soyad      string  `json:"soyad"`
+	YetkiliAdi string  `json:"yetkili_adi"`
+	Cep        string  `json:"cep"`
+	Telefon    string  `json:"telefon"`
+	Mahalle    string  `json:"mahalle"`
+	IlKodu     string  `json:"il_kodu"`
+	IlceKodu   string  `json:"ilce_kodu"`
+	VergiNo    string  `json:"vergi_no"`
+	TCNo       string  `json:"tc_no"`
+	Type       string  `json:"type"`
+	CreatedAt  *string `json:"created_at"`
 }
 
 type Pagination struct {
@@ -145,15 +216,19 @@ func NewClient(config Config) *Client {
 	}
 
 	return &Client{
-		baseURL:           strings.TrimRight(config.BaseURL, "/"),
-		apiKey:            config.APIKey,
-		apiToken:          config.APIToken,
-		otpRequestPath:    "/" + strings.Trim(config.OTPRequestPath, "/"),
-		otpVerifyPath:     "/" + strings.Trim(config.OTPVerifyPath, "/"),
-		passwordLoginPath: "/" + strings.Trim(config.PasswordLoginPath, "/"),
-		userRolesPath:     "/" + strings.Trim(config.UserRolesPath, "/"),
-		customersPath:     "/" + strings.Trim(config.CustomersPath, "/"),
-		zonesPath:         "/" + strings.Trim(config.ZonesPath, "/"),
+		baseURL:            strings.TrimRight(config.BaseURL, "/"),
+		apiKey:             config.APIKey,
+		apiToken:           config.APIToken,
+		otpRequestPath:     "/" + strings.Trim(config.OTPRequestPath, "/"),
+		otpVerifyPath:      "/" + strings.Trim(config.OTPVerifyPath, "/"),
+		passwordLoginPath:  "/" + strings.Trim(config.PasswordLoginPath, "/"),
+		userRolesPath:      "/" + strings.Trim(config.UserRolesPath, "/"),
+		customersPath:      "/" + strings.Trim(config.CustomersPath, "/"),
+		customerSearchPath: "/" + strings.Trim(config.CustomerSearchPath, "/"),
+		zonesPath:          "/" + strings.Trim(config.ZonesPath, "/"),
+		citiesPath:         "/" + strings.Trim(config.CitiesPath, "/"),
+		townsPath:          "/" + strings.Trim(config.TownsPath, "/"),
+		branchesPath:       "/" + strings.Trim(config.BranchesPath, "/"),
 		httpClient: &http.Client{
 			Timeout: timeout,
 		},
@@ -361,6 +436,70 @@ func (c *Client) ListZones(ctx context.Context) ([]Zone, error) {
 	return apiResponse.Items, nil
 }
 
+func (c *Client) SearchCustomer(ctx context.Context, query string) (CustomerSearchItem, bool, error) {
+	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.customerSearchPath == "/" {
+		return CustomerSearchItem{}, false, ErrRequestFailed
+	}
+
+	values := url.Values{}
+	setQueryString(values, "q", query)
+
+	var apiResponse customerSearchResponse
+	if err := c.getJSON(ctx, c.customerSearchPath, values, &apiResponse); err != nil {
+		return CustomerSearchItem{}, false, err
+	}
+
+	if apiResponse.Data == nil {
+		return CustomerSearchItem{}, false, nil
+	}
+
+	return *apiResponse.Data, true, nil
+}
+
+func (c *Client) ListCities(ctx context.Context) ([]City, error) {
+	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.citiesPath == "/" {
+		return nil, ErrRequestFailed
+	}
+
+	var apiResponse listResponse[City]
+	if err := c.getJSON(ctx, c.citiesPath, nil, &apiResponse); err != nil {
+		return nil, err
+	}
+
+	return apiResponse.Items, nil
+}
+
+func (c *Client) ListTowns(ctx context.Context, cityID uint64) ([]Town, error) {
+	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.townsPath == "/" {
+		return nil, ErrRequestFailed
+	}
+
+	values := url.Values{}
+	if cityID > 0 {
+		values.Set("city_id", strconv.FormatUint(cityID, 10))
+	}
+
+	var apiResponse listResponse[Town]
+	if err := c.getJSON(ctx, c.townsPath, values, &apiResponse); err != nil {
+		return nil, err
+	}
+
+	return apiResponse.Items, nil
+}
+
+func (c *Client) ListBranches(ctx context.Context) ([]Branch, error) {
+	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.branchesPath == "/" {
+		return nil, ErrRequestFailed
+	}
+
+	var apiResponse listResponse[Branch]
+	if err := c.getJSON(ctx, c.branchesPath, nil, &apiResponse); err != nil {
+		return nil, err
+	}
+
+	return apiResponse.Items, nil
+}
+
 func (c *Client) ListCustomers(ctx context.Context, query CustomerListQuery) (CustomerListResult, error) {
 	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.customersPath == "/" {
 		return CustomerListResult{}, ErrRequestFailed
@@ -409,6 +548,16 @@ type customerListResponse struct {
 	Pagination Pagination         `json:"pagination"`
 }
 
+type customerSearchResponse struct {
+	Success bool                `json:"success"`
+	Message string              `json:"message"`
+	Data    *CustomerSearchItem `json:"data"`
+}
+
+func (r customerSearchResponse) successful() bool {
+	return r.Success
+}
+
 func customerListQueryValues(query CustomerListQuery) url.Values {
 	values := url.Values{}
 
@@ -443,4 +592,42 @@ func setQueryString(values url.Values, key string, value string) {
 	if strings.TrimSpace(value) != "" {
 		values.Set(key, strings.TrimSpace(value))
 	}
+}
+
+func (c *Client) getJSON(ctx context.Context, path string, values url.Values, target any) error {
+	requestURL := c.baseURL + path
+	if encoded := values.Encode(); encoded != "" {
+		requestURL += "?" + encoded
+	}
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
+	if err != nil {
+		return ErrRequestFailed
+	}
+
+	request.Header.Set("Accept", "application/json")
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-API-KEY", c.apiKey)
+	request.Header.Set("Authorization", "Bearer "+c.apiToken)
+
+	response, err := c.httpClient.Do(request)
+	if err != nil {
+		return ErrRequestFailed
+	}
+	defer response.Body.Close()
+
+	if err := json.NewDecoder(response.Body).Decode(target); err != nil {
+		return ErrRequestFailed
+	}
+
+	successfulResponse, ok := target.(interface{ successful() bool })
+	if ok && !successfulResponse.successful() {
+		return fmt.Errorf("%w: status=%d", ErrRequestFailed, response.StatusCode)
+	}
+
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf("%w: status=%d", ErrRequestFailed, response.StatusCode)
+	}
+
+	return nil
 }

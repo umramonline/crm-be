@@ -37,16 +37,17 @@ type CustomerModel struct {
 	Type                   *string    `gorm:"size:255;default:bireysel"`
 	CreatedAt              time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
 	UpdatedAt              time.Time  `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"`
-	Mersis                 *string    `gorm:"size:20"`
-	PasaportNo             *string    `gorm:"column:pasaport_no;size:50"`
-	PasaportBelge          *string    `gorm:"column:pasaport_belge;size:255"`
-	EsbisNo                *string    `gorm:"column:esbis_no;size:255"`
-	YetkiBelgeNo           *string    `gorm:"column:yetki_belge_no;size:255"`
-	KapiNo                 *string    `gorm:"column:kapi_no;size:255"`
-	Website                *string    `gorm:"column:website;type:varchar(255)"`
-	GoogleMapLink          *string    `gorm:"column:google_map_link;type:varchar(255)"`
-	ClassifiedsWebsiteLink *string    `gorm:"column:classifieds_website_link;type:varchar(255)"`
-	CorporateSector        *string    `gorm:"column:corporate_sector;type:varchar(255)"`
+	DeletedAt              gorm.DeletedAt
+	Mersis                 *string `gorm:"size:20"`
+	PasaportNo             *string `gorm:"column:pasaport_no;size:50"`
+	PasaportBelge          *string `gorm:"column:pasaport_belge;size:255"`
+	EsbisNo                *string `gorm:"column:esbis_no;size:255"`
+	YetkiBelgeNo           *string `gorm:"column:yetki_belge_no;size:255"`
+	KapiNo                 *string `gorm:"column:kapi_no;size:255"`
+	Website                *string `gorm:"column:website;type:varchar(255)"`
+	GoogleMapLink          *string `gorm:"column:google_map_link;type:varchar(255)"`
+	ClassifiedsWebsiteLink *string `gorm:"column:classifieds_website_link;type:varchar(255)"`
+	CorporateSector        *string `gorm:"column:corporate_sector;type:varchar(255)"`
 }
 
 func (CustomerModel) TableName() string {

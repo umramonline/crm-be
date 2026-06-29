@@ -14,10 +14,34 @@ var customerMethodSeeds = []authorizationMethodSeed{
 		Path:        stringPointer("/api/v1/customers"),
 	},
 	{
+		Name:        "customers.search",
+		Description: "Müşteri giriş ekranında müşteriyi arar.",
+		Method:      stringPointer("GET"),
+		Path:        stringPointer("/api/v1/customers/search"),
+	},
+	{
 		Name:        "customers.zones.list",
 		Description: "Müşteri filtresi için bölgeleri listeler.",
 		Method:      stringPointer("GET"),
 		Path:        stringPointer("/api/v1/zones"),
+	},
+	{
+		Name:        "customers.cities.list",
+		Description: "Müşteri giriş formu için şehirleri listeler.",
+		Method:      stringPointer("GET"),
+		Path:        stringPointer("/api/v1/cities"),
+	},
+	{
+		Name:        "customers.towns.list",
+		Description: "Müşteri giriş formu için ilçeleri listeler.",
+		Method:      stringPointer("GET"),
+		Path:        stringPointer("/api/v1/towns"),
+	},
+	{
+		Name:        "customers.branches.list",
+		Description: "Müşteri giriş formu için bayileri listeler.",
+		Method:      stringPointer("GET"),
+		Path:        stringPointer("/api/v1/branches"),
 	},
 }
 

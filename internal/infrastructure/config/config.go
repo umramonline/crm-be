@@ -9,26 +9,30 @@ import (
 )
 
 type Config struct {
-	Port                      int    `env:"PORT" envDefault:"8080"`
-	CORSAllowedOrigins        string `env:"CORS_ALLOWED_ORIGINS" envDefault:"http://localhost:5173"`
-	CORSAllowCredentials      bool   `env:"CORS_ALLOW_CREDENTIALS" envDefault:"true"`
-	UmramonlineBaseURL        string `env:"UMRAMONLINE_BASE_URL"`
-	UmramonlineAPIKey         string `env:"UMRAMONLINE_API_KEY"`
-	UmramonlineAPIToken       string `env:"UMRAMONLINE_API_TOKEN"`
-	UmramonlineOTPRequestPath string `env:"UMRAMONLINE_OTP_REQUEST_PATH" envDefault:"/api/v1/crm/auth/otp/request"`
-	UmramonlineOTPVerifyPath  string `env:"UMRAMONLINE_OTP_VERIFY_PATH" envDefault:"/api/v1/crm/auth/otp/verify"`
-	UmramonlinePasswordPath   string `env:"UMRAMONLINE_PASSWORD_LOGIN_PATH" envDefault:"/api/v1/crm/auth/password/login"`
-	UmramonlineUserRolesPath  string `env:"UMRAMONLINE_USER_ROLES_PATH" envDefault:"/api/v1/crm/auth/user-roles"`
-	UmramonlineCustomersPath  string `env:"UMRAMONLINE_CUSTOMERS_PATH" envDefault:"/api/v1/crm/customers"`
-	UmramonlineZonesPath      string `env:"UMRAMONLINE_ZONES_PATH" envDefault:"/api/v1/crm/zones"`
-	UmramonlineTimeoutSeconds int    `env:"UMRAMONLINE_TIMEOUT_SECONDS" envDefault:"10"`
-	DatabaseDSN               string `env:"DATABASE_DSN"`
-	SessionTokenSecret        string `env:"SESSION_TOKEN_SECRET" envDefault:"dev-session-token-secret-change-me"`
-	AccessTokenTTLMinutes     int    `env:"ACCESS_TOKEN_TTL_MINUTES" envDefault:"15"`
-	RefreshTokenTTLDays       int    `env:"REFRESH_TOKEN_TTL_DAYS" envDefault:"30"`
-	AuthCookieSecure          bool   `env:"AUTH_COOKIE_SECURE" envDefault:"false"`
-	AuthCookieSameSite        string `env:"AUTH_COOKIE_SAME_SITE" envDefault:"Lax"`
-	ShutdownTimeoutSeconds    int    `env:"SHUTDOWN_TIMEOUT_SECONDS" envDefault:"10"`
+	Port                          int    `env:"PORT" envDefault:"8080"`
+	CORSAllowedOrigins            string `env:"CORS_ALLOWED_ORIGINS" envDefault:"http://localhost:5173"`
+	CORSAllowCredentials          bool   `env:"CORS_ALLOW_CREDENTIALS" envDefault:"true"`
+	UmramonlineBaseURL            string `env:"UMRAMONLINE_BASE_URL"`
+	UmramonlineAPIKey             string `env:"UMRAMONLINE_API_KEY"`
+	UmramonlineAPIToken           string `env:"UMRAMONLINE_API_TOKEN"`
+	UmramonlineOTPRequestPath     string `env:"UMRAMONLINE_OTP_REQUEST_PATH" envDefault:"/api/v1/crm/auth/otp/request"`
+	UmramonlineOTPVerifyPath      string `env:"UMRAMONLINE_OTP_VERIFY_PATH" envDefault:"/api/v1/crm/auth/otp/verify"`
+	UmramonlinePasswordPath       string `env:"UMRAMONLINE_PASSWORD_LOGIN_PATH" envDefault:"/api/v1/crm/auth/password/login"`
+	UmramonlineUserRolesPath      string `env:"UMRAMONLINE_USER_ROLES_PATH" envDefault:"/api/v1/crm/auth/user-roles"`
+	UmramonlineCustomersPath      string `env:"UMRAMONLINE_CUSTOMERS_PATH" envDefault:"/api/v1/crm/customers"`
+	UmramonlineCustomerSearchPath string `env:"UMRAMONLINE_CUSTOMER_SEARCH_PATH" envDefault:"/api/v1/crm/customers/search"`
+	UmramonlineZonesPath          string `env:"UMRAMONLINE_ZONES_PATH" envDefault:"/api/v1/crm/zones"`
+	UmramonlineCitiesPath         string `env:"UMRAMONLINE_CITIES_PATH" envDefault:"/api/v1/crm/cities"`
+	UmramonlineTownsPath          string `env:"UMRAMONLINE_TOWNS_PATH" envDefault:"/api/v1/crm/towns"`
+	UmramonlineBranchesPath       string `env:"UMRAMONLINE_BRANCHES_PATH" envDefault:"/api/v1/crm/branches"`
+	UmramonlineTimeoutSeconds     int    `env:"UMRAMONLINE_TIMEOUT_SECONDS" envDefault:"10"`
+	DatabaseDSN                   string `env:"DATABASE_DSN"`
+	SessionTokenSecret            string `env:"SESSION_TOKEN_SECRET" envDefault:"dev-session-token-secret-change-me"`
+	AccessTokenTTLMinutes         int    `env:"ACCESS_TOKEN_TTL_MINUTES" envDefault:"15"`
+	RefreshTokenTTLDays           int    `env:"REFRESH_TOKEN_TTL_DAYS" envDefault:"30"`
+	AuthCookieSecure              bool   `env:"AUTH_COOKIE_SECURE" envDefault:"false"`
+	AuthCookieSameSite            string `env:"AUTH_COOKIE_SAME_SITE" envDefault:"Lax"`
+	ShutdownTimeoutSeconds        int    `env:"SHUTDOWN_TIMEOUT_SECONDS" envDefault:"10"`
 }
 
 func Load() (*Config, error) {
