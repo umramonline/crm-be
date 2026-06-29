@@ -1,23 +1,24 @@
 package domain
 
 type Customer struct {
-	ID           uint64  `json:"id"`
-	Situation    string  `json:"situation"`
-	Unvan        string  `json:"unvan"`
-	Cep          string  `json:"cep"`
-	Ad           string  `json:"ad"`
-	Soyad        string  `json:"soyad"`
-	BranchName   string  `json:"branch_name"`
-	ZoneName     string  `json:"zone_name"`
-	PlusCardNo   string  `json:"plus_card_no"`
-	Credit       string  `json:"credit"`
-	Source       string  `json:"source"`
-	City         string  `json:"city"`
-	Town         string  `json:"town"`
-	CreatedAt    *string `json:"created_at,omitempty"`
-	Type         string  `json:"type"`
-	DaysSpending *int    `json:"days_spending,omitempty"`
-	DaysLoading  *int    `json:"days_loading,omitempty"`
+	ID                uint64  `json:"id"`
+	Situation         string  `json:"situation"`
+	Unvan             string  `json:"unvan"`
+	Cep               string  `json:"cep"`
+	Ad                string  `json:"ad"`
+	Soyad             string  `json:"soyad"`
+	BranchName        string  `json:"branch_name"`
+	ZoneName          string  `json:"zone_name"`
+	PlusCardNo        string  `json:"plus_card_no"`
+	Credit            string  `json:"credit"`
+	Source            string  `json:"source"`
+	City              string  `json:"city"`
+	Town              string  `json:"town"`
+	CreatedAt         *string `json:"created_at,omitempty"`
+	VehicleStockCount *int32  `json:"vehicle_stock_count,omitempty"`
+	Type              string  `json:"type"`
+	DaysSpending      *int    `json:"days_spending,omitempty"`
+	DaysLoading       *int    `json:"days_loading,omitempty"`
 }
 
 type CustomerDetail struct {

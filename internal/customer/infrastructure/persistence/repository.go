@@ -46,12 +46,12 @@ func (r *Repository) ListCustomers(ctx context.Context, query domain.ListQuery) 
 		return domain.ListResult{}, err
 	}
 
-	if query.SortBy == "created_at" {
+	if query.SortBy == "created_at" || query.SortBy == "vehicle_stock_count" {
 		sortOrder := "desc"
 		if strings.ToLower(query.SortOrder) == "asc" {
 			sortOrder = "asc"
 		}
-		dbQuery = dbQuery.Order("created_at " + sortOrder)
+		dbQuery = dbQuery.Order(query.SortBy + " " + sortOrder)
 	} else {
 		dbQuery = dbQuery.Order("id DESC")
 	}
@@ -330,21 +330,22 @@ func toCustomer(customer CustomerModel) domain.Customer {
 	}
 
 	return domain.Customer{
-		ID:         customer.ID,
-		Situation:  "Potansiyel Müşteri",
-		Unvan:      stringValue(customer.Unvan),
-		Cep:        stringValue(customer.Cep),
-		Ad:         stringValue(customer.Ad),
-		Soyad:      stringValue(customer.Soyad),
-		BranchName: branchID,
-		ZoneName:   "",
-		PlusCardNo: "",
-		Credit:     "0",
-		Source:     "Manuel",
-		City:       stringValue(customer.IlKodu),
-		Town:       stringValue(customer.IlceKodu),
-		CreatedAt:  &createdAt,
-		Type:       stringValue(customer.Type),
+		ID:                customer.ID,
+		Situation:         "Potansiyel Müşteri",
+		Unvan:             stringValue(customer.Unvan),
+		Cep:               stringValue(customer.Cep),
+		Ad:                stringValue(customer.Ad),
+		Soyad:             stringValue(customer.Soyad),
+		BranchName:        branchID,
+		ZoneName:          "",
+		PlusCardNo:        "",
+		Credit:            "0",
+		Source:            "Manuel",
+		City:              stringValue(customer.IlKodu),
+		Town:              stringValue(customer.IlceKodu),
+		CreatedAt:         &createdAt,
+		VehicleStockCount: customer.VehicleStockCount,
+		Type:              stringValue(customer.Type),
 	}
 }
 
