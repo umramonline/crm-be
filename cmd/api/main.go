@@ -30,20 +30,21 @@ func main() {
 	}
 
 	umramonlineClient := umramonline.NewClient(umramonline.Config{
-		BaseURL:            cfg.UmramonlineBaseURL,
-		APIKey:             cfg.UmramonlineAPIKey,
-		APIToken:           cfg.UmramonlineAPIToken,
-		OTPRequestPath:     cfg.UmramonlineOTPRequestPath,
-		OTPVerifyPath:      cfg.UmramonlineOTPVerifyPath,
-		PasswordLoginPath:  cfg.UmramonlinePasswordPath,
-		UserRolesPath:      cfg.UmramonlineUserRolesPath,
-		CustomersPath:      cfg.UmramonlineCustomersPath,
-		CustomerSearchPath: cfg.UmramonlineCustomerSearchPath,
-		ZonesPath:          cfg.UmramonlineZonesPath,
-		CitiesPath:         cfg.UmramonlineCitiesPath,
-		TownsPath:          cfg.UmramonlineTownsPath,
-		BranchesPath:       cfg.UmramonlineBranchesPath,
-		Timeout:            cfg.UmramonlineTimeout(),
+		BaseURL:                 cfg.UmramonlineBaseURL,
+		APIKey:                  cfg.UmramonlineAPIKey,
+		APIToken:                cfg.UmramonlineAPIToken,
+		OTPRequestPath:          cfg.UmramonlineOTPRequestPath,
+		OTPVerifyPath:           cfg.UmramonlineOTPVerifyPath,
+		PasswordLoginPath:       cfg.UmramonlinePasswordPath,
+		UserRolesPath:           cfg.UmramonlineUserRolesPath,
+		CustomersPath:           cfg.UmramonlineCustomersPath,
+		CustomerSearchPath:      cfg.UmramonlineCustomerSearchPath,
+		CustomerPhoneExistsPath: cfg.UmramonlineCustomerPhoneExistsPath,
+		ZonesPath:               cfg.UmramonlineZonesPath,
+		CitiesPath:              cfg.UmramonlineCitiesPath,
+		TownsPath:               cfg.UmramonlineTownsPath,
+		BranchesPath:            cfg.UmramonlineBranchesPath,
+		Timeout:                 cfg.UmramonlineTimeout(),
 	})
 	otpRequestService := authapp.NewOTPRequestService(umramonlineClient)
 	sessionTokenService := authapp.NewSessionTokenService(cfg.SessionTokenSecret)

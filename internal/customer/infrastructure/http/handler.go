@@ -20,11 +20,26 @@ func NewHandler(service *application.Service) *Handler {
 
 func (h *Handler) RegisterRoutes(router fiber.Router, authRequired fiber.Handler) {
 	router.Get("/customers", authRequired, h.ListCustomers)
+	router.Post("/customers", authRequired, h.CreateCustomer)
 	router.Get("/customers/search", authRequired, h.SearchCustomer)
 	router.Get("/zones", authRequired, h.ListZones)
 	router.Get("/cities", authRequired, h.ListCities)
 	router.Get("/towns", authRequired, h.ListTowns)
 	router.Get("/branches", authRequired, h.ListBranches)
+}
+
+type createCustomerRequest struct {
+	Type       string `json:"type"`
+	Ad         string `json:"ad"`
+	Soyad      string `json:"soyad"`
+	Cep        string `json:"cep"`
+	Unvan      string `json:"unvan"`
+	YetkiliAdi string `json:"yetkili_adi"`
+	Telefon    string `json:"telefon"`
+	IlKodu     string `json:"il_kodu"`
+	IlceKodu   string `json:"ilce_kodu"`
+	Mahalle    string `json:"mahalle"`
+	BranchID   int32  `json:"branch_id"`
 }
 
 func (h *Handler) ListCustomers(c *fiber.Ctx) error {
@@ -54,6 +69,38 @@ func (h *Handler) ListCustomers(c *fiber.Ctx) error {
 	}
 
 	return response.Success(c, fiber.StatusOK, "Müşteriler getirildi.", result)
+}
+
+func (h *Handler) CreateCustomer(c *fiber.Ctx) error {
+	var request createCustomerRequest
+	if err := c.BodyParser(&request); err != nil {
+		return response.Error(c, fiber.StatusUnprocessableEntity, "Müşteri bilgileri geçersiz.", fiber.Map{
+			"request": "Müşteri bilgileri geçersiz.",
+		})
+	}
+
+	customer, validationErrors, err := h.service.CreateCustomer(c.UserContext(), domain.CreateCustomerInput{
+		Type:       request.Type,
+		Ad:         request.Ad,
+		Soyad:      request.Soyad,
+		Cep:        request.Cep,
+		Unvan:      request.Unvan,
+		YetkiliAdi: request.YetkiliAdi,
+		Telefon:    request.Telefon,
+		IlKodu:     request.IlKodu,
+		IlceKodu:   request.IlceKodu,
+		Mahalle:    request.Mahalle,
+		BranchID:   request.BranchID,
+	})
+	if err != nil {
+		if err == application.ErrInvalidCustomerCreateInput {
+			return response.Error(c, fiber.StatusUnprocessableEntity, "Müşteri bilgileri geçersiz.", validationErrors)
+		}
+
+		return response.Error(c, fiber.StatusServiceUnavailable, "Müşteri kaydı şu anda oluşturulamadı.", nil)
+	}
+
+	return response.Success(c, fiber.StatusCreated, "Müşteri kaydedildi.", customer)
 }
 
 func (h *Handler) SearchCustomer(c *fiber.Ctx) error {

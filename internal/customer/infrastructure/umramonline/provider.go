@@ -118,6 +118,10 @@ func (p *Provider) SearchCustomer(ctx context.Context, query string) (domain.Cus
 	}, true, nil
 }
 
+func (p *Provider) PhoneExists(ctx context.Context, phone string) (bool, error) {
+	return p.client.CustomerPhoneExists(ctx, phone)
+}
+
 func (p *Provider) ListCities(ctx context.Context) ([]domain.City, error) {
 	cities, err := p.client.ListCities(ctx)
 	if err != nil {

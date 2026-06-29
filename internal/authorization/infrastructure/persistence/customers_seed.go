@@ -20,6 +20,12 @@ var customerMethodSeeds = []authorizationMethodSeed{
 		Path:        stringPointer("/api/v1/customers/search"),
 	},
 	{
+		Name:        "customers.create",
+		Description: "Müşteri giriş ekranından yeni müşteri oluşturur.",
+		Method:      stringPointer("POST"),
+		Path:        stringPointer("/api/v1/customers"),
+	},
+	{
 		Name:        "customers.zones.list",
 		Description: "Müşteri filtresi için bölgeleri listeler.",
 		Method:      stringPointer("GET"),

@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"regexp"
 	"strings"
 
 	"github.com/umran/new.crm/backend/internal/customer/domain"
@@ -18,10 +19,19 @@ var ErrReferenceDataUnavailable = errors.New("reference data unavailable")
 
 var ErrInvalidCustomerSearchQuery = errors.New("customer search query is required")
 
+var ErrCustomerCreateUnavailable = errors.New("customer create unavailable")
+
+var ErrInvalidCustomerCreateInput = errors.New("invalid customer create input")
+
+type ValidationErrors map[string]string
+
+var turkeyMobilePhonePattern = regexp.MustCompile(`^05[0-9]{9}$`)
+
 type CustomerProvider interface {
 	ListCustomers(ctx context.Context, query domain.ListQuery) (domain.ListResult, error)
 	ListZones(ctx context.Context) ([]domain.Zone, error)
 	SearchCustomer(ctx context.Context, query string) (domain.CustomerDetail, bool, error)
+	PhoneExists(ctx context.Context, phone string) (bool, error)
 	ListCities(ctx context.Context) ([]domain.City, error)
 	ListTowns(ctx context.Context, cityID uint64) ([]domain.Town, error)
 	ListBranches(ctx context.Context) ([]domain.Branch, error)
@@ -29,6 +39,8 @@ type CustomerProvider interface {
 
 type CustomerRepository interface {
 	SearchCustomer(ctx context.Context, query string) (domain.CustomerDetail, bool, error)
+	PhoneExists(ctx context.Context, phone string) (bool, error)
+	CreateCustomer(ctx context.Context, input domain.CreateCustomerInput) (domain.CustomerDetail, error)
 }
 
 type Service struct {
@@ -67,6 +79,10 @@ func (s *Service) SearchCustomer(ctx context.Context, query string) (domain.Cust
 		return domain.CustomerSearchResult{}, ErrInvalidCustomerSearchQuery
 	}
 
+	if s == nil || s.repository == nil || s.provider == nil {
+		return domain.CustomerSearchResult{}, ErrCustomerSearchUnavailable
+	}
+
 	// ilk başta veritabanında arama yapıyoruz
 	customer, found, err := s.repository.SearchCustomer(ctx, normalizedQuery)
 	if err != nil {
@@ -98,6 +114,48 @@ func (s *Service) SearchCustomer(ctx context.Context, query string) (domain.Cust
 	}, nil
 }
 
+func (s *Service) CreateCustomer(ctx context.Context, input domain.CreateCustomerInput) (domain.CustomerDetail, ValidationErrors, error) {
+	normalizedInput := normalizeCreateCustomerInput(input)
+	validationErrors := validateCreateCustomerInput(normalizedInput)
+	if len(validationErrors) > 0 {
+		return domain.CustomerDetail{}, validationErrors, ErrInvalidCustomerCreateInput
+	}
+
+	if s == nil || s.repository == nil || s.provider == nil {
+		return domain.CustomerDetail{}, nil, ErrCustomerCreateUnavailable
+	}
+
+	phoneField := phoneFieldForCustomerType(normalizedInput.Type)
+	phone := phoneValueForCustomerType(normalizedInput)
+
+	exists, err := s.repository.PhoneExists(ctx, phone)
+	if err != nil {
+		return domain.CustomerDetail{}, nil, ErrCustomerCreateUnavailable
+	}
+	if exists {
+		return domain.CustomerDetail{}, ValidationErrors{
+			phoneField: "Bu telefon numarası backend müşteri kayıtlarında zaten var.",
+		}, ErrInvalidCustomerCreateInput
+	}
+
+	exists, err = s.provider.PhoneExists(ctx, phone)
+	if err != nil {
+		return domain.CustomerDetail{}, nil, ErrCustomerCreateUnavailable
+	}
+	if exists {
+		return domain.CustomerDetail{}, ValidationErrors{
+			phoneField: "Bu telefon numarası umramonline müşteri kayıtlarında zaten var.",
+		}, ErrInvalidCustomerCreateInput
+	}
+
+	customer, err := s.repository.CreateCustomer(ctx, normalizedInput)
+	if err != nil {
+		return domain.CustomerDetail{}, nil, ErrCustomerCreateUnavailable
+	}
+
+	return customer, nil, nil
+}
+
 func (s *Service) ListCities(ctx context.Context) ([]domain.City, error) {
 	if s == nil || s.provider == nil {
 		return nil, ErrReferenceDataUnavailable
@@ -124,4 +182,77 @@ func (s *Service) ListBranches(ctx context.Context) ([]domain.Branch, error) {
 	}
 
 	return s.provider.ListBranches(ctx)
+}
+
+func normalizeCreateCustomerInput(input domain.CreateCustomerInput) domain.CreateCustomerInput {
+	return domain.CreateCustomerInput{
+		Type:       strings.ToLower(strings.TrimSpace(input.Type)),
+		Ad:         strings.TrimSpace(input.Ad),
+		Soyad:      strings.TrimSpace(input.Soyad),
+		Cep:        strings.TrimSpace(input.Cep),
+		Unvan:      strings.TrimSpace(input.Unvan),
+		YetkiliAdi: strings.TrimSpace(input.YetkiliAdi),
+		Telefon:    strings.TrimSpace(input.Telefon),
+		IlKodu:     strings.TrimSpace(input.IlKodu),
+		IlceKodu:   strings.TrimSpace(input.IlceKodu),
+		Mahalle:    strings.TrimSpace(input.Mahalle),
+		BranchID:   input.BranchID,
+	}
+}
+
+func validateCreateCustomerInput(input domain.CreateCustomerInput) ValidationErrors {
+	errors := ValidationErrors{}
+
+	if input.Type != "bireysel" && input.Type != "kurumsal" {
+		errors["type"] = "Müşteri türü bireysel veya kurumsal olmalıdır."
+	}
+
+	if input.Type == "bireysel" {
+		requireField(errors, "ad", input.Ad, "Ad zorunludur.")
+		requireField(errors, "soyad", input.Soyad, "Soyad zorunludur.")
+		validatePhone(errors, "cep", input.Cep)
+	}
+
+	if input.Type == "kurumsal" {
+		requireField(errors, "unvan", input.Unvan, "Ünvan zorunludur.")
+		requireField(errors, "yetkili_adi", input.YetkiliAdi, "Yetkili adı zorunludur.")
+		validatePhone(errors, "telefon", input.Telefon)
+	}
+
+	requireField(errors, "il_kodu", input.IlKodu, "İl zorunludur.")
+	requireField(errors, "ilce_kodu", input.IlceKodu, "İlçe zorunludur.")
+	requireField(errors, "mahalle", input.Mahalle, "Mahalle zorunludur.")
+	if input.BranchID <= 0 {
+		errors["branch_id"] = "Bayi zorunludur."
+	}
+
+	return errors
+}
+
+func requireField(errors ValidationErrors, field string, value string, message string) {
+	if strings.TrimSpace(value) == "" {
+		errors[field] = message
+	}
+}
+
+func validatePhone(errors ValidationErrors, field string, value string) {
+	if !turkeyMobilePhonePattern.MatchString(value) {
+		errors[field] = "Telefon 05XXXXXXXXX formatında, toplam 11 hane olmalıdır."
+	}
+}
+
+func phoneValueForCustomerType(input domain.CreateCustomerInput) string {
+	if input.Type == "bireysel" {
+		return input.Cep
+	}
+
+	return input.Telefon
+}
+
+func phoneFieldForCustomerType(customerType string) string {
+	if customerType == "bireysel" {
+		return "cep"
+	}
+
+	return "telefon"
 }

@@ -44,6 +44,20 @@ type CustomerSearchResult struct {
 	Customer *CustomerDetail `json:"customer,omitempty"`
 }
 
+type CreateCustomerInput struct {
+	Type       string
+	Ad         string
+	Soyad      string
+	Cep        string
+	Unvan      string
+	YetkiliAdi string
+	Telefon    string
+	IlKodu     string
+	IlceKodu   string
+	Mahalle    string
+	BranchID   int32
+}
+
 type City struct {
 	ID    uint64 `json:"id"`
 	Title string `json:"title"`

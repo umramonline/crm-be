@@ -16,37 +16,39 @@ import (
 var ErrRequestFailed = errors.New("umramonline request failed")
 
 type Config struct {
-	BaseURL            string
-	APIKey             string
-	APIToken           string
-	OTPRequestPath     string
-	OTPVerifyPath      string
-	PasswordLoginPath  string
-	UserRolesPath      string
-	CustomersPath      string
-	CustomerSearchPath string
-	ZonesPath          string
-	CitiesPath         string
-	TownsPath          string
-	BranchesPath       string
-	Timeout            time.Duration
+	BaseURL                 string
+	APIKey                  string
+	APIToken                string
+	OTPRequestPath          string
+	OTPVerifyPath           string
+	PasswordLoginPath       string
+	UserRolesPath           string
+	CustomersPath           string
+	CustomerSearchPath      string
+	CustomerPhoneExistsPath string
+	ZonesPath               string
+	CitiesPath              string
+	TownsPath               string
+	BranchesPath            string
+	Timeout                 time.Duration
 }
 
 type Client struct {
-	baseURL            string
-	apiKey             string
-	apiToken           string
-	otpRequestPath     string
-	otpVerifyPath      string
-	passwordLoginPath  string
-	userRolesPath      string
-	customersPath      string
-	customerSearchPath string
-	zonesPath          string
-	citiesPath         string
-	townsPath          string
-	branchesPath       string
-	httpClient         *http.Client
+	baseURL                 string
+	apiKey                  string
+	apiToken                string
+	otpRequestPath          string
+	otpVerifyPath           string
+	passwordLoginPath       string
+	userRolesPath           string
+	customersPath           string
+	customerSearchPath      string
+	customerPhoneExistsPath string
+	zonesPath               string
+	citiesPath              string
+	townsPath               string
+	branchesPath            string
+	httpClient              *http.Client
 }
 
 type otpRequest struct {
@@ -216,19 +218,20 @@ func NewClient(config Config) *Client {
 	}
 
 	return &Client{
-		baseURL:            strings.TrimRight(config.BaseURL, "/"),
-		apiKey:             config.APIKey,
-		apiToken:           config.APIToken,
-		otpRequestPath:     "/" + strings.Trim(config.OTPRequestPath, "/"),
-		otpVerifyPath:      "/" + strings.Trim(config.OTPVerifyPath, "/"),
-		passwordLoginPath:  "/" + strings.Trim(config.PasswordLoginPath, "/"),
-		userRolesPath:      "/" + strings.Trim(config.UserRolesPath, "/"),
-		customersPath:      "/" + strings.Trim(config.CustomersPath, "/"),
-		customerSearchPath: "/" + strings.Trim(config.CustomerSearchPath, "/"),
-		zonesPath:          "/" + strings.Trim(config.ZonesPath, "/"),
-		citiesPath:         "/" + strings.Trim(config.CitiesPath, "/"),
-		townsPath:          "/" + strings.Trim(config.TownsPath, "/"),
-		branchesPath:       "/" + strings.Trim(config.BranchesPath, "/"),
+		baseURL:                 strings.TrimRight(config.BaseURL, "/"),
+		apiKey:                  config.APIKey,
+		apiToken:                config.APIToken,
+		otpRequestPath:          "/" + strings.Trim(config.OTPRequestPath, "/"),
+		otpVerifyPath:           "/" + strings.Trim(config.OTPVerifyPath, "/"),
+		passwordLoginPath:       "/" + strings.Trim(config.PasswordLoginPath, "/"),
+		userRolesPath:           "/" + strings.Trim(config.UserRolesPath, "/"),
+		customersPath:           "/" + strings.Trim(config.CustomersPath, "/"),
+		customerSearchPath:      "/" + strings.Trim(config.CustomerSearchPath, "/"),
+		customerPhoneExistsPath: "/" + strings.Trim(config.CustomerPhoneExistsPath, "/"),
+		zonesPath:               "/" + strings.Trim(config.ZonesPath, "/"),
+		citiesPath:              "/" + strings.Trim(config.CitiesPath, "/"),
+		townsPath:               "/" + strings.Trim(config.TownsPath, "/"),
+		branchesPath:            "/" + strings.Trim(config.BranchesPath, "/"),
 		httpClient: &http.Client{
 			Timeout: timeout,
 		},
@@ -456,6 +459,22 @@ func (c *Client) SearchCustomer(ctx context.Context, query string) (CustomerSear
 	return *apiResponse.Data, true, nil
 }
 
+func (c *Client) CustomerPhoneExists(ctx context.Context, phone string) (bool, error) {
+	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.customerPhoneExistsPath == "/" {
+		return false, ErrRequestFailed
+	}
+
+	values := url.Values{}
+	setQueryString(values, "phone", phone)
+
+	var apiResponse customerPhoneExistsResponse
+	if err := c.getJSON(ctx, c.customerPhoneExistsPath, values, &apiResponse); err != nil {
+		return false, err
+	}
+
+	return apiResponse.Data.Exists, nil
+}
+
 func (c *Client) ListCities(ctx context.Context) ([]City, error) {
 	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.citiesPath == "/" {
 		return nil, ErrRequestFailed
@@ -555,6 +574,18 @@ type customerSearchResponse struct {
 }
 
 func (r customerSearchResponse) successful() bool {
+	return r.Success
+}
+
+type customerPhoneExistsResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	Data    struct {
+		Exists bool `json:"exists"`
+	} `json:"data"`
+}
+
+func (r customerPhoneExistsResponse) successful() bool {
 	return r.Success
 }
 
