@@ -27,6 +27,8 @@ type ValidationErrors map[string]string
 
 var turkeyMobilePhonePattern = regexp.MustCompile(`^05[0-9]{9}$`)
 
+const customerTextMaxLength = 255
+
 type CustomerProvider interface {
 	ListCustomers(ctx context.Context, query domain.ListQuery) (domain.ListResult, error)
 	ListZones(ctx context.Context) ([]domain.Zone, error)
@@ -209,19 +211,26 @@ func validateCreateCustomerInput(input domain.CreateCustomerInput) ValidationErr
 
 	if input.Type == "bireysel" {
 		requireField(errors, "ad", input.Ad, "Ad zorunludur.")
+		validateMaxLength(errors, "ad", input.Ad, "Ad")
 		requireField(errors, "soyad", input.Soyad, "Soyad zorunludur.")
+		validateMaxLength(errors, "soyad", input.Soyad, "Soyad")
 		validatePhone(errors, "cep", input.Cep)
 	}
 
 	if input.Type == "kurumsal" {
 		requireField(errors, "unvan", input.Unvan, "Ünvan zorunludur.")
+		validateMaxLength(errors, "unvan", input.Unvan, "Ünvan")
 		requireField(errors, "yetkili_adi", input.YetkiliAdi, "Yetkili adı zorunludur.")
+		validateMaxLength(errors, "yetkili_adi", input.YetkiliAdi, "Yetkili adı")
 		validatePhone(errors, "telefon", input.Telefon)
 	}
 
 	requireField(errors, "il_kodu", input.IlKodu, "İl zorunludur.")
+	validateMaxLength(errors, "il_kodu", input.IlKodu, "İl")
 	requireField(errors, "ilce_kodu", input.IlceKodu, "İlçe zorunludur.")
+	validateMaxLength(errors, "ilce_kodu", input.IlceKodu, "İlçe")
 	requireField(errors, "mahalle", input.Mahalle, "Mahalle zorunludur.")
+	validateMaxLength(errors, "mahalle", input.Mahalle, "Mahalle")
 	if input.BranchID <= 0 {
 		errors["branch_id"] = "Bayi zorunludur."
 	}
@@ -238,6 +247,12 @@ func requireField(errors ValidationErrors, field string, value string, message s
 func validatePhone(errors ValidationErrors, field string, value string) {
 	if !turkeyMobilePhonePattern.MatchString(value) {
 		errors[field] = "Telefon 05XXXXXXXXX formatında, toplam 11 hane olmalıdır."
+	}
+}
+
+func validateMaxLength(errors ValidationErrors, field string, value string, label string) {
+	if len([]rune(strings.TrimSpace(value))) > customerTextMaxLength {
+		errors[field] = label + " en fazla 255 karakter olabilir."
 	}
 }
 
