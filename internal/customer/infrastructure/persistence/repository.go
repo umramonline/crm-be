@@ -236,6 +236,8 @@ func (r *Repository) CompleteFullRegistration(ctx context.Context, id uint64, in
 		customer.Cep = stringPointer(input.Cep)
 		customer.Ad = stringPointer(input.Ad)
 		customer.Soyad = stringPointer(input.Soyad)
+		customer.Unvan = stringPointer(input.Unvan)
+		customer.CorporateSector = stringPointer(input.CorporateSector)
 		customer.TCNo = stringPointer(input.TCNo)
 		customer.DogumTarihi = datePointer(input.DogumTarihi)
 		customer.Eposta = stringPointer(input.Eposta)
@@ -245,6 +247,8 @@ func (r *Repository) CompleteFullRegistration(ctx context.Context, id uint64, in
 		customer.ClassifiedsWebsiteLink = stringPointer(input.ClassifiedsWebsiteLink)
 		customer.VehicleStockCount = &input.VehicleStockCount
 		customer.BranchID = &input.BranchID
+		customer.VergiNo = stringPointer(input.VergiNo)
+		customer.VergiDairesi = stringPointer(input.VergiDairesi)
 		customer.IlKodu = stringPointer(input.IlKodu)
 		customer.IlceKodu = stringPointer(input.IlceKodu)
 		customer.Mahalle = stringPointer(input.Mahalle)
@@ -308,9 +312,11 @@ func toCustomerDetail(customer CustomerModel) domain.CustomerDetail {
 		IlKodu:                 stringValue(customer.IlKodu),
 		IlceKodu:               stringValue(customer.IlceKodu),
 		VergiNo:                stringValue(customer.VergiNo),
+		VergiDairesi:           stringValue(customer.VergiDairesi),
 		TCNo:                   stringValue(customer.TCNo),
 		DogumTarihi:            dogumTarihi,
 		VehicleStockCount:      customer.VehicleStockCount,
+		CorporateSector:        stringValue(customer.CorporateSector),
 		Type:                   stringValue(customer.Type),
 		CreatedAt:              &createdAt,
 	}

@@ -32,6 +32,19 @@ var turkeyMobilePhonePattern = regexp.MustCompile(`^05[0-9]{9}$`)
 
 const customerTextMaxLength = 255
 
+var corporateSectorOptions = map[string]struct{}{
+	"Teknoloji": {},
+	"İnşaat":    {},
+	"Otomotiv":  {},
+	"Gıda":      {},
+	"Tekstil":   {},
+	"Sağlık":    {},
+	"Eğitim":    {},
+	"Finans":    {},
+	"Turizm":    {},
+	"Diğer":     {},
+}
+
 type CustomerProvider interface {
 	ListCustomers(ctx context.Context, query domain.ListQuery) (domain.ListResult, error)
 	ListZones(ctx context.Context) ([]domain.Zone, error)
@@ -479,6 +492,8 @@ func normalizeFullRegistrationInput(input domain.FullRegistrationInput) domain.F
 		Cep:                    strings.TrimSpace(input.Cep),
 		Ad:                     strings.TrimSpace(input.Ad),
 		Soyad:                  strings.TrimSpace(input.Soyad),
+		Unvan:                  strings.TrimSpace(input.Unvan),
+		CorporateSector:        strings.TrimSpace(input.CorporateSector),
 		TCNo:                   strings.TrimSpace(input.TCNo),
 		DogumTarihi:            strings.TrimSpace(input.DogumTarihi),
 		Eposta:                 strings.TrimSpace(input.Eposta),
@@ -487,6 +502,8 @@ func normalizeFullRegistrationInput(input domain.FullRegistrationInput) domain.F
 		ClassifiedsWebsiteLink: strings.TrimSpace(input.ClassifiedsWebsiteLink),
 		VehicleStockCount:      input.VehicleStockCount,
 		BranchID:               input.BranchID,
+		VergiNo:                strings.TrimSpace(input.VergiNo),
+		VergiDairesi:           strings.TrimSpace(input.VergiDairesi),
 		Telephones:             telephones,
 		IlKodu:                 strings.TrimSpace(input.IlKodu),
 		IlceKodu:               strings.TrimSpace(input.IlceKodu),
@@ -542,8 +559,20 @@ func validateFullRegistrationInput(input domain.FullRegistrationInput) Validatio
 	validateMaxLength(errors, "ad", input.Ad, "Ad")
 	requireField(errors, "soyad", input.Soyad, "Soyad zorunludur.")
 	validateMaxLength(errors, "soyad", input.Soyad, "Soyad")
-	validateMaxLength(errors, "tc_no", input.TCNo, "T.C. no")
-	validateDate(errors, "dogum_tarihi", input.DogumTarihi)
+
+	if input.Type == "bireysel" {
+		validateMaxLength(errors, "tc_no", input.TCNo, "T.C. no")
+		validateDate(errors, "dogum_tarihi", input.DogumTarihi)
+	}
+
+	if input.Type == "kurumsal" {
+		requireField(errors, "unvan", input.Unvan, "Ünvan zorunludur.")
+		validateMaxLength(errors, "unvan", input.Unvan, "Ünvan")
+		requireField(errors, "corporate_sector", input.CorporateSector, "Sektör zorunludur.")
+		validateMaxLength(errors, "corporate_sector", input.CorporateSector, "Sektör")
+		validateCorporateSector(errors, input.CorporateSector)
+	}
+
 	validateMaxLength(errors, "eposta", input.Eposta, "E-posta")
 	validateEmail(errors, "eposta", input.Eposta)
 	validateMaxLength(errors, "website", input.Website, "Website")
@@ -555,11 +584,19 @@ func validateFullRegistrationInput(input domain.FullRegistrationInput) Validatio
 	if input.BranchID <= 0 {
 		errors["branch_id"] = "Bayi zorunludur."
 	}
+
+	if input.Type == "kurumsal" {
+		requireField(errors, "vergi_no", input.VergiNo, "Vergi no zorunludur.")
+		validateMaxLength(errors, "vergi_no", input.VergiNo, "Vergi no")
+		requireField(errors, "vergi_dairesi", input.VergiDairesi, "Vergi dairesi zorunludur.")
+		validateMaxLength(errors, "vergi_dairesi", input.VergiDairesi, "Vergi dairesi")
+	}
+
 	for _, telephone := range input.Telephones {
 		if strings.TrimSpace(telephone.PhoneNumber) == "" && strings.TrimSpace(telephone.Title) == "" {
 			continue
 		}
-		validateMaxLength(errors, "telephones", telephone.PhoneNumber, "Telefon")
+		validatePhone(errors, "telephones", telephone.PhoneNumber)
 		validateMaxLength(errors, "telephones", telephone.Title, "Telefon başlığı")
 	}
 	requireField(errors, "il_kodu", input.IlKodu, "İl zorunludur.")
@@ -607,6 +644,16 @@ func validateDate(errors ValidationErrors, field string, value string) {
 
 	if _, err := time.Parse("2006-01-02", value); err != nil {
 		errors[field] = "Tarih YYYY-AA-GG formatında olmalıdır."
+	}
+}
+
+func validateCorporateSector(errors ValidationErrors, value string) {
+	if strings.TrimSpace(value) == "" {
+		return
+	}
+
+	if _, ok := corporateSectorOptions[value]; !ok {
+		errors["corporate_sector"] = "Geçerli bir sektör seçiniz."
 	}
 }
 

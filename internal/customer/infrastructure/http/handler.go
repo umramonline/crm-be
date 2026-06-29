@@ -60,6 +60,8 @@ type fullRegistrationRequest struct {
 	Cep                    string                             `json:"cep"`
 	Ad                     string                             `json:"ad"`
 	Soyad                  string                             `json:"soyad"`
+	Unvan                  string                             `json:"unvan"`
+	CorporateSector        string                             `json:"corporate_sector"`
 	TCNo                   string                             `json:"tc_no"`
 	DogumTarihi            string                             `json:"dogum_tarihi"`
 	Eposta                 string                             `json:"eposta"`
@@ -68,6 +70,8 @@ type fullRegistrationRequest struct {
 	ClassifiedsWebsiteLink string                             `json:"classifieds_website_link"`
 	VehicleStockCount      int32                              `json:"vehicle_stock_count"`
 	BranchID               int32                              `json:"branch_id"`
+	VergiNo                string                             `json:"vergi_no"`
+	VergiDairesi           string                             `json:"vergi_dairesi"`
 	Telephones             []fullRegistrationTelephoneRequest `json:"telephones"`
 	IlKodu                 string                             `json:"il_kodu"`
 	IlceKodu               string                             `json:"ilce_kodu"`
@@ -173,6 +177,8 @@ func (h *Handler) CompleteFullRegistration(c *fiber.Ctx) error {
 		Cep:                    request.Cep,
 		Ad:                     request.Ad,
 		Soyad:                  request.Soyad,
+		Unvan:                  request.Unvan,
+		CorporateSector:        request.CorporateSector,
 		TCNo:                   request.TCNo,
 		DogumTarihi:            request.DogumTarihi,
 		Eposta:                 request.Eposta,
@@ -181,6 +187,8 @@ func (h *Handler) CompleteFullRegistration(c *fiber.Ctx) error {
 		ClassifiedsWebsiteLink: request.ClassifiedsWebsiteLink,
 		VehicleStockCount:      request.VehicleStockCount,
 		BranchID:               request.BranchID,
+		VergiNo:                request.VergiNo,
+		VergiDairesi:           request.VergiDairesi,
 		Telephones:             telephones,
 		IlKodu:                 request.IlKodu,
 		IlceKodu:               request.IlceKodu,

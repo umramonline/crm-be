@@ -39,9 +39,11 @@ type CustomerDetail struct {
 	IlKodu                 string              `json:"il_kodu"`
 	IlceKodu               string              `json:"ilce_kodu"`
 	VergiNo                string              `json:"vergi_no"`
+	VergiDairesi           string              `json:"vergi_dairesi"`
 	TCNo                   string              `json:"tc_no"`
 	DogumTarihi            string              `json:"dogum_tarihi"`
 	VehicleStockCount      *int32              `json:"vehicle_stock_count,omitempty"`
+	CorporateSector        string              `json:"corporate_sector"`
 	Type                   string              `json:"type"`
 	CreatedAt              *string             `json:"created_at,omitempty"`
 	Telephones             []CustomerTelephone `json:"telephones,omitempty"`
@@ -78,6 +80,8 @@ type FullRegistrationInput struct {
 	Cep                    string
 	Ad                     string
 	Soyad                  string
+	Unvan                  string
+	CorporateSector        string
 	TCNo                   string
 	DogumTarihi            string
 	Eposta                 string
@@ -86,6 +90,8 @@ type FullRegistrationInput struct {
 	ClassifiedsWebsiteLink string
 	VehicleStockCount      int32
 	BranchID               int32
+	VergiNo                string
+	VergiDairesi           string
 	Telephones             []CustomerTelephone
 	IlKodu                 string
 	IlceKodu               string
