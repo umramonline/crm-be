@@ -22,6 +22,9 @@ func (h *Handler) RegisterRoutes(router fiber.Router, authRequired fiber.Handler
 	router.Get("/customers", authRequired, h.ListCustomers)
 	router.Post("/customers", authRequired, h.CreateCustomer)
 	router.Get("/customers/search", authRequired, h.SearchCustomer)
+	router.Get("/customers/full-registration/:id/phone-exists", authRequired, h.FullRegistrationPhoneExists)
+	router.Get("/customers/full-registration/:id", authRequired, h.GetFullRegistrationCustomer)
+	router.Put("/customers/full-registration/:id", authRequired, h.CompleteFullRegistration)
 	router.Get("/customers/backend", authRequired, h.ListBackendCustomers)
 	router.Get("/customers/backend/:id", authRequired, h.GetBackendCustomer)
 	router.Get("/customers/umramonline", authRequired, h.ListUmramonlineCustomers)
@@ -45,6 +48,31 @@ type createCustomerRequest struct {
 	IlceKodu   string `json:"ilce_kodu"`
 	Mahalle    string `json:"mahalle"`
 	BranchID   int32  `json:"branch_id"`
+}
+
+type fullRegistrationTelephoneRequest struct {
+	PhoneNumber string `json:"phone_number"`
+	Title       string `json:"title"`
+}
+
+type fullRegistrationRequest struct {
+	Type                   string                             `json:"type"`
+	Cep                    string                             `json:"cep"`
+	Ad                     string                             `json:"ad"`
+	Soyad                  string                             `json:"soyad"`
+	TCNo                   string                             `json:"tc_no"`
+	DogumTarihi            string                             `json:"dogum_tarihi"`
+	Eposta                 string                             `json:"eposta"`
+	Website                string                             `json:"website"`
+	GoogleMapLink          string                             `json:"google_map_link"`
+	ClassifiedsWebsiteLink string                             `json:"classifieds_website_link"`
+	VehicleStockCount      int32                              `json:"vehicle_stock_count"`
+	BranchID               int32                              `json:"branch_id"`
+	Telephones             []fullRegistrationTelephoneRequest `json:"telephones"`
+	IlKodu                 string                             `json:"il_kodu"`
+	IlceKodu               string                             `json:"ilce_kodu"`
+	Mahalle                string                             `json:"mahalle"`
+	AddressDetail          string                             `json:"address_detail"`
 }
 
 func (h *Handler) ListCustomers(c *fiber.Ctx) error {
@@ -96,6 +124,78 @@ func (h *Handler) GetCustomer(c *fiber.Ctx) error {
 	}
 
 	return response.Success(c, fiber.StatusOK, "Müşteri detayı getirildi.", customer)
+}
+
+func (h *Handler) GetFullRegistrationCustomer(c *fiber.Ctx) error {
+	customer, err := h.service.GetFullRegistrationCustomer(c.UserContext(), paramUint64(c, "id", 0))
+	if err != nil {
+		return response.Error(c, fiber.StatusServiceUnavailable, "Tam kayıt bilgileri şu anda getirilemedi.", nil)
+	}
+
+	return response.Success(c, fiber.StatusOK, "Tam kayıt bilgileri getirildi.", customer)
+}
+
+func (h *Handler) FullRegistrationPhoneExists(c *fiber.Ctx) error {
+	exists, err := h.service.FullRegistrationPhoneExists(c.UserContext(), paramUint64(c, "id", 0), c.Query("cep"))
+	if err != nil {
+		if err == application.ErrInvalidCustomerCreateInput {
+			return response.Error(c, fiber.StatusUnprocessableEntity, "Cep telefonu geçersiz.", fiber.Map{
+				"cep": "Telefon 05XXXXXXXXX formatında, toplam 11 hane olmalıdır.",
+			})
+		}
+
+		return response.Error(c, fiber.StatusServiceUnavailable, "Cep telefonu kontrolü şu anda yapılamıyor.", nil)
+	}
+
+	return response.Success(c, fiber.StatusOK, "Cep telefonu kontrolü tamamlandı.", fiber.Map{
+		"exists": exists,
+	})
+}
+
+func (h *Handler) CompleteFullRegistration(c *fiber.Ctx) error {
+	var request fullRegistrationRequest
+	if err := c.BodyParser(&request); err != nil {
+		return response.Error(c, fiber.StatusUnprocessableEntity, "Tam kayıt bilgileri geçersiz.", fiber.Map{
+			"request": "Tam kayıt bilgileri geçersiz.",
+		})
+	}
+
+	telephones := make([]domain.CustomerTelephone, 0, len(request.Telephones))
+	for _, telephone := range request.Telephones {
+		telephones = append(telephones, domain.CustomerTelephone{
+			PhoneNumber: telephone.PhoneNumber,
+			Title:       telephone.Title,
+		})
+	}
+
+	customer, validationErrors, err := h.service.CompleteFullRegistration(c.UserContext(), paramUint64(c, "id", 0), domain.FullRegistrationInput{
+		Type:                   request.Type,
+		Cep:                    request.Cep,
+		Ad:                     request.Ad,
+		Soyad:                  request.Soyad,
+		TCNo:                   request.TCNo,
+		DogumTarihi:            request.DogumTarihi,
+		Eposta:                 request.Eposta,
+		Website:                request.Website,
+		GoogleMapLink:          request.GoogleMapLink,
+		ClassifiedsWebsiteLink: request.ClassifiedsWebsiteLink,
+		VehicleStockCount:      request.VehicleStockCount,
+		BranchID:               request.BranchID,
+		Telephones:             telephones,
+		IlKodu:                 request.IlKodu,
+		IlceKodu:               request.IlceKodu,
+		Mahalle:                request.Mahalle,
+		AddressDetail:          request.AddressDetail,
+	})
+	if err != nil {
+		if err == application.ErrInvalidCustomerCreateInput {
+			return response.Error(c, fiber.StatusUnprocessableEntity, "Tam kayıt bilgileri geçersiz.", validationErrors)
+		}
+
+		return response.Error(c, fiber.StatusServiceUnavailable, "Tam kayıt şu anda tamamlanamadı.", nil)
+	}
+
+	return response.Success(c, fiber.StatusOK, "Tam kayıt tamamlandı.", customer)
 }
 
 func (h *Handler) GetBackendCustomer(c *fiber.Ctx) error {

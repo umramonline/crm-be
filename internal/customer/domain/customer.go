@@ -21,22 +21,30 @@ type Customer struct {
 }
 
 type CustomerDetail struct {
-	ID         uint64  `json:"id"`
-	UOId       uint64  `json:"uo_id,omitempty"`
-	BranchID   *int32  `json:"branch_id,omitempty"`
-	Unvan      string  `json:"unvan"`
-	Ad         string  `json:"ad"`
-	Soyad      string  `json:"soyad"`
-	YetkiliAdi string  `json:"yetkili_adi"`
-	Cep        string  `json:"cep"`
-	Telefon    string  `json:"telefon"`
-	Mahalle    string  `json:"mahalle"`
-	IlKodu     string  `json:"il_kodu"`
-	IlceKodu   string  `json:"ilce_kodu"`
-	VergiNo    string  `json:"vergi_no"`
-	TCNo       string  `json:"tc_no"`
-	Type       string  `json:"type"`
-	CreatedAt  *string `json:"created_at,omitempty"`
+	ID                     uint64              `json:"id"`
+	UOId                   uint64              `json:"uo_id,omitempty"`
+	BranchID               *int32              `json:"branch_id,omitempty"`
+	Unvan                  string              `json:"unvan"`
+	Ad                     string              `json:"ad"`
+	Soyad                  string              `json:"soyad"`
+	YetkiliAdi             string              `json:"yetkili_adi"`
+	Cep                    string              `json:"cep"`
+	Telefon                string              `json:"telefon"`
+	Eposta                 string              `json:"eposta"`
+	Website                string              `json:"website"`
+	GoogleMapLink          string              `json:"google_map_link"`
+	ClassifiedsWebsiteLink string              `json:"classifieds_website_link"`
+	Mahalle                string              `json:"mahalle"`
+	AddressDetail          string              `json:"address_detail"`
+	IlKodu                 string              `json:"il_kodu"`
+	IlceKodu               string              `json:"ilce_kodu"`
+	VergiNo                string              `json:"vergi_no"`
+	TCNo                   string              `json:"tc_no"`
+	DogumTarihi            string              `json:"dogum_tarihi"`
+	VehicleStockCount      *int32              `json:"vehicle_stock_count,omitempty"`
+	Type                   string              `json:"type"`
+	CreatedAt              *string             `json:"created_at,omitempty"`
+	Telephones             []CustomerTelephone `json:"telephones,omitempty"`
 }
 
 type CustomerSearchResult struct {
@@ -57,6 +65,32 @@ type CreateCustomerInput struct {
 	IlceKodu   string
 	Mahalle    string
 	BranchID   int32
+}
+
+type CustomerTelephone struct {
+	ID          uint64 `json:"id,omitempty"`
+	PhoneNumber string `json:"phone_number"`
+	Title       string `json:"title"`
+}
+
+type FullRegistrationInput struct {
+	Type                   string
+	Cep                    string
+	Ad                     string
+	Soyad                  string
+	TCNo                   string
+	DogumTarihi            string
+	Eposta                 string
+	Website                string
+	GoogleMapLink          string
+	ClassifiedsWebsiteLink string
+	VehicleStockCount      int32
+	BranchID               int32
+	Telephones             []CustomerTelephone
+	IlKodu                 string
+	IlceKodu               string
+	Mahalle                string
+	AddressDetail          string
 }
 
 type City struct {

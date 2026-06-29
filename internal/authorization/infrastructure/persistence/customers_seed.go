@@ -56,6 +56,24 @@ var customerMethodSeeds = []authorizationMethodSeed{
 		Path:        stringPointer("/api/v1/customers"),
 	},
 	{
+		Name:        "customers.full_registration.detail",
+		Description: "Müşteri tam kayıt bilgilerini görüntüler.",
+		Method:      stringPointer("GET"),
+		Path:        stringPointer("/api/v1/customers/full-registration/:id"),
+	},
+	{
+		Name:        "customers.full_registration.phone_exists",
+		Description: "Müşteri tam kayıt cep telefonu benzersizliğini kontrol eder.",
+		Method:      stringPointer("GET"),
+		Path:        stringPointer("/api/v1/customers/full-registration/:id/phone-exists"),
+	},
+	{
+		Name:        "customers.full_registration.update",
+		Description: "Müşteri tam kayıt bilgilerini günceller.",
+		Method:      stringPointer("PUT"),
+		Path:        stringPointer("/api/v1/customers/full-registration/:id"),
+	},
+	{
 		Name:        "customers.zones.list",
 		Description: "Müşteri filtresi için bölgeleri listeler.",
 		Method:      stringPointer("GET"),

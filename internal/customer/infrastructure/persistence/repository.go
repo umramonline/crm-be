@@ -4,6 +4,7 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/umran/new.crm/backend/internal/customer/application"
 	"github.com/umran/new.crm/backend/internal/customer/domain"
@@ -131,6 +132,22 @@ func (r *Repository) GetCustomer(ctx context.Context, id uint64) (domain.Custome
 	return toCustomerDetail(customer), nil
 }
 
+func (r *Repository) GetFullRegistrationCustomer(ctx context.Context, id uint64) (domain.CustomerDetail, error) {
+	customer, err := r.GetCustomer(ctx, id)
+	if err != nil {
+		return domain.CustomerDetail{}, err
+	}
+
+	telephones, err := r.customerTelephones(ctx, id)
+	if err != nil {
+		return domain.CustomerDetail{}, err
+	}
+
+	customer.Telephones = telephones
+
+	return customer, nil
+}
+
 func (r *Repository) PhoneExists(ctx context.Context, phone string) (bool, error) {
 	normalizedPhone := strings.TrimSpace(phone)
 	if r == nil || r.db == nil || normalizedPhone == "" {
@@ -140,6 +157,25 @@ func (r *Repository) PhoneExists(ctx context.Context, phone string) (bool, error
 	var count int64
 	err := r.db.WithContext(ctx).
 		Model(&CustomerModel{}).
+		Where("cep = ? OR telefon = ?", normalizedPhone, normalizedPhone).
+		Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+
+	return count > 0, nil
+}
+
+func (r *Repository) PhoneExistsExcept(ctx context.Context, phone string, customerID uint64) (bool, error) {
+	normalizedPhone := strings.TrimSpace(phone)
+	if r == nil || r.db == nil || normalizedPhone == "" {
+		return false, nil
+	}
+
+	var count int64
+	err := r.db.WithContext(ctx).
+		Model(&CustomerModel{}).
+		Where("id <> ?", customerID).
 		Where("cep = ? OR telefon = ?", normalizedPhone, normalizedPhone).
 		Count(&count).Error
 	if err != nil {
@@ -185,26 +221,98 @@ func (r *Repository) CreateCustomer(ctx context.Context, input domain.CreateCust
 	return toCustomerDetail(customer), nil
 }
 
+func (r *Repository) CompleteFullRegistration(ctx context.Context, id uint64, input domain.FullRegistrationInput) (domain.CustomerDetail, error) {
+	if r == nil || r.db == nil || id == 0 {
+		return domain.CustomerDetail{}, gorm.ErrInvalidDB
+	}
+
+	var customer CustomerModel
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("id = ?", id).First(&customer).Error; err != nil {
+			return err
+		}
+
+		customer.Type = stringPointer(input.Type)
+		customer.Cep = stringPointer(input.Cep)
+		customer.Ad = stringPointer(input.Ad)
+		customer.Soyad = stringPointer(input.Soyad)
+		customer.TCNo = stringPointer(input.TCNo)
+		customer.DogumTarihi = datePointer(input.DogumTarihi)
+		customer.Eposta = stringPointer(input.Eposta)
+		customer.Website = stringPointer(input.Website)
+		customer.Web = stringPointer(input.Website)
+		customer.GoogleMapLink = stringPointer(input.GoogleMapLink)
+		customer.ClassifiedsWebsiteLink = stringPointer(input.ClassifiedsWebsiteLink)
+		customer.VehicleStockCount = &input.VehicleStockCount
+		customer.BranchID = &input.BranchID
+		customer.IlKodu = stringPointer(input.IlKodu)
+		customer.IlceKodu = stringPointer(input.IlceKodu)
+		customer.Mahalle = stringPointer(input.Mahalle)
+		customer.AddressDetail = stringPointer(input.AddressDetail)
+
+		if err := tx.Save(&customer).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Where("customer_id = ?", id).Delete(&CustomerTelephoneModel{}).Error; err != nil {
+			return err
+		}
+
+		for _, telephone := range input.Telephones {
+			if strings.TrimSpace(telephone.PhoneNumber) == "" && strings.TrimSpace(telephone.Title) == "" {
+				continue
+			}
+
+			model := CustomerTelephoneModel{
+				CustomerID:  id,
+				PhoneNumber: strings.TrimSpace(telephone.PhoneNumber),
+				Title:       stringPointer(telephone.Title),
+			}
+			if err := tx.Create(&model).Error; err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return domain.CustomerDetail{}, err
+	}
+
+	return r.GetFullRegistrationCustomer(ctx, id)
+}
+
 func toCustomerDetail(customer CustomerModel) domain.CustomerDetail {
 	createdAt := customer.CreatedAt.Format("2006-01-02 15:04:05")
+	dogumTarihi := ""
+	if customer.DogumTarihi != nil {
+		dogumTarihi = customer.DogumTarihi.Format("2006-01-02")
+	}
 
 	return domain.CustomerDetail{
-		ID:         customer.ID,
-		UOId:       customer.UOId,
-		BranchID:   customer.BranchID,
-		Unvan:      stringValue(customer.Unvan),
-		Ad:         stringValue(customer.Ad),
-		Soyad:      stringValue(customer.Soyad),
-		YetkiliAdi: stringValue(customer.YetkiliAdi),
-		Cep:        stringValue(customer.Cep),
-		Telefon:    stringValue(customer.Telefon),
-		Mahalle:    stringValue(customer.Mahalle),
-		IlKodu:     stringValue(customer.IlKodu),
-		IlceKodu:   stringValue(customer.IlceKodu),
-		VergiNo:    stringValue(customer.VergiNo),
-		TCNo:       stringValue(customer.TCNo),
-		Type:       stringValue(customer.Type),
-		CreatedAt:  &createdAt,
+		ID:                     customer.ID,
+		UOId:                   customer.UOId,
+		BranchID:               customer.BranchID,
+		Unvan:                  stringValue(customer.Unvan),
+		Ad:                     stringValue(customer.Ad),
+		Soyad:                  stringValue(customer.Soyad),
+		YetkiliAdi:             stringValue(customer.YetkiliAdi),
+		Cep:                    stringValue(customer.Cep),
+		Telefon:                stringValue(customer.Telefon),
+		Eposta:                 stringValue(customer.Eposta),
+		Website:                firstNonEmptyString(customer.Website, customer.Web),
+		GoogleMapLink:          stringValue(customer.GoogleMapLink),
+		ClassifiedsWebsiteLink: stringValue(customer.ClassifiedsWebsiteLink),
+		Mahalle:                stringValue(customer.Mahalle),
+		AddressDetail:          stringValue(customer.AddressDetail),
+		IlKodu:                 stringValue(customer.IlKodu),
+		IlceKodu:               stringValue(customer.IlceKodu),
+		VergiNo:                stringValue(customer.VergiNo),
+		TCNo:                   stringValue(customer.TCNo),
+		DogumTarihi:            dogumTarihi,
+		VehicleStockCount:      customer.VehicleStockCount,
+		Type:                   stringValue(customer.Type),
+		CreatedAt:              &createdAt,
 	}
 }
 
@@ -289,6 +397,51 @@ func stringPointer(value string) *string {
 	}
 
 	return &trimmedValue
+}
+
+func datePointer(value string) *time.Time {
+	trimmedValue := strings.TrimSpace(value)
+	if trimmedValue == "" {
+		return nil
+	}
+
+	date, err := time.Parse("2006-01-02", trimmedValue)
+	if err != nil {
+		return nil
+	}
+
+	return &date
+}
+
+func firstNonEmptyString(values ...*string) string {
+	for _, value := range values {
+		if strings.TrimSpace(stringValue(value)) != "" {
+			return stringValue(value)
+		}
+	}
+
+	return ""
+}
+
+func (r *Repository) customerTelephones(ctx context.Context, customerID uint64) ([]domain.CustomerTelephone, error) {
+	var models []CustomerTelephoneModel
+	if err := r.db.WithContext(ctx).
+		Where("customer_id = ?", customerID).
+		Order("id ASC").
+		Find(&models).Error; err != nil {
+		return nil, err
+	}
+
+	telephones := make([]domain.CustomerTelephone, 0, len(models))
+	for _, model := range models {
+		telephones = append(telephones, domain.CustomerTelephone{
+			ID:          model.ID,
+			PhoneNumber: model.PhoneNumber,
+			Title:       stringValue(model.Title),
+		})
+	}
+
+	return telephones, nil
 }
 
 var _ application.CustomerRepository = (*Repository)(nil)

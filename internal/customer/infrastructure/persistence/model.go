@@ -50,11 +50,25 @@ type CustomerModel struct {
 	CorporateSector        *string `gorm:"column:corporate_sector;type:varchar(255)"`
 }
 
+type CustomerTelephoneModel struct {
+	ID          uint64    `gorm:"primaryKey;autoIncrement"`
+	CustomerID  uint64    `gorm:"column:customer_id;type:bigint;not null;index"`
+	PhoneNumber string    `gorm:"column:phone_number;size:255;not null"`
+	Title       *string   `gorm:"size:255"`
+	CreatedAt   time.Time `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
+	UpdatedAt   time.Time `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"`
+	DeletedAt   gorm.DeletedAt
+}
+
+func (CustomerTelephoneModel) TableName() string {
+	return "customer_telephones"
+}
+
 func (CustomerModel) TableName() string {
 	return "customers"
 }
 
 func AutoMigrate(db *gorm.DB) error {
 	return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci").
-		AutoMigrate(&CustomerModel{})
+		AutoMigrate(&CustomerModel{}, &CustomerTelephoneModel{})
 }

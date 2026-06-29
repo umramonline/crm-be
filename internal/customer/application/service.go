@@ -3,9 +3,11 @@ package application
 import (
 	"context"
 	"errors"
+	"net/mail"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/umran/new.crm/backend/internal/customer/domain"
 )
@@ -46,7 +48,10 @@ type CustomerRepository interface {
 	SearchCustomer(ctx context.Context, query string) (domain.CustomerDetail, bool, error)
 	GetCustomer(ctx context.Context, id uint64) (domain.CustomerDetail, error)
 	PhoneExists(ctx context.Context, phone string) (bool, error)
+	PhoneExistsExcept(ctx context.Context, phone string, customerID uint64) (bool, error)
 	CreateCustomer(ctx context.Context, input domain.CreateCustomerInput) (domain.CustomerDetail, error)
+	GetFullRegistrationCustomer(ctx context.Context, id uint64) (domain.CustomerDetail, error)
+	CompleteFullRegistration(ctx context.Context, id uint64, input domain.FullRegistrationInput) (domain.CustomerDetail, error)
 }
 
 type Service struct {
@@ -113,8 +118,7 @@ func (s *Service) SearchCustomer(ctx context.Context, query string) (domain.Cust
 		return domain.CustomerSearchResult{}, ErrCustomerSearchUnavailable
 	}
 
-	// ilk başta veritabanında arama yapıyoruz
-	customer, found, err := s.repository.SearchCustomer(ctx, normalizedQuery)
+	customer, found, err := s.provider.SearchCustomer(ctx, normalizedQuery)
 	if err != nil {
 		return domain.CustomerSearchResult{}, ErrCustomerSearchUnavailable
 	}
@@ -122,13 +126,12 @@ func (s *Service) SearchCustomer(ctx context.Context, query string) (domain.Cust
 	if found {
 		return domain.CustomerSearchResult{
 			Found:    true,
-			Source:   "backend",
+			Source:   "umramonline",
 			Customer: &customer,
 		}, nil
 	}
 
-	// eğer veritabanında bulunamadıysa, umramonline'dan arama yapıyoruz
-	customer, found, err = s.provider.SearchCustomer(ctx, normalizedQuery)
+	customer, found, err = s.repository.SearchCustomer(ctx, normalizedQuery)
 	if err != nil {
 		return domain.CustomerSearchResult{}, ErrCustomerSearchUnavailable
 	}
@@ -139,9 +142,70 @@ func (s *Service) SearchCustomer(ctx context.Context, query string) (domain.Cust
 
 	return domain.CustomerSearchResult{
 		Found:    true,
-		Source:   "umramonline",
+		Source:   "backend",
 		Customer: &customer,
 	}, nil
+}
+
+func (s *Service) GetFullRegistrationCustomer(ctx context.Context, id uint64) (domain.CustomerDetail, error) {
+	if s == nil || s.repository == nil || id == 0 {
+		return domain.CustomerDetail{}, ErrCustomerSearchUnavailable
+	}
+
+	return s.repository.GetFullRegistrationCustomer(ctx, id)
+}
+
+func (s *Service) CompleteFullRegistration(ctx context.Context, id uint64, input domain.FullRegistrationInput) (domain.CustomerDetail, ValidationErrors, error) {
+	normalizedInput := normalizeFullRegistrationInput(input)
+	validationErrors := validateFullRegistrationInput(normalizedInput)
+	if len(validationErrors) > 0 {
+		return domain.CustomerDetail{}, validationErrors, ErrInvalidCustomerCreateInput
+	}
+
+	if s == nil || s.repository == nil || s.provider == nil || id == 0 {
+		return domain.CustomerDetail{}, nil, ErrCustomerCreateUnavailable
+	}
+
+	exists, err := s.repository.PhoneExistsExcept(ctx, normalizedInput.Cep, id)
+	if err != nil {
+		return domain.CustomerDetail{}, nil, ErrCustomerCreateUnavailable
+	}
+	if exists {
+		return domain.CustomerDetail{}, ValidationErrors{"cep": "Bu cep numarası backend müşteri kayıtlarında zaten var."}, ErrInvalidCustomerCreateInput
+	}
+
+	exists, err = s.provider.PhoneExists(ctx, normalizedInput.Cep)
+	if err != nil {
+		return domain.CustomerDetail{}, nil, ErrCustomerCreateUnavailable
+	}
+	if exists {
+		return domain.CustomerDetail{}, ValidationErrors{"cep": "Bu cep numarası umramonline müşteri kayıtlarında zaten var."}, ErrInvalidCustomerCreateInput
+	}
+
+	customer, err := s.repository.CompleteFullRegistration(ctx, id, normalizedInput)
+	if err != nil {
+		return domain.CustomerDetail{}, nil, ErrCustomerCreateUnavailable
+	}
+
+	return customer, nil, nil
+}
+
+func (s *Service) FullRegistrationPhoneExists(ctx context.Context, id uint64, cep string) (bool, error) {
+	normalizedCep := strings.TrimSpace(cep)
+	if id == 0 || !turkeyMobilePhonePattern.MatchString(normalizedCep) {
+		return false, ErrInvalidCustomerCreateInput
+	}
+
+	if s == nil || s.repository == nil || s.provider == nil {
+		return false, ErrCustomerCreateUnavailable
+	}
+
+	exists, err := s.repository.PhoneExistsExcept(ctx, normalizedCep, id)
+	if err != nil || exists {
+		return exists, err
+	}
+
+	return s.provider.PhoneExists(ctx, normalizedCep)
 }
 
 func (s *Service) CreateCustomer(ctx context.Context, input domain.CreateCustomerInput) (domain.CustomerDetail, ValidationErrors, error) {
@@ -400,6 +464,37 @@ func normalizeCreateCustomerInput(input domain.CreateCustomerInput) domain.Creat
 	}
 }
 
+func normalizeFullRegistrationInput(input domain.FullRegistrationInput) domain.FullRegistrationInput {
+	telephones := make([]domain.CustomerTelephone, 0, len(input.Telephones))
+	for _, telephone := range input.Telephones {
+		telephones = append(telephones, domain.CustomerTelephone{
+			ID:          telephone.ID,
+			PhoneNumber: strings.TrimSpace(telephone.PhoneNumber),
+			Title:       strings.TrimSpace(telephone.Title),
+		})
+	}
+
+	return domain.FullRegistrationInput{
+		Type:                   strings.ToLower(strings.TrimSpace(input.Type)),
+		Cep:                    strings.TrimSpace(input.Cep),
+		Ad:                     strings.TrimSpace(input.Ad),
+		Soyad:                  strings.TrimSpace(input.Soyad),
+		TCNo:                   strings.TrimSpace(input.TCNo),
+		DogumTarihi:            strings.TrimSpace(input.DogumTarihi),
+		Eposta:                 strings.TrimSpace(input.Eposta),
+		Website:                strings.TrimSpace(input.Website),
+		GoogleMapLink:          strings.TrimSpace(input.GoogleMapLink),
+		ClassifiedsWebsiteLink: strings.TrimSpace(input.ClassifiedsWebsiteLink),
+		VehicleStockCount:      input.VehicleStockCount,
+		BranchID:               input.BranchID,
+		Telephones:             telephones,
+		IlKodu:                 strings.TrimSpace(input.IlKodu),
+		IlceKodu:               strings.TrimSpace(input.IlceKodu),
+		Mahalle:                strings.TrimSpace(input.Mahalle),
+		AddressDetail:          strings.TrimSpace(input.AddressDetail),
+	}
+}
+
 func validateCreateCustomerInput(input domain.CreateCustomerInput) ValidationErrors {
 	errors := ValidationErrors{}
 
@@ -436,6 +531,47 @@ func validateCreateCustomerInput(input domain.CreateCustomerInput) ValidationErr
 	return errors
 }
 
+func validateFullRegistrationInput(input domain.FullRegistrationInput) ValidationErrors {
+	errors := ValidationErrors{}
+
+	if input.Type != "bireysel" && input.Type != "kurumsal" {
+		errors["type"] = "Müşteri türü bireysel veya kurumsal olmalıdır."
+	}
+	validatePhone(errors, "cep", input.Cep)
+	requireField(errors, "ad", input.Ad, "Ad zorunludur.")
+	validateMaxLength(errors, "ad", input.Ad, "Ad")
+	requireField(errors, "soyad", input.Soyad, "Soyad zorunludur.")
+	validateMaxLength(errors, "soyad", input.Soyad, "Soyad")
+	validateMaxLength(errors, "tc_no", input.TCNo, "T.C. no")
+	validateDate(errors, "dogum_tarihi", input.DogumTarihi)
+	validateMaxLength(errors, "eposta", input.Eposta, "E-posta")
+	validateEmail(errors, "eposta", input.Eposta)
+	validateMaxLength(errors, "website", input.Website, "Website")
+	validateMaxLength(errors, "google_map_link", input.GoogleMapLink, "Google map link")
+	validateMaxLength(errors, "classifieds_website_link", input.ClassifiedsWebsiteLink, "İlan sitesi linki")
+	if input.VehicleStockCount < 0 {
+		errors["vehicle_stock_count"] = "Araç stok adedi 0 veya daha büyük olmalıdır."
+	}
+	if input.BranchID <= 0 {
+		errors["branch_id"] = "Bayi zorunludur."
+	}
+	for _, telephone := range input.Telephones {
+		if strings.TrimSpace(telephone.PhoneNumber) == "" && strings.TrimSpace(telephone.Title) == "" {
+			continue
+		}
+		validateMaxLength(errors, "telephones", telephone.PhoneNumber, "Telefon")
+		validateMaxLength(errors, "telephones", telephone.Title, "Telefon başlığı")
+	}
+	requireField(errors, "il_kodu", input.IlKodu, "İl zorunludur.")
+	validateMaxLength(errors, "il_kodu", input.IlKodu, "İl")
+	validateMaxLength(errors, "ilce_kodu", input.IlceKodu, "İlçe")
+	validateMaxLength(errors, "mahalle", input.Mahalle, "Mahalle")
+	requireField(errors, "address_detail", input.AddressDetail, "Adres detayı zorunludur.")
+	validateMaxLength(errors, "address_detail", input.AddressDetail, "Adres detayı")
+
+	return errors
+}
+
 func requireField(errors ValidationErrors, field string, value string, message string) {
 	if strings.TrimSpace(value) == "" {
 		errors[field] = message
@@ -451,6 +587,26 @@ func validatePhone(errors ValidationErrors, field string, value string) {
 func validateMaxLength(errors ValidationErrors, field string, value string, label string) {
 	if len([]rune(strings.TrimSpace(value))) > customerTextMaxLength {
 		errors[field] = label + " en fazla 255 karakter olabilir."
+	}
+}
+
+func validateEmail(errors ValidationErrors, field string, value string) {
+	if strings.TrimSpace(value) == "" {
+		return
+	}
+
+	if _, err := mail.ParseAddress(value); err != nil {
+		errors[field] = "Geçerli bir e-posta adresi giriniz."
+	}
+}
+
+func validateDate(errors ValidationErrors, field string, value string) {
+	if strings.TrimSpace(value) == "" {
+		return
+	}
+
+	if _, err := time.Parse("2006-01-02", value); err != nil {
+		errors[field] = "Tarih YYYY-AA-GG formatında olmalıdır."
 	}
 }
 
