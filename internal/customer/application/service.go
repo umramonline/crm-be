@@ -170,13 +170,29 @@ func (s *Service) GetFullRegistrationCustomer(ctx context.Context, id uint64) (d
 
 func (s *Service) CompleteFullRegistration(ctx context.Context, id uint64, input domain.FullRegistrationInput) (domain.CustomerDetail, ValidationErrors, error) {
 	normalizedInput := normalizeFullRegistrationInput(input)
+
+	existingCustomer, err := s.repository.GetFullRegistrationCustomer(ctx, id)
+	if err != nil {
+		return domain.CustomerDetail{}, nil, ErrCustomerCreateUnavailable
+	}
+
+	if existingCustomer.UOId > 0 {
+		validationErrors := validateUmramonlineFullRegistrationInput(normalizedInput, existingCustomer)
+		if len(validationErrors) > 0 {
+			return domain.CustomerDetail{}, validationErrors, ErrInvalidCustomerCreateInput
+		}
+
+		customer, err := s.repository.CompleteFullRegistration(ctx, id, normalizedInput)
+		if err != nil {
+			return domain.CustomerDetail{}, nil, ErrCustomerCreateUnavailable
+		}
+
+		return customer, nil, nil
+	}
+
 	validationErrors := validateFullRegistrationInput(normalizedInput)
 	if len(validationErrors) > 0 {
 		return domain.CustomerDetail{}, validationErrors, ErrInvalidCustomerCreateInput
-	}
-
-	if s == nil || s.repository == nil || s.provider == nil || id == 0 {
-		return domain.CustomerDetail{}, nil, ErrCustomerCreateUnavailable
 	}
 
 	exists, err := s.repository.PhoneExistsExcept(ctx, normalizedInput.Cep, id)
@@ -607,6 +623,97 @@ func validateFullRegistrationInput(input domain.FullRegistrationInput) Validatio
 	validateMaxLength(errors, "address_detail", input.AddressDetail, "Adres detayı")
 
 	return errors
+}
+
+func validateUmramonlineFullRegistrationInput(input domain.FullRegistrationInput, existing domain.CustomerDetail) ValidationErrors {
+	errors := ValidationErrors{}
+
+	if strings.ToLower(strings.TrimSpace(existing.Type)) == "kurumsal" {
+		requireField(errors, "corporate_sector", input.CorporateSector, "Sektör zorunludur.")
+		validateCorporateSector(errors, input.CorporateSector)
+	}
+	validateMaxLength(errors, "corporate_sector", input.CorporateSector, "Sektör")
+	validateMaxLength(errors, "website", input.Website, "Website")
+	validateMaxLength(errors, "google_map_link", input.GoogleMapLink, "Google map link")
+	validateMaxLength(errors, "classifieds_website_link", input.ClassifiedsWebsiteLink, "İlan sitesi linki")
+	if input.VehicleStockCount < 0 {
+		errors["vehicle_stock_count"] = "Araç stok adedi 0 veya daha büyük olmalıdır."
+	}
+
+	validateReadonlyFullRegistrationField(errors, "type", input.Type, strings.ToLower(strings.TrimSpace(existing.Type)))
+	validateReadonlyFullRegistrationField(errors, "cep", input.Cep, strings.TrimSpace(existing.Cep))
+	validateReadonlyFullRegistrationField(errors, "ad", input.Ad, strings.TrimSpace(existing.Ad))
+	validateReadonlyFullRegistrationField(errors, "soyad", input.Soyad, strings.TrimSpace(existing.Soyad))
+	validateReadonlyFullRegistrationField(errors, "unvan", input.Unvan, strings.TrimSpace(existing.Unvan))
+	validateReadonlyFullRegistrationField(errors, "tc_no", input.TCNo, strings.TrimSpace(existing.TCNo))
+	validateReadonlyFullRegistrationField(errors, "dogum_tarihi", input.DogumTarihi, strings.TrimSpace(existing.DogumTarihi))
+	validateReadonlyFullRegistrationField(errors, "eposta", input.Eposta, strings.TrimSpace(existing.Eposta))
+	validateReadonlyFullRegistrationInt32Field(errors, "branch_id", input.BranchID, existing.BranchID)
+	validateReadonlyFullRegistrationField(errors, "vergi_no", input.VergiNo, strings.TrimSpace(existing.VergiNo))
+	validateReadonlyFullRegistrationField(errors, "vergi_dairesi", input.VergiDairesi, strings.TrimSpace(existing.VergiDairesi))
+	validateReadonlyFullRegistrationField(errors, "il_kodu", input.IlKodu, strings.TrimSpace(existing.IlKodu))
+	validateReadonlyFullRegistrationField(errors, "ilce_kodu", input.IlceKodu, strings.TrimSpace(existing.IlceKodu))
+	validateReadonlyFullRegistrationField(errors, "mahalle", input.Mahalle, strings.TrimSpace(existing.Mahalle))
+	validateReadonlyFullRegistrationField(errors, "address_detail", input.AddressDetail, strings.TrimSpace(existing.AddressDetail))
+	validateReadonlyFullRegistrationTelephones(errors, input.Telephones, existing.Telephones)
+
+	return errors
+}
+
+func validateReadonlyFullRegistrationField(errors ValidationErrors, field string, input string, existing string) {
+	if strings.TrimSpace(input) != strings.TrimSpace(existing) {
+		errors[field] = "Bu alan Umramonline müşterileri için düzenlenemez."
+	}
+}
+
+func validateReadonlyFullRegistrationInt32Field(errors ValidationErrors, field string, input int32, existing *int32) {
+	if existing == nil && input == 0 {
+		return
+	}
+	if existing != nil && input == *existing {
+		return
+	}
+
+	errors[field] = "Bu alan Umramonline müşterileri için düzenlenemez."
+}
+
+func validateReadonlyFullRegistrationTelephones(
+	errors ValidationErrors,
+	input []domain.CustomerTelephone,
+	existing []domain.CustomerTelephone,
+) {
+	normalizedInput := nonEmptyTelephones(input)
+	normalizedExisting := nonEmptyTelephones(existing)
+	if len(normalizedInput) != len(normalizedExisting) {
+		errors["telephones"] = "Telefonlar Umramonline müşterileri için düzenlenemez."
+		return
+	}
+
+	for index, inputTelephone := range normalizedInput {
+		existingTelephone := normalizedExisting[index]
+		if inputTelephone.PhoneNumber != existingTelephone.PhoneNumber || inputTelephone.Title != existingTelephone.Title {
+			errors["telephones"] = "Telefonlar Umramonline müşterileri için düzenlenemez."
+			return
+		}
+	}
+}
+
+func nonEmptyTelephones(telephones []domain.CustomerTelephone) []domain.CustomerTelephone {
+	normalizedTelephones := make([]domain.CustomerTelephone, 0, len(telephones))
+	for _, telephone := range telephones {
+		phoneNumber := strings.TrimSpace(telephone.PhoneNumber)
+		title := strings.TrimSpace(telephone.Title)
+		if phoneNumber == "" && title == "" {
+			continue
+		}
+
+		normalizedTelephones = append(normalizedTelephones, domain.CustomerTelephone{
+			PhoneNumber: phoneNumber,
+			Title:       title,
+		})
+	}
+
+	return normalizedTelephones
 }
 
 func requireField(errors ValidationErrors, field string, value string, message string) {

@@ -232,6 +232,17 @@ func (r *Repository) CompleteFullRegistration(ctx context.Context, id uint64, in
 			return err
 		}
 
+		if customer.UOId > 0 {
+			return tx.Model(&customer).Updates(map[string]interface{}{
+				"corporate_sector":         input.CorporateSector,
+				"website":                  input.Website,
+				"web":                      input.Website,
+				"google_map_link":          input.GoogleMapLink,
+				"classifieds_website_link": input.ClassifiedsWebsiteLink,
+				"vehicle_stock_count":      input.VehicleStockCount,
+			}).Error
+		}
+
 		customer.Type = stringPointer(input.Type)
 		customer.Cep = stringPointer(input.Cep)
 		customer.Ad = stringPointer(input.Ad)
