@@ -10,6 +10,7 @@
             "request": "launch",
             "mode": "auto",
             "program": "${workspaceFolder}/cmd/api/main.go",
+            // "program": "${workspaceFolder}/cmd/sync-umramonline-customers/main.go",
             "cwd": "${workspaceFolder}",
             "envFile": "${workspaceFolder}/.env"
         }
