@@ -161,10 +161,6 @@ func (s *Service) SearchCustomer(ctx context.Context, query string) (domain.Cust
 }
 
 func (s *Service) GetFullRegistrationCustomer(ctx context.Context, id uint64) (domain.CustomerDetail, error) {
-	if s == nil || s.repository == nil || id == 0 {
-		return domain.CustomerDetail{}, ErrCustomerSearchUnavailable
-	}
-
 	return s.repository.GetFullRegistrationCustomer(ctx, id)
 }
 
