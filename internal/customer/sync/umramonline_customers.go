@@ -1,22 +1,21 @@
-package main
+package customersync
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
 	"strings"
 	"time"
 
-	"github.com/joho/godotenv"
+	"github.com/robfig/cron/v3"
 	customerpersistence "github.com/umran/new.crm/backend/internal/customer/infrastructure/persistence"
-	"github.com/umran/new.crm/backend/internal/infrastructure/config"
-	dbpersistence "github.com/umran/new.crm/backend/internal/infrastructure/persistence"
 	"gorm.io/gorm"
 )
 
-const defaultBatchSize = 500
+const DefaultBatchSize = 500
 
-type sourceCustomer struct {
+type SourceCustomer struct {
 	ID               uint64
 	BranchID         *int32
 	Unvan            *string
@@ -52,75 +51,51 @@ type sourceCustomer struct {
 	KapiNo           *string `gorm:"column:kapi_no"`
 }
 
-func (sourceCustomer) TableName() string {
+func (SourceCustomer) TableName() string {
 	return "customers"
 }
 
-type syncStats struct {
+type Stats struct {
 	Scanned  int
 	Inserted int
 	Updated  int
 }
 
-func main() {
-	_ = godotenv.Load()
-
-	cfg, err := config.Load()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	if strings.TrimSpace(cfg.DatabaseDSN) == "" {
-		log.Fatal("DATABASE_DSN is required for backend database")
-	}
-
-	backendDB, err := dbpersistence.OpenMySQL(cfg.DatabaseDSN)
-	if err != nil {
-		log.Fatalf("open backend database: %v", err)
-	}
-
-	umramonlineDB, err := dbpersistence.OpenMySQL("root:root@tcp(127.0.0.1:33007)/umramdb?charset=utf8mb4&parseTime=True&loc=Local")
-	if err != nil {
-		log.Fatalf("open umramonline database: %v", err)
-	}
-
-	startAt, endAt, err := syncWindow()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	log.Printf("syncing umramonline customers changed between %s and %s", startAt.Format(time.RFC3339), endAt.Format(time.RFC3339))
-
-	stats, err := syncCustomers(umramonlineDB, backendDB, defaultBatchSize, startAt, endAt)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	log.Printf(
-		"yesterday customer sync completed scanned=%d inserted=%d updated=%d",
-		stats.Scanned,
-		stats.Inserted,
-		stats.Updated,
-	)
+type SchedulerConfig struct {
+	SourceDB  *gorm.DB
+	TargetDB  *gorm.DB
+	BatchSize int
+	DailyAt   string
+	CronExpr  string
+	Logger    *log.Logger
 }
 
-func syncWindow() (time.Time, time.Time, error) {
-	location := time.Local
-
-	now := time.Now().In(location)
+func YesterdayWindow(now time.Time) (time.Time, time.Time) {
+	location := now.Location()
 	startOfToday := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, location)
 	startOfYesterday := startOfToday.AddDate(0, 0, -1)
 
-	return startOfYesterday, startOfToday, nil
+	return startOfYesterday, startOfToday
 }
 
-func syncCustomers(sourceDB *gorm.DB, targetDB *gorm.DB, batchSize int, startAt time.Time, endAt time.Time) (syncStats, error) {
-	stats := syncStats{}
-	var lastID uint64
+func syncChangedCustomers(ctx context.Context, sourceDB *gorm.DB, targetDB *gorm.DB, batchSize int, startAt time.Time, endAt time.Time) (Stats, error) {
+	stats := Stats{}
+	if sourceDB == nil || targetDB == nil {
+		return stats, errors.New("source and target database connections are required")
+	}
 
+	if batchSize <= 0 {
+		batchSize = DefaultBatchSize
+	}
+
+	var lastID uint64
 	for {
-		customers := []sourceCustomer{}
-		if err := sourceDB.
+		if err := ctx.Err(); err != nil {
+			return stats, err
+		}
+
+		customers := []SourceCustomer{}
+		if err := sourceDB.WithContext(ctx).
 			Where("id > ?", lastID).
 			Where("(created_at >= ? AND created_at < ?) OR (updated_at >= ? AND updated_at < ?)", startAt, endAt, startAt, endAt).
 			Order("id ASC").
@@ -133,7 +108,7 @@ func syncCustomers(sourceDB *gorm.DB, targetDB *gorm.DB, batchSize int, startAt 
 			return stats, nil
 		}
 
-		if err := targetDB.Transaction(func(tx *gorm.DB) error {
+		if err := targetDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 			for _, customer := range customers {
 				inserted, err := upsertCustomer(tx, customer)
 				if err != nil {
@@ -157,7 +132,73 @@ func syncCustomers(sourceDB *gorm.DB, targetDB *gorm.DB, batchSize int, startAt 
 	}
 }
 
-func upsertCustomer(db *gorm.DB, source sourceCustomer) (bool, error) {
+func StartDailyScheduler(ctx context.Context, config SchedulerConfig) {
+	logger := config.Logger
+	if logger == nil {
+		logger = log.Default()
+	}
+
+	batchSize := config.BatchSize
+	if batchSize <= 0 {
+		batchSize = DefaultBatchSize
+	}
+
+	schedule, err := cronSchedule(config.CronExpr, config.DailyAt)
+	if err != nil {
+		logger.Printf("customer sync scheduler disabled: %v", err)
+		return
+	}
+
+	scheduler := cron.New(
+		cron.WithLocation(time.Local),
+		cron.WithChain(cron.SkipIfStillRunning(cron.PrintfLogger(logger))),
+	)
+
+	if _, err := scheduler.AddFunc(schedule, func() {
+		startAt, endAt := YesterdayWindow(time.Now())
+		logger.Printf("starting scheduled customer sync window=%s..%s", startAt.Format(time.RFC3339), endAt.Format(time.RFC3339))
+		stats, err := syncChangedCustomers(ctx, config.SourceDB, config.TargetDB, batchSize, startAt, endAt)
+		if err != nil {
+			logger.Printf("scheduled customer sync failed: %v", err)
+			return
+		}
+
+		logger.Printf("scheduled customer sync completed scanned=%d inserted=%d updated=%d", stats.Scanned, stats.Inserted, stats.Updated)
+	}); err != nil {
+		logger.Printf("customer sync scheduler disabled: %v", err)
+		return
+	}
+
+	scheduler.Start()
+	logger.Printf("customer sync cron scheduler started schedule=%q", schedule)
+
+	go func() {
+		<-ctx.Done()
+		stopCtx := scheduler.Stop()
+		<-stopCtx.Done()
+	}()
+}
+
+func cronSchedule(cronExpr string, dailyAt string) (string, error) {
+	normalizedCronExpr := strings.TrimSpace(cronExpr)
+	if normalizedCronExpr != "" {
+		return normalizedCronExpr, nil
+	}
+
+	normalizedValue := strings.TrimSpace(dailyAt)
+	if normalizedValue == "" {
+		normalizedValue = "03:00"
+	}
+
+	parsedTime, err := time.Parse("15:04", normalizedValue)
+	if err != nil {
+		return "", fmt.Errorf("CUSTOMER_SYNC_DAILY_AT must be HH:MM: %w", err)
+	}
+
+	return fmt.Sprintf("%d %d * * *", parsedTime.Minute(), parsedTime.Hour()), nil
+}
+
+func upsertCustomer(db *gorm.DB, source SourceCustomer) (bool, error) {
 	if source.ID == 0 {
 		return false, errors.New("umramonline customer id is empty")
 	}
@@ -185,7 +226,7 @@ func upsertCustomer(db *gorm.DB, source sourceCustomer) (bool, error) {
 	return false, nil
 }
 
-func targetCustomer(source sourceCustomer) customerpersistence.CustomerModel {
+func targetCustomer(source SourceCustomer) customerpersistence.CustomerModel {
 	return customerpersistence.CustomerModel{
 		UOId:             source.ID,
 		BranchID:         source.BranchID,
@@ -223,7 +264,7 @@ func targetCustomer(source sourceCustomer) customerpersistence.CustomerModel {
 	}
 }
 
-func targetCustomerUpdates(source sourceCustomer) map[string]any {
+func targetCustomerUpdates(source SourceCustomer) map[string]any {
 	return map[string]any{
 		"branch_id":          source.BranchID,
 		"unvan":              trimStringPointer(source.Unvan),

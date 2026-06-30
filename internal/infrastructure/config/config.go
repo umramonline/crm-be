@@ -27,6 +27,10 @@ type Config struct {
 	UmramonlineTownsPath               string `env:"UMRAMONLINE_TOWNS_PATH" envDefault:"/api/v1/crm/towns"`
 	UmramonlineBranchesPath            string `env:"UMRAMONLINE_BRANCHES_PATH" envDefault:"/api/v1/crm/branches"`
 	UmramonlineTimeoutSeconds          int    `env:"UMRAMONLINE_TIMEOUT_SECONDS" envDefault:"10"`
+	CustomerSyncDailyAt                string `env:"CUSTOMER_SYNC_DAILY_AT" envDefault:"03:00"`
+	CustomerSyncCron                   string `env:"CUSTOMER_SYNC_CRON" envDefault:"0 3 * * *"`
+	CustomerSyncBatchSize              int    `env:"CUSTOMER_SYNC_BATCH_SIZE" envDefault:"500"`
+	CustomerSyncUmramonlineDatabaseDSN string `env:"CUSTOMER_SYNC_UMRAMONLINE_DATABASE_DSN" envDefault:"root:root@tcp(127.0.0.1:33007)/umramdb?charset=utf8mb4&parseTime=True&loc=Local"`
 	DatabaseDSN                        string `env:"DATABASE_DSN"`
 	SessionTokenSecret                 string `env:"SESSION_TOKEN_SECRET" envDefault:"dev-session-token-secret-change-me"`
 	AccessTokenTTLMinutes              int    `env:"ACCESS_TOKEN_TTL_MINUTES" envDefault:"15"`

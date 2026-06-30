@@ -17,10 +17,12 @@ import (
 	customerhttp "github.com/umran/new.crm/backend/internal/customer/infrastructure/http"
 	customerpersistence "github.com/umran/new.crm/backend/internal/customer/infrastructure/persistence"
 	customerumramonline "github.com/umran/new.crm/backend/internal/customer/infrastructure/umramonline"
+	customersync "github.com/umran/new.crm/backend/internal/customer/sync"
 	"github.com/umran/new.crm/backend/internal/infrastructure/config"
 	httpserver "github.com/umran/new.crm/backend/internal/infrastructure/http"
 	dbpersistence "github.com/umran/new.crm/backend/internal/infrastructure/persistence"
 	"github.com/umran/new.crm/backend/internal/umramonline"
+	"gorm.io/gorm"
 )
 
 func main() {
@@ -52,35 +54,33 @@ func main() {
 	var permissionRepository authzapp.PermissionRepository
 	var moduleRepository authzapp.ModuleRepository
 	var customerRepository customerapp.CustomerRepository
-	if cfg.DatabaseDSN != "" {
-		db, err := dbpersistence.OpenMySQL(cfg.DatabaseDSN)
-		if err != nil {
-			log.Fatal(err)
-		}
+	var db *gorm.DB
 
-		if err := authzpersistence.AutoMigrate(db); err != nil {
-			log.Fatal(err)
-		}
-
-		if err := customerpersistence.AutoMigrate(db); err != nil {
-			log.Fatal(err)
-		}
-
-		if err := authzpersistence.SeedAuthorization(db); err != nil {
-			log.Fatal(err)
-		}
-
-		if err := authzpersistence.SeedCustomers(db); err != nil {
-			log.Fatal(err)
-		}
-
-		authorizationRepository := authzpersistence.NewRepository(db)
-		permissionRepository = authorizationRepository
-		moduleRepository = authorizationRepository
-		customerRepository = customerpersistence.NewRepository(db)
-	} else {
-		log.Println("DATABASE_DSN is empty; authorization persistence is disabled")
+	db, err = dbpersistence.OpenMySQL(cfg.DatabaseDSN)
+	if err != nil {
+		log.Fatal(err)
 	}
+
+	if err := authzpersistence.AutoMigrate(db); err != nil {
+		log.Fatal(err)
+	}
+
+	if err := customerpersistence.AutoMigrate(db); err != nil {
+		log.Fatal(err)
+	}
+
+	if err := authzpersistence.SeedAuthorization(db); err != nil {
+		log.Fatal(err)
+	}
+
+	if err := authzpersistence.SeedCustomers(db); err != nil {
+		log.Fatal(err)
+	}
+
+	authorizationRepository := authzpersistence.NewRepository(db)
+	permissionRepository = authorizationRepository
+	moduleRepository = authorizationRepository
+	customerRepository = customerpersistence.NewRepository(db)
 
 	authorizationService := authzapp.NewService(authorizationProvider, permissionRepository, moduleRepository)
 	otpHandler := authhttp.NewOTPHandler(otpRequestService, sessionTokenService, authhttp.SessionConfig{
@@ -103,6 +103,21 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	umramonlineDB, err := dbpersistence.OpenMySQL(cfg.CustomerSyncUmramonlineDatabaseDSN)
+	if err != nil {
+		log.Fatalf("open umramonline database for customer sync: %v", err)
+	}
+
+	customersync.StartDailyScheduler(ctx, customersync.SchedulerConfig{
+		SourceDB:  umramonlineDB,
+		TargetDB:  db,
+		BatchSize: cfg.CustomerSyncBatchSize,
+		DailyAt:   cfg.CustomerSyncDailyAt,
+		CronExpr:  cfg.CustomerSyncCron,
+		Logger:    log.Default(),
+	})
+	log.Printf("customer sync scheduler enabled cron=%q daily_at_fallback=%s", cfg.CustomerSyncCron, cfg.CustomerSyncDailyAt)
 
 	errCh := make(chan error, 1)
 	go func() {
