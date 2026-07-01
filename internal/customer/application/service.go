@@ -82,15 +82,7 @@ func NewService(provider CustomerProvider, repositories ...CustomerRepository) *
 }
 
 func (s *Service) ListCustomers(ctx context.Context, query domain.ListQuery) (domain.ListResult, error) {
-	if s == nil || s.provider == nil {
-		return domain.ListResult{}, ErrCustomerListUnavailable
-	}
-
 	if customerDataSource(query.DataSource) == "backend" {
-		if s.repository == nil {
-			return domain.ListResult{}, ErrCustomerListUnavailable
-		}
-
 		return s.listBackendCustomers(ctx, query)
 	}
 
