@@ -65,6 +65,7 @@ type CustomerRepository interface {
 	CreateCustomer(ctx context.Context, input domain.CreateCustomerInput) (domain.CustomerDetail, error)
 	GetFullRegistrationCustomer(ctx context.Context, id uint64) (domain.CustomerDetail, error)
 	CompleteFullRegistration(ctx context.Context, id uint64, input domain.FullRegistrationInput) (domain.CustomerDetail, error)
+	UpdateSourceEditableFullRegistration(ctx context.Context, id uint64, input domain.FullRegistrationInput) (domain.CustomerDetail, error)
 }
 
 type Service struct {
@@ -158,6 +159,29 @@ func (s *Service) GetFullRegistrationCustomer(ctx context.Context, id uint64) (d
 
 func (s *Service) CompleteFullRegistration(ctx context.Context, id uint64, input domain.FullRegistrationInput) (domain.CustomerDetail, ValidationErrors, error) {
 	normalizedInput := normalizeFullRegistrationInput(input)
+
+	if s == nil || s.repository == nil || s.provider == nil {
+		return domain.CustomerDetail{}, nil, ErrCustomerCreateUnavailable
+	}
+
+	existingCustomer, err := s.repository.GetFullRegistrationCustomer(ctx, id)
+	if err != nil {
+		return domain.CustomerDetail{}, nil, ErrCustomerCreateUnavailable
+	}
+
+	if existingCustomer.UOId > 0 {
+		validationErrors := validateSourceEditableFullRegistrationInput(normalizedInput, existingCustomer.Type)
+		if len(validationErrors) > 0 {
+			return domain.CustomerDetail{}, validationErrors, ErrInvalidCustomerCreateInput
+		}
+
+		customer, err := s.repository.UpdateSourceEditableFullRegistration(ctx, id, normalizedInput)
+		if err != nil {
+			return domain.CustomerDetail{}, nil, ErrCustomerCreateUnavailable
+		}
+
+		return customer, nil, nil
+	}
 
 	validationErrors := validateFullRegistrationInput(normalizedInput)
 	if len(validationErrors) > 0 {
@@ -590,6 +614,24 @@ func validateFullRegistrationInput(input domain.FullRegistrationInput) Validatio
 	validateMaxLength(errors, "mahalle", input.Mahalle, "Mahalle")
 	requireField(errors, "address_detail", input.AddressDetail, "Adres detayı zorunludur.")
 	validateMaxLength(errors, "address_detail", input.AddressDetail, "Adres detayı")
+
+	return errors
+}
+
+func validateSourceEditableFullRegistrationInput(input domain.FullRegistrationInput, customerType string) ValidationErrors {
+	errors := ValidationErrors{}
+
+	if strings.TrimSpace(customerType) == "kurumsal" {
+		requireField(errors, "corporate_sector", input.CorporateSector, "Sektör zorunludur.")
+	}
+	validateMaxLength(errors, "corporate_sector", input.CorporateSector, "Sektör")
+	validateCorporateSector(errors, input.CorporateSector)
+	validateMaxLength(errors, "website", input.Website, "Website")
+	validateMaxLength(errors, "google_map_link", input.GoogleMapLink, "Google map link")
+	validateMaxLength(errors, "classifieds_website_link", input.ClassifiedsWebsiteLink, "İlan sitesi linki")
+	if input.VehicleStockCount < 0 {
+		errors["vehicle_stock_count"] = "Araç stok adedi 0 veya daha büyük olmalıdır."
+	}
 
 	return errors
 }

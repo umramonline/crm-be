@@ -282,6 +282,25 @@ func (r *Repository) CompleteFullRegistration(ctx context.Context, id uint64, in
 	return r.GetFullRegistrationCustomer(ctx, id)
 }
 
+func (r *Repository) UpdateSourceEditableFullRegistration(ctx context.Context, id uint64, input domain.FullRegistrationInput) (domain.CustomerDetail, error) {
+	err := r.db.WithContext(ctx).
+		Model(&CustomerModel{}).
+		Where("id = ? AND uo_id <> ?", id, 0).
+		Updates(map[string]interface{}{
+			"corporate_sector":         stringPointer(input.CorporateSector),
+			"website":                  stringPointer(input.Website),
+			"web":                      stringPointer(input.Website),
+			"google_map_link":          stringPointer(input.GoogleMapLink),
+			"classifieds_website_link": stringPointer(input.ClassifiedsWebsiteLink),
+			"vehicle_stock_count":      input.VehicleStockCount,
+		}).Error
+	if err != nil {
+		return domain.CustomerDetail{}, err
+	}
+
+	return r.GetFullRegistrationCustomer(ctx, id)
+}
+
 func toCustomerDetail(customer CustomerModel) domain.CustomerDetail {
 	createdAt := customer.CreatedAt.Format("2006-01-02 15:04:05")
 	dogumTarihi := ""
