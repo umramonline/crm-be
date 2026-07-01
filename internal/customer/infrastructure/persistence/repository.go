@@ -222,25 +222,10 @@ func (r *Repository) CreateCustomer(ctx context.Context, input domain.CreateCust
 }
 
 func (r *Repository) CompleteFullRegistration(ctx context.Context, id uint64, input domain.FullRegistrationInput) (domain.CustomerDetail, error) {
-	if r == nil || r.db == nil || id == 0 {
-		return domain.CustomerDetail{}, gorm.ErrInvalidDB
-	}
-
 	var customer CustomerModel
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("id = ?", id).First(&customer).Error; err != nil {
 			return err
-		}
-
-		if customer.UOId > 0 {
-			return tx.Model(&customer).Updates(map[string]interface{}{
-				"corporate_sector":         input.CorporateSector,
-				"website":                  input.Website,
-				"web":                      input.Website,
-				"google_map_link":          input.GoogleMapLink,
-				"classifieds_website_link": input.ClassifiedsWebsiteLink,
-				"vehicle_stock_count":      input.VehicleStockCount,
-			}).Error
 		}
 
 		customer.Type = stringPointer(input.Type)
