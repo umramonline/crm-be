@@ -21,6 +21,10 @@ import (
 	"github.com/umran/new.crm/backend/internal/infrastructure/config"
 	httpserver "github.com/umran/new.crm/backend/internal/infrastructure/http"
 	dbpersistence "github.com/umran/new.crm/backend/internal/infrastructure/persistence"
+	taskapp "github.com/umran/new.crm/backend/internal/task/application"
+	taskhttp "github.com/umran/new.crm/backend/internal/task/infrastructure/http"
+	taskpersistence "github.com/umran/new.crm/backend/internal/task/infrastructure/persistence"
+	taskumramonline "github.com/umran/new.crm/backend/internal/task/infrastructure/umramonline"
 	"github.com/umran/new.crm/backend/internal/umramonline"
 	"gorm.io/gorm"
 )
@@ -69,6 +73,10 @@ func main() {
 		log.Fatal(err)
 	}
 
+	if err := taskpersistence.AutoMigrate(db); err != nil {
+		log.Fatal(err)
+	}
+
 	if err := authzpersistence.SeedAuthorization(db); err != nil {
 		log.Fatal(err)
 	}
@@ -97,13 +105,16 @@ func main() {
 	authorizationHandler := authzhttp.NewHandler(authorizationService)
 	customerService := customerapp.NewService(customerumramonline.NewProvider(umramonlineClient), customerRepository)
 	customerHandler := customerhttp.NewHandler(customerService)
+	taskRepository := taskpersistence.NewRepository(db)
+	taskService := taskapp.NewService(taskumramonline.NewProvider(umramonlineClient), taskRepository)
+	taskHandler := taskhttp.NewHandler(taskService)
 	authRequired := authzhttp.RequirePermission(authorizationService, sessionTokenService, authzhttp.AuthMiddlewareConfig{})
 
 	server := httpserver.NewServer(httpserver.Config{
 		Addr:                 cfg.Addr(),
 		CORSAllowedOrigins:   cfg.CORSAllowedOrigins,
 		CORSAllowCredentials: cfg.CORSAllowCredentials,
-	}, otpHandler, authorizationHandler, customerHandler, authRequired)
+	}, otpHandler, authorizationHandler, customerHandler, taskHandler, authRequired)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

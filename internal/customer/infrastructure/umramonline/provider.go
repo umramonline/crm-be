@@ -203,19 +203,6 @@ func (p *Provider) ListBranches(ctx context.Context) ([]domain.Branch, error) {
 	return result, nil
 }
 
-func (p *Provider) GetBranch(ctx context.Context, branchID uint64) (domain.Branch, error) {
-	branch, err := p.client.GetBranch(ctx, branchID)
-	if err != nil {
-		return domain.Branch{}, err
-	}
-
-	return domain.Branch{
-		ID:    branch.ID,
-		Name:  branch.Name,
-		Title: branch.Title,
-	}, nil
-}
-
 func (p *Provider) ListBranchUsers(ctx context.Context, branchID uint64) ([]domain.BranchUser, error) {
 	users, err := p.client.ListBranchUsers(ctx, branchID)
 	if err != nil {
@@ -232,19 +219,6 @@ func (p *Provider) ListBranchUsers(ctx context.Context, branchID uint64) ([]doma
 	}
 
 	return result, nil
-}
-
-func (p *Provider) GetBranchUser(ctx context.Context, branchID uint64, userID uint64) (domain.BranchUser, error) {
-	user, err := p.client.GetBranchUser(ctx, branchID, userID)
-	if err != nil {
-		return domain.BranchUser{}, err
-	}
-
-	return domain.BranchUser{
-		ID:    user.ID,
-		Name:  user.Name,
-		Phone: user.Phone,
-	}, nil
 }
 
 var _ customerapp.CustomerProvider = (*Provider)(nil)

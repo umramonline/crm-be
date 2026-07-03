@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/umran/new.crm/backend/internal/customer/application"
 	"github.com/umran/new.crm/backend/internal/customer/domain"
 	"gorm.io/gorm"
@@ -92,86 +91,6 @@ func (r *Repository) ListCustomers(ctx context.Context, query domain.ListQuery) 
 			To:          to,
 		},
 	}, nil
-}
-
-func (r *Repository) InvalidCustomerIDsForBranch(ctx context.Context, customerIDs []uint64, branchID uint64) ([]uint64, error) {
-	if r == nil || r.db == nil {
-		return nil, gorm.ErrInvalidDB
-	}
-
-	if len(customerIDs) == 0 || branchID == 0 {
-		return customerIDs, nil
-	}
-
-	var validCustomerIDs []uint64
-	if err := r.db.WithContext(ctx).
-		Model(&CustomerModel{}).
-		Where("id IN ?", customerIDs).
-		Where("branch_id = ?", branchID).
-		Pluck("id", &validCustomerIDs).Error; err != nil {
-		return nil, err
-	}
-
-	validCustomers := make(map[uint64]struct{}, len(validCustomerIDs))
-	for _, customerID := range validCustomerIDs {
-		validCustomers[customerID] = struct{}{}
-	}
-
-	invalidCustomerIDs := make([]uint64, 0)
-	for _, customerID := range customerIDs {
-		if _, ok := validCustomers[customerID]; !ok {
-			invalidCustomerIDs = append(invalidCustomerIDs, customerID)
-		}
-	}
-
-	return invalidCustomerIDs, nil
-}
-
-func (r *Repository) CreateTask(ctx context.Context, input domain.CreateTaskInput) (domain.Task, error) {
-	if r == nil || r.db == nil {
-		return domain.Task{}, gorm.ErrInvalidDB
-	}
-
-	visitDate := datePointer(input.VisitDate)
-	dueDate := datePointer(input.DueDate)
-	description := stringPointer(input.Description)
-	task := TaskModel{
-		UUID:           uuid.NewString(),
-		Title:          input.Title,
-		Description:    description,
-		AssignedUserID: input.AssignedUserID,
-		BranchID:       input.BranchID,
-		VisitDate:      visitDate,
-		DueDate:        dueDate,
-		Status:         "pending",
-		Priority:       input.Priority,
-	}
-
-	if err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&task).Error; err != nil {
-			return err
-		}
-
-		taskCustomers := make([]TaskCustomerModel, 0, len(input.CustomerIDs))
-		for _, customerID := range input.CustomerIDs {
-			taskCustomers = append(taskCustomers, TaskCustomerModel{
-				TaskID:     task.ID,
-				CustomerID: customerID,
-			})
-		}
-
-		if len(taskCustomers) > 0 {
-			if err := tx.Create(&taskCustomers).Error; err != nil {
-				return err
-			}
-		}
-
-		return nil
-	}); err != nil {
-		return domain.Task{}, err
-	}
-
-	return toTask(task, input.CustomerIDs), nil
 }
 
 func (r *Repository) SearchCustomer(ctx context.Context, query string) (domain.CustomerDetail, bool, error) {
@@ -442,37 +361,6 @@ func toCustomer(customer CustomerModel) domain.Customer {
 		CreatedAt:         &createdAt,
 		VehicleStockCount: customer.VehicleStockCount,
 		Type:              stringValue(customer.Type),
-	}
-}
-
-func toTask(task TaskModel, customerIDs []uint64) domain.Task {
-	description := ""
-	if task.Description != nil {
-		description = *task.Description
-	}
-
-	visitDate := ""
-	if task.VisitDate != nil {
-		visitDate = task.VisitDate.Format("2006-01-02")
-	}
-
-	dueDate := ""
-	if task.DueDate != nil {
-		dueDate = task.DueDate.Format("2006-01-02")
-	}
-
-	return domain.Task{
-		ID:             task.ID,
-		UUID:           task.UUID,
-		Title:          task.Title,
-		Description:    description,
-		AssignedUserID: task.AssignedUserID,
-		BranchID:       task.BranchID,
-		VisitDate:      visitDate,
-		DueDate:        dueDate,
-		Status:         task.Status,
-		Priority:       task.Priority,
-		CustomerIDs:    customerIDs,
 	}
 }
 

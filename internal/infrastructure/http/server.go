@@ -11,6 +11,7 @@ import (
 	authzhttp "github.com/umran/new.crm/backend/internal/authorization/infrastructure/http"
 	customerhttp "github.com/umran/new.crm/backend/internal/customer/infrastructure/http"
 	"github.com/umran/new.crm/backend/internal/infrastructure/http/handler"
+	taskhttp "github.com/umran/new.crm/backend/internal/task/infrastructure/http"
 )
 
 type Server struct {
@@ -28,6 +29,7 @@ func NewServer(config Config,
 	otpHandler *authhttp.OTPHandler,
 	authorizationHandler *authzhttp.Handler,
 	customerHandler *customerhttp.Handler,
+	taskHandler *taskhttp.Handler,
 	authRequired fiber.Handler) *Server {
 	greetingService := app.NewService()
 	helloHandler := handler.NewHelloHandler(greetingService)
@@ -51,6 +53,7 @@ func NewServer(config Config,
 	apiV1.Get("/auth/session", otpHandler.Session)
 	authorizationHandler.RegisterRoutes(apiV1, authRequired)
 	customerHandler.RegisterRoutes(apiV1, authRequired)
+	taskHandler.RegisterRoutes(apiV1, authRequired)
 
 	return &Server{
 		addr: config.Addr,

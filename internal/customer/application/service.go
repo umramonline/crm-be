@@ -26,10 +26,6 @@ var ErrCustomerCreateUnavailable = errors.New("customer create unavailable")
 
 var ErrInvalidCustomerCreateInput = errors.New("invalid customer create input")
 
-var ErrTaskCreateUnavailable = errors.New("task create unavailable")
-
-var ErrInvalidTaskCreateInput = errors.New("invalid task create input")
-
 type ValidationErrors map[string]string
 
 var turkeyMobilePhonePattern = regexp.MustCompile(`^05[0-9]{9}$`)
@@ -49,12 +45,6 @@ var corporateSectorOptions = map[string]struct{}{
 	"Diğer":     {},
 }
 
-var taskPriorityOptions = map[string]struct{}{
-	"high":   {},
-	"medium": {},
-	"low":    {},
-}
-
 type CustomerProvider interface {
 	ListCustomers(ctx context.Context, query domain.ListQuery) (domain.ListResult, error)
 	ListZones(ctx context.Context) ([]domain.Zone, error)
@@ -65,8 +55,6 @@ type CustomerProvider interface {
 	ListTowns(ctx context.Context, cityID uint64) ([]domain.Town, error)
 	ListBranches(ctx context.Context) ([]domain.Branch, error)
 	ListBranchUsers(ctx context.Context, branchID uint64) ([]domain.BranchUser, error)
-	GetBranch(ctx context.Context, branchID uint64) (domain.Branch, error)
-	GetBranchUser(ctx context.Context, branchID uint64, userID uint64) (domain.BranchUser, error)
 }
 
 type CustomerRepository interface {
@@ -79,8 +67,6 @@ type CustomerRepository interface {
 	GetFullRegistrationCustomer(ctx context.Context, id uint64) (domain.CustomerDetail, error)
 	CompleteFullRegistration(ctx context.Context, id uint64, input domain.FullRegistrationInput) (domain.CustomerDetail, error)
 	UpdateSourceEditableFullRegistration(ctx context.Context, id uint64, input domain.FullRegistrationInput) (domain.CustomerDetail, error)
-	InvalidCustomerIDsForBranch(ctx context.Context, customerIDs []uint64, branchID uint64) ([]uint64, error)
-	CreateTask(ctx context.Context, input domain.CreateTaskInput) (domain.Task, error)
 }
 
 type Service struct {
@@ -323,39 +309,6 @@ func (s *Service) ListBranchUsers(ctx context.Context, branchID uint64) ([]domai
 	return s.provider.ListBranchUsers(ctx, branchID)
 }
 
-func (s *Service) CreateTask(ctx context.Context, input domain.CreateTaskInput) (domain.Task, ValidationErrors, error) {
-	normalizedInput := normalizeCreateTaskInput(input)
-	validationErrors := validateCreateTaskInput(normalizedInput)
-	if len(validationErrors) > 0 {
-		return domain.Task{}, validationErrors, ErrInvalidTaskCreateInput
-	}
-
-	if _, err := s.provider.GetBranch(ctx, normalizedInput.BranchID); err != nil {
-		return domain.Task{}, ValidationErrors{"branch_id": "Seçili bayi geçersiz."}, ErrInvalidTaskCreateInput
-	}
-
-	if _, err := s.provider.GetBranchUser(ctx, normalizedInput.BranchID, normalizedInput.AssignedUserID); err != nil {
-		return domain.Task{}, ValidationErrors{"assigned_user_id": "Atanacak kullanıcı seçili bayiye ait değil."}, ErrInvalidTaskCreateInput
-	}
-
-	invalidCustomerIDs, err := s.repository.InvalidCustomerIDsForBranch(ctx, normalizedInput.CustomerIDs, normalizedInput.BranchID)
-	if err != nil {
-		return domain.Task{}, nil, ErrTaskCreateUnavailable
-	}
-	if len(invalidCustomerIDs) > 0 {
-		return domain.Task{}, ValidationErrors{
-			"customer_ids": "Seçilen müşterilerden bazıları seçili bayiye ait değil.",
-		}, ErrInvalidTaskCreateInput
-	}
-
-	task, err := s.repository.CreateTask(ctx, normalizedInput)
-	if err != nil {
-		return domain.Task{}, nil, ErrTaskCreateUnavailable
-	}
-
-	return task, nil, nil
-}
-
 func (s *Service) listBackendCustomers(ctx context.Context, query domain.ListQuery) (domain.ListResult, error) {
 	if query.Situation != "" && query.Situation != "Potansiyel Müşteri" {
 		return emptyListResult(query), nil
@@ -542,34 +495,6 @@ func normalizeCreateCustomerInput(input domain.CreateCustomerInput) domain.Creat
 	}
 }
 
-func normalizeCreateTaskInput(input domain.CreateTaskInput) domain.CreateTaskInput {
-	customerIDs := make([]uint64, 0, len(input.CustomerIDs))
-	seenCustomerIDs := map[uint64]struct{}{}
-	for _, customerID := range input.CustomerIDs {
-		if customerID == 0 {
-			continue
-		}
-
-		if _, ok := seenCustomerIDs[customerID]; ok {
-			continue
-		}
-
-		seenCustomerIDs[customerID] = struct{}{}
-		customerIDs = append(customerIDs, customerID)
-	}
-
-	return domain.CreateTaskInput{
-		Title:          strings.TrimSpace(input.Title),
-		Description:    strings.TrimSpace(input.Description),
-		AssignedUserID: input.AssignedUserID,
-		BranchID:       input.BranchID,
-		VisitDate:      strings.TrimSpace(input.VisitDate),
-		DueDate:        strings.TrimSpace(input.DueDate),
-		Priority:       strings.ToLower(strings.TrimSpace(input.Priority)),
-		CustomerIDs:    customerIDs,
-	}
-}
-
 func normalizeFullRegistrationInput(input domain.FullRegistrationInput) domain.FullRegistrationInput {
 	telephones := make([]domain.CustomerTelephone, 0, len(input.Telephones))
 	for _, telephone := range input.Telephones {
@@ -636,41 +561,6 @@ func validateCreateCustomerInput(input domain.CreateCustomerInput) ValidationErr
 	validateMaxLength(errors, "mahalle", input.Mahalle, "Mahalle")
 	if input.BranchID <= 0 {
 		errors["branch_id"] = "Bayi zorunludur."
-	}
-
-	return errors
-}
-
-func validateCreateTaskInput(input domain.CreateTaskInput) ValidationErrors {
-	errors := ValidationErrors{}
-
-	requireField(errors, "title", input.Title, "Başlık zorunludur.")
-	validateMaxLength(errors, "title", input.Title, "Başlık")
-	validateMaxLength(errors, "description", input.Description, "Açıklama")
-
-	if input.AssignedUserID == 0 {
-		errors["assigned_user_id"] = "Atanacak kullanıcı zorunludur."
-	}
-
-	if input.BranchID == 0 {
-		errors["branch_id"] = "Bayi zorunludur."
-	}
-
-	validateDate(errors, "visit_date", input.VisitDate)
-	validateDate(errors, "due_date", input.DueDate)
-
-	visitDate, visitDateErr := parseOptionalDate(input.VisitDate)
-	dueDate, dueDateErr := parseOptionalDate(input.DueDate)
-	if visitDateErr == nil && dueDateErr == nil && visitDate != nil && dueDate != nil && dueDate.Before(*visitDate) {
-		errors["due_date"] = "Bitiş tarihi ziyaret tarihinden küçük olamaz."
-	}
-
-	if _, ok := taskPriorityOptions[input.Priority]; !ok {
-		errors["priority"] = "Öncelik high, medium veya low olmalıdır."
-	}
-
-	if len(input.CustomerIDs) == 0 {
-		errors["customer_ids"] = "En az 1 müşteri seçilmelidir."
 	}
 
 	return errors
@@ -791,20 +681,6 @@ func validateDate(errors ValidationErrors, field string, value string) {
 	if _, err := time.Parse("2006-01-02", value); err != nil {
 		errors[field] = "Tarih YYYY-AA-GG formatında olmalıdır."
 	}
-}
-
-func parseOptionalDate(value string) (*time.Time, error) {
-	trimmedValue := strings.TrimSpace(value)
-	if trimmedValue == "" {
-		return nil, nil
-	}
-
-	parsedDate, err := time.Parse("2006-01-02", trimmedValue)
-	if err != nil {
-		return nil, err
-	}
-
-	return &parsedDate, nil
 }
 
 func validateCorporateSector(errors ValidationErrors, value string) {
