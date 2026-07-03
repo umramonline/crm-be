@@ -124,6 +124,31 @@ type BranchUser struct {
 	Phone string `json:"phone,omitempty"`
 }
 
+type Task struct {
+	ID             uint64   `json:"id"`
+	UUID           string   `json:"uuid"`
+	Title          string   `json:"title"`
+	Description    string   `json:"description"`
+	AssignedUserID uint64   `json:"assigned_user_id"`
+	BranchID       uint64   `json:"branch_id"`
+	VisitDate      string   `json:"visit_date,omitempty"`
+	DueDate        string   `json:"due_date,omitempty"`
+	Status         string   `json:"status"`
+	Priority       string   `json:"priority"`
+	CustomerIDs    []uint64 `json:"customer_ids"`
+}
+
+type CreateTaskInput struct {
+	Title          string
+	Description    string
+	AssignedUserID uint64
+	BranchID       uint64
+	VisitDate      string
+	DueDate        string
+	Priority       string
+	CustomerIDs    []uint64
+}
+
 type Pagination struct {
 	CurrentPage int  `json:"current_page"`
 	LastPage    int  `json:"last_page"`

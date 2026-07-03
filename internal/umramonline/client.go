@@ -520,13 +520,52 @@ func (c *Client) ListBranches(ctx context.Context) ([]Branch, error) {
 	return apiResponse.Items, nil
 }
 
+func (c *Client) GetBranch(ctx context.Context, branchID uint64) (Branch, error) {
+	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.branchesPath == "/" || branchID == 0 {
+		return Branch{}, ErrRequestFailed
+	}
+
+	var apiResponse branchResponse
+	if err := c.getJSON(ctx, c.branchesPath+"/"+strconv.FormatUint(branchID, 10), nil, &apiResponse); err != nil {
+		return Branch{}, err
+	}
+
+	if apiResponse.Data == nil {
+		return Branch{}, ErrRequestFailed
+	}
+
+	return *apiResponse.Data, nil
+}
+
 func (c *Client) ListBranchUsers(ctx context.Context, branchID uint64) ([]User, error) {
+	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.branchesPath == "/" || branchID == 0 {
+		return nil, ErrRequestFailed
+	}
+
 	var apiResponse listResponse[User]
 	if err := c.getJSON(ctx, c.branchesPath+"/"+strconv.FormatUint(branchID, 10)+"/users", nil, &apiResponse); err != nil {
 		return nil, err
 	}
 
 	return apiResponse.Items, nil
+}
+
+func (c *Client) GetBranchUser(ctx context.Context, branchID uint64, userID uint64) (User, error) {
+	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.branchesPath == "/" || branchID == 0 || userID == 0 {
+		return User{}, ErrRequestFailed
+	}
+
+	var apiResponse userResponse
+	path := c.branchesPath + "/" + strconv.FormatUint(branchID, 10) + "/users/" + strconv.FormatUint(userID, 10)
+	if err := c.getJSON(ctx, path, nil, &apiResponse); err != nil {
+		return User{}, err
+	}
+
+	if apiResponse.Data == nil {
+		return User{}, ErrRequestFailed
+	}
+
+	return *apiResponse.Data, nil
 }
 
 func (c *Client) ListCustomers(ctx context.Context, query CustomerListQuery) (CustomerListResult, error) {
@@ -601,6 +640,26 @@ type customerSearchResponse struct {
 }
 
 func (r customerSearchResponse) successful() bool {
+	return r.Success
+}
+
+type branchResponse struct {
+	Success bool    `json:"success"`
+	Message string  `json:"message"`
+	Data    *Branch `json:"data"`
+}
+
+func (r branchResponse) successful() bool {
+	return r.Success
+}
+
+type userResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	Data    *User  `json:"data"`
+}
+
+func (r userResponse) successful() bool {
 	return r.Success
 }
 

@@ -103,6 +103,12 @@ var customerMethodSeeds = []authorizationMethodSeed{
 		Method:      stringPointer("GET"),
 		Path:        stringPointer("/api/v1/branches/:id/users"),
 	},
+	{
+		Name:        "tasks.create",
+		Description: "Seçili müşteriler için görev oluşturur.",
+		Method:      stringPointer("POST"),
+		Path:        stringPointer("/api/v1/tasks"),
+	},
 }
 
 func SeedCustomers(db *gorm.DB) error {
