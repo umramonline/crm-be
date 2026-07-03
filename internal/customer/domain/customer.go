@@ -118,6 +118,12 @@ type Branch struct {
 	Title string `json:"title,omitempty"`
 }
 
+type BranchUser struct {
+	ID    uint64 `json:"id"`
+	Name  string `json:"name"`
+	Phone string `json:"phone,omitempty"`
+}
+
 type Pagination struct {
 	CurrentPage int  `json:"current_page"`
 	LastPage    int  `json:"last_page"`

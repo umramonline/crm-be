@@ -520,6 +520,15 @@ func (c *Client) ListBranches(ctx context.Context) ([]Branch, error) {
 	return apiResponse.Items, nil
 }
 
+func (c *Client) ListBranchUsers(ctx context.Context, branchID uint64) ([]User, error) {
+	var apiResponse listResponse[User]
+	if err := c.getJSON(ctx, c.branchesPath+"/"+strconv.FormatUint(branchID, 10)+"/users", nil, &apiResponse); err != nil {
+		return nil, err
+	}
+
+	return apiResponse.Items, nil
+}
+
 func (c *Client) ListCustomers(ctx context.Context, query CustomerListQuery) (CustomerListResult, error) {
 	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.customersPath == "/" {
 		return CustomerListResult{}, ErrRequestFailed

@@ -203,4 +203,22 @@ func (p *Provider) ListBranches(ctx context.Context) ([]domain.Branch, error) {
 	return result, nil
 }
 
+func (p *Provider) ListBranchUsers(ctx context.Context, branchID uint64) ([]domain.BranchUser, error) {
+	users, err := p.client.ListBranchUsers(ctx, branchID)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]domain.BranchUser, 0, len(users))
+	for _, user := range users {
+		result = append(result, domain.BranchUser{
+			ID:    user.ID,
+			Name:  user.Name,
+			Phone: user.Phone,
+		})
+	}
+
+	return result, nil
+}
+
 var _ customerapp.CustomerProvider = (*Provider)(nil)

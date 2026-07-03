@@ -34,6 +34,7 @@ func (h *Handler) RegisterRoutes(router fiber.Router, authRequired fiber.Handler
 	router.Get("/cities", authRequired, h.ListCities)
 	router.Get("/towns", authRequired, h.ListTowns)
 	router.Get("/branches", authRequired, h.ListBranches)
+	router.Get("/branches/:id/users", authRequired, h.ListBranchUsers)
 }
 
 type createCustomerRequest struct {
@@ -305,6 +306,15 @@ func (h *Handler) ListBranches(c *fiber.Ctx) error {
 	}
 
 	return response.Success(c, fiber.StatusOK, "Bayiler getirildi.", fiber.Map{"items": branches})
+}
+
+func (h *Handler) ListBranchUsers(c *fiber.Ctx) error {
+	users, err := h.service.ListBranchUsers(c.UserContext(), paramUint64(c, "id", 0))
+	if err != nil {
+		return response.Error(c, fiber.StatusServiceUnavailable, "Bayi kullanıcıları şu anda getirilemedi.", nil)
+	}
+
+	return response.Success(c, fiber.StatusOK, "Bayi kullanıcıları getirildi.", fiber.Map{"items": users})
 }
 
 func queryInt(c *fiber.Ctx, name string, defaultValue int) int {

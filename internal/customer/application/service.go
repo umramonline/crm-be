@@ -54,6 +54,7 @@ type CustomerProvider interface {
 	ListCities(ctx context.Context) ([]domain.City, error)
 	ListTowns(ctx context.Context, cityID uint64) ([]domain.Town, error)
 	ListBranches(ctx context.Context) ([]domain.Branch, error)
+	ListBranchUsers(ctx context.Context, branchID uint64) ([]domain.BranchUser, error)
 }
 
 type CustomerRepository interface {
@@ -298,6 +299,10 @@ func (s *Service) ListBranches(ctx context.Context) ([]domain.Branch, error) {
 	}
 
 	return s.provider.ListBranches(ctx)
+}
+
+func (s *Service) ListBranchUsers(ctx context.Context, branchID uint64) ([]domain.BranchUser, error) {
+	return s.provider.ListBranchUsers(ctx, branchID)
 }
 
 func (s *Service) listBackendCustomers(ctx context.Context, query domain.ListQuery) (domain.ListResult, error) {
