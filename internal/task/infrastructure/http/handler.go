@@ -3,6 +3,7 @@ package http
 import (
 	"github.com/gofiber/fiber/v2"
 
+	authApp "github.com/umran/new.crm/backend/internal/auth/application"
 	"github.com/umran/new.crm/backend/internal/shared/response"
 	"github.com/umran/new.crm/backend/internal/task/application"
 	"github.com/umran/new.crm/backend/internal/task/domain"
@@ -13,14 +14,15 @@ type Handler struct {
 }
 
 type createTaskRequest struct {
-	Title          string   `json:"title"`
-	Description    string   `json:"description"`
-	AssignedUserID uint64   `json:"assigned_user_id"`
-	BranchID       uint64   `json:"branch_id"`
-	VisitDate      string   `json:"visit_date"`
-	DueDate        string   `json:"due_date"`
-	Priority       string   `json:"priority"`
-	CustomerIDs    []uint64 `json:"customer_ids"`
+	Title                string   `json:"title"`
+	Description          string   `json:"description"`
+	AssignedUserID       uint64   `json:"assigned_user_id"`
+	AssignedUserFullName string   `json:"assigned_user_full_name"`
+	BranchID             uint64   `json:"branch_id"`
+	VisitDate            string   `json:"visit_date"`
+	DueDate              string   `json:"due_date"`
+	Priority             string   `json:"priority"`
+	CustomerIDs          []uint64 `json:"customer_ids"`
 }
 
 func NewHandler(service *application.Service) *Handler {
@@ -39,15 +41,20 @@ func (h *Handler) CreateTask(c *fiber.Ctx) error {
 		})
 	}
 
+	claims := c.Locals("claims").(authApp.SessionTokenClaims)
+
 	task, validationErrors, err := h.service.CreateTask(c.UserContext(), domain.CreateTaskInput{
-		Title:          request.Title,
-		Description:    request.Description,
-		AssignedUserID: request.AssignedUserID,
-		BranchID:       request.BranchID,
-		VisitDate:      request.VisitDate,
-		DueDate:        request.DueDate,
-		Priority:       request.Priority,
-		CustomerIDs:    request.CustomerIDs,
+		Title:                 request.Title,
+		Description:           request.Description,
+		AssignedUserID:        request.AssignedUserID,
+		AssignedUserFullName:  request.AssignedUserFullName,
+		CreatedByUserID:       claims.UserId,
+		CreatedByUserFullName: claims.UserFullName,
+		BranchID:              request.BranchID,
+		VisitDate:             request.VisitDate,
+		DueDate:               request.DueDate,
+		Priority:              request.Priority,
+		CustomerIDs:           request.CustomerIDs,
 	})
 	if err != nil {
 		if err == application.ErrInvalidTaskCreateInput {

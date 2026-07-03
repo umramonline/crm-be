@@ -43,6 +43,8 @@ func RequirePermission(service *authzapp.Service, tokenValidator TokenValidator,
 			return response.Error(c, fiber.StatusForbidden, "Yetkiniz bulunmuyor.", nil)
 		}
 
+		c.Locals("claims", claims)
+
 		return c.Next()
 	}
 }

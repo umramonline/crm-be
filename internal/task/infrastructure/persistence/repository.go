@@ -58,15 +58,18 @@ func (r *Repository) CreateTask(ctx context.Context, input domain.CreateTaskInpu
 	}
 
 	task := TaskModel{
-		UUID:           uuid.NewString(),
-		Title:          input.Title,
-		Description:    stringPointer(input.Description),
-		AssignedUserID: input.AssignedUserID,
-		BranchID:       input.BranchID,
-		VisitDate:      datePointer(input.VisitDate),
-		DueDate:        datePointer(input.DueDate),
-		Status:         "pending",
-		Priority:       input.Priority,
+		UUID:                  uuid.NewString(),
+		Title:                 input.Title,
+		Description:           stringPointer(input.Description),
+		AssignedUserID:        input.AssignedUserID,
+		AssignedUserFullName:  input.AssignedUserFullName,
+		CreatedByUserID:       input.CreatedByUserID,
+		CreatedByUserFullName: input.CreatedByUserFullName,
+		BranchID:              input.BranchID,
+		VisitDate:             datePointer(input.VisitDate),
+		DueDate:               datePointer(input.DueDate),
+		Status:                "pending",
+		Priority:              input.Priority,
 	}
 
 	if err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -113,7 +116,6 @@ func toTask(task TaskModel, customerIDs []uint64) domain.Task {
 	}
 
 	return domain.Task{
-		ID:             task.ID,
 		UUID:           task.UUID,
 		Title:          task.Title,
 		Description:    description,

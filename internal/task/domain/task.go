@@ -15,14 +15,17 @@ type Task struct {
 }
 
 type CreateTaskInput struct {
-	Title          string
-	Description    string
-	AssignedUserID uint64
-	BranchID       uint64
-	VisitDate      string
-	DueDate        string
-	Priority       string
-	CustomerIDs    []uint64
+	Title                 string
+	CreatedByUserID       uint64
+	CreatedByUserFullName string
+	Description           string
+	AssignedUserID        uint64
+	AssignedUserFullName  string
+	BranchID              uint64
+	VisitDate             string
+	DueDate               string
+	Priority              string
+	CustomerIDs           []uint64
 }
 
 type Branch struct {

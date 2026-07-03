@@ -92,14 +92,17 @@ func normalizeCreateTaskInput(input domain.CreateTaskInput) domain.CreateTaskInp
 	}
 
 	return domain.CreateTaskInput{
-		Title:          strings.TrimSpace(input.Title),
-		Description:    strings.TrimSpace(input.Description),
-		AssignedUserID: input.AssignedUserID,
-		BranchID:       input.BranchID,
-		VisitDate:      strings.TrimSpace(input.VisitDate),
-		DueDate:        strings.TrimSpace(input.DueDate),
-		Priority:       strings.ToLower(strings.TrimSpace(input.Priority)),
-		CustomerIDs:    customerIDs,
+		Title:                 strings.TrimSpace(input.Title),
+		Description:           strings.TrimSpace(input.Description),
+		AssignedUserID:        input.AssignedUserID,
+		AssignedUserFullName:  input.AssignedUserFullName,
+		CreatedByUserID:       input.CreatedByUserID,
+		CreatedByUserFullName: input.CreatedByUserFullName,
+		BranchID:              input.BranchID,
+		VisitDate:             strings.TrimSpace(input.VisitDate),
+		DueDate:               strings.TrimSpace(input.DueDate),
+		Priority:              strings.ToLower(strings.TrimSpace(input.Priority)),
+		CustomerIDs:           customerIDs,
 	}
 }
 
@@ -107,8 +110,10 @@ func validateCreateTaskInput(input domain.CreateTaskInput) ValidationErrors {
 	errors := ValidationErrors{}
 
 	requireField(errors, "title", input.Title, "Başlık zorunludur.")
+	requireField(errors, "assigned_user_full_name", input.AssignedUserFullName, "Atanacak kullanıcı adı zorunludur.")
 	validateMaxLength(errors, "title", input.Title, "Başlık")
 	validateMaxLength(errors, "description", input.Description, "Açıklama")
+	validateMaxLength(errors, "assigned_user_full_name", input.AssignedUserFullName, "Atanacak kullanıcı adı")
 
 	if input.AssignedUserID == 0 {
 		errors["assigned_user_id"] = "Atanacak kullanıcı zorunludur."
