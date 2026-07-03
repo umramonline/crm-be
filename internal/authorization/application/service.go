@@ -27,7 +27,7 @@ type Permission struct {
 
 type User struct {
 	ID       uint64 `json:"id"`
-	Name     string `json:"name,omitempty"`
+	FullName string `json:"full_name,omitempty"`
 	Phone    string `json:"phone,omitempty"`
 	RoleID   uint64 `json:"role_id"`
 	RoleName string `json:"role_name,omitempty"`
@@ -237,7 +237,7 @@ func userFromLoginData(data map[string]any) (User, error) {
 
 	return User{
 		ID:       id,
-		Name:     stringFromAny(rawUser["name"]),
+		FullName: stringFromAny(rawUser["name"]),
 		Phone:    stringFromAny(rawUser["phone"]),
 		RoleID:   roleID,
 		RoleName: stringFromAny(rawUser["role_name"]),

@@ -20,7 +20,7 @@ type OTPRequestService interface {
 }
 
 type SessionTokenService interface {
-	Issue(subject string, tokenType string, ttl time.Duration, roleID uint64, roleName string) (string, error)
+	Issue(userId uint64, tokenType string, ttl time.Duration, roleID uint64, roleName string, name string) (string, error)
 	Validate(token string, expectedType string) (application.SessionTokenClaims, error)
 }
 
@@ -36,14 +36,14 @@ type Permission struct {
 
 type SessionUser struct {
 	ID       uint64 `json:"id"`
-	Name     string `json:"name,omitempty"`
+	FullName string `json:"full_name,omitempty"`
 	Phone    string `json:"phone,omitempty"`
 	RoleID   uint64 `json:"role_id"`
 	RoleName string `json:"role_name,omitempty"`
 }
 
 type SessionData struct {
-	UserID      string       `json:"user_id"`
+	UserID      uint64       `json:"user_id"`
 	User        SessionUser  `json:"user"`
 	Permissions []Permission `json:"permissions"`
 }
@@ -215,7 +215,7 @@ func (h *OTPHandler) RefreshSession(c *fiber.Ctx) error {
 		return response.Error(c, fiber.StatusUnauthorized, "Oturum geçersiz.", nil)
 	}
 
-	accessToken, err := h.tokenService.Issue(claims.Subject, application.TokenTypeAccess, h.sessionConfig.AccessTTL, claims.RoleID, claims.RoleName)
+	accessToken, err := h.tokenService.Issue(claims.UserId, application.TokenTypeAccess, h.sessionConfig.AccessTTL, claims.RoleID, claims.RoleName, claims.UserFullName)
 	if err != nil {
 		return response.Error(c, fiber.StatusInternalServerError, "Oturum yenilenemedi.", nil)
 	}
@@ -257,13 +257,13 @@ func (h *OTPHandler) Session(c *fiber.Ctx) error {
 }
 
 func (h *OTPHandler) setSessionCookies(c *fiber.Ctx, user SessionUser) error {
-	userID := strconv.FormatUint(user.ID, 10)
-	accessToken, err := h.tokenService.Issue(userID, application.TokenTypeAccess, h.sessionConfig.AccessTTL, user.RoleID, user.RoleName)
+	userID := user.ID
+	accessToken, err := h.tokenService.Issue(userID, application.TokenTypeAccess, h.sessionConfig.AccessTTL, user.RoleID, user.RoleName, user.FullName)
 	if err != nil {
 		return err
 	}
 
-	refreshToken, err := h.tokenService.Issue(userID, application.TokenTypeRefresh, h.sessionConfig.RefreshTTL, user.RoleID, user.RoleName)
+	refreshToken, err := h.tokenService.Issue(userID, application.TokenTypeRefresh, h.sessionConfig.RefreshTTL, user.RoleID, user.RoleName, user.FullName)
 	if err != nil {
 		return err
 	}
@@ -298,25 +298,25 @@ func (h *OTPHandler) clearCookie(c *fiber.Ctx, name string, path string) {
 	})
 }
 
-func extractUserID(data map[string]any) (string, error) {
+func extractUserID(data map[string]any) (uint64, error) {
 	user, ok := data["user"].(map[string]any)
 	if !ok {
-		return "", errors.New("missing user data")
+		return 0, errors.New("missing user data")
 	}
 
 	switch id := user["id"].(type) {
 	case float64:
-		return strconv.FormatInt(int64(id), 10), nil
+		return uint64(id), nil
 	case int:
-		return strconv.Itoa(id), nil
+		return uint64(id), nil
 	case string:
 		if id == "" {
-			return "", errors.New("empty user id")
+			return 0, errors.New("empty user id")
 		}
 
-		return id, nil
+		return strconv.ParseUint(id, 10, 64)
 	default:
-		return "", fmt.Errorf("unsupported user id type: %T", id)
+		return 0, fmt.Errorf("unsupported user id type: %T", id)
 	}
 }
 
@@ -329,20 +329,16 @@ func (h *OTPHandler) sessionDataFromLoginData(ctx context.Context, data map[stri
 }
 
 func (h *OTPHandler) sessionDataFromClaims(ctx context.Context, claims application.SessionTokenClaims) (SessionData, error) {
-	userID, err := strconv.ParseUint(claims.Subject, 10, 64)
-	if err != nil {
-		return SessionData{}, err
-	}
-
 	user := SessionUser{
-		ID:       userID,
+		ID:       claims.UserId,
+		FullName: claims.UserFullName,
 		RoleID:   claims.RoleID,
 		RoleName: claims.RoleName,
 	}
 
 	if h.authorization == nil {
 		return SessionData{
-			UserID:      claims.Subject,
+			UserID:      claims.UserId,
 			User:        user,
 			Permissions: []Permission{},
 		}, nil
@@ -357,19 +353,14 @@ func fallbackSessionDataFromLoginData(data map[string]any) (SessionData, error) 
 		return SessionData{}, err
 	}
 
-	id, err := strconv.ParseUint(userID, 10, 64)
-	if err != nil {
-		return SessionData{}, err
-	}
-
 	rawUser, _ := data["user"].(map[string]any)
 	roleID, _ := uintFromAny(rawUser["role_id"])
 
 	return SessionData{
-		UserID: userID,
+		UserID: uint64(userID),
 		User: SessionUser{
-			ID:       id,
-			Name:     stringFromAny(rawUser["name"]),
+			ID:       uint64(userID),
+			FullName: stringFromAny(rawUser["name"]),
 			Phone:    stringFromAny(rawUser["phone"]),
 			RoleID:   roleID,
 			RoleName: stringFromAny(rawUser["role_name"]),

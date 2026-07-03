@@ -3,19 +3,22 @@ package persistence
 import "time"
 
 type TaskModel struct {
-	ID             uint64     `gorm:"primaryKey;autoIncrement"`
-	UUID           string     `gorm:"column:uuid;type:char(36);not null;uniqueIndex"`
-	CreatedAt      time.Time  `gorm:"type:timestamp;default:CURRENT_TIMESTAMP"`
-	UpdatedAt      time.Time  `gorm:"type:timestamp;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"`
-	DeletedAt      *time.Time `gorm:"type:timestamp;index"`
-	Title          string     `gorm:"size:255;not null"`
-	Description    *string    `gorm:"size:255"`
-	AssignedUserID uint64     `gorm:"column:assigned_user_id;type:bigint unsigned;not null;index"`
-	BranchID       uint64     `gorm:"column:branch_id;type:bigint unsigned;not null;index"`
-	VisitDate      *time.Time `gorm:"column:visit_date;type:date"`
-	DueDate        *time.Time `gorm:"column:due_date;type:date"`
-	Status         string     `gorm:"type:enum('pending','in_progress','cancelled');not null;default:pending"`
-	Priority       string     `gorm:"type:enum('high','medium','low');not null;default:medium"`
+	ID                    uint64     `gorm:"primaryKey;autoIncrement"`
+	UUID                  string     `gorm:"column:uuid;type:char(36);not null;uniqueIndex"`
+	CreatedAt             time.Time  `gorm:"type:timestamp;default:CURRENT_TIMESTAMP"`
+	UpdatedAt             time.Time  `gorm:"type:timestamp;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"`
+	DeletedAt             *time.Time `gorm:"type:timestamp;index"`
+	Title                 string     `gorm:"size:255;not null"`
+	Description           *string    `gorm:"size:255"`
+	CreatedByUserID       uint64     `gorm:"column:created_by_user_id;type:bigint unsigned;not null"`
+	CreatedByUserFullName string     `gorm:"column:created_by_user_full_name;type:varchar(255);not null"`
+	AssignedUserID        uint64     `gorm:"column:assigned_user_id;type:bigint unsigned;not null;index"`
+	AssignedUserFullName  string     `gorm:"column:assigned_user_full_name;type:varchar(255);not null"`
+	BranchID              uint64     `gorm:"column:branch_id;type:bigint unsigned;not null;index"`
+	VisitDate             *time.Time `gorm:"column:visit_date;type:date"`
+	DueDate               *time.Time `gorm:"column:due_date;type:date"`
+	Status                string     `gorm:"type:enum('pending','in_progress','cancelled');not null;default:pending"`
+	Priority              string     `gorm:"type:enum('high','medium','low');not null;default:medium"`
 }
 
 type TaskCustomerModel struct {

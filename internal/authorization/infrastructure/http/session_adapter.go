@@ -27,7 +27,7 @@ func (a *SessionAdapter) SessionFromLoginData(ctx context.Context, data map[stri
 func (a *SessionAdapter) SessionForUser(ctx context.Context, user authhttp.SessionUser) (authhttp.SessionData, error) {
 	session, err := a.service.SessionForUser(ctx, application.User{
 		ID:       user.ID,
-		Name:     user.Name,
+		FullName: user.FullName,
 		Phone:    user.Phone,
 		RoleID:   user.RoleID,
 		RoleName: user.RoleName,
@@ -54,10 +54,10 @@ func toAuthSessionData(session application.SessionData) authhttp.SessionData {
 	}
 
 	return authhttp.SessionData{
-		UserID: session.UserID,
+		UserID: session.User.ID,
 		User: authhttp.SessionUser{
 			ID:       session.User.ID,
-			Name:     session.User.Name,
+			FullName: session.User.FullName,
 			Phone:    session.User.Phone,
 			RoleID:   session.User.RoleID,
 			RoleName: session.User.RoleName,
