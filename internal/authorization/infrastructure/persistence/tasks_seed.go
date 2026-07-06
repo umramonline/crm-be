@@ -4,6 +4,22 @@ import "gorm.io/gorm"
 
 var taskMethodSeeds = []authorizationMethodSeed{
 	{
+		Name:        "tasks.menu",
+		Description: "Sol menüde Tüm Görevler menüsünü gösterir.",
+	},
+	{
+		Name:        "tasks.list",
+		Description: "Görev listesini görüntüler.",
+		Method:      stringPointer("GET"),
+		Path:        stringPointer("/api/v1/tasks"),
+	},
+	{
+		Name:        "tasks.detail",
+		Description: "Görev detayını görüntüler.",
+		Method:      stringPointer("GET"),
+		Path:        stringPointer("/api/v1/tasks/:id"),
+	},
+	{
 		Name:        "tasks.create",
 		Description: "Seçili müşteriler için görev oluşturur.",
 		Method:      stringPointer("POST"),

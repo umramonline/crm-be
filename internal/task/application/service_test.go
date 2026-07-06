@@ -42,15 +42,26 @@ func (f *fakeTaskRepository) CreateTask(_ context.Context, input domain.CreateTa
 	f.input = input
 
 	return domain.Task{
-		ID:             1,
-		Title:          input.Title,
-		AssignedUserID: input.AssignedUserID,
-		BranchID:       input.BranchID,
-		BranchName:     input.BranchName,
-		Status:         "pending",
-		Priority:       input.Priority,
-		CustomerIDs:    input.CustomerIDs,
+		ID:                    1,
+		Title:                 input.Title,
+		CreatedByUserID:       input.CreatedByUserID,
+		CreatedByUserFullName: input.CreatedByUserFullName,
+		AssignedUserID:        input.AssignedUserID,
+		AssignedUserFullName:  input.AssignedUserFullName,
+		BranchID:              input.BranchID,
+		BranchName:            input.BranchName,
+		Status:                "pending",
+		Priority:              input.Priority,
+		CustomerIDs:           input.CustomerIDs,
 	}, nil
+}
+
+func (f *fakeTaskRepository) ListTasks(_ context.Context, _ domain.ListQuery) (domain.ListResult, error) {
+	return domain.ListResult{}, nil
+}
+
+func (f *fakeTaskRepository) GetTask(_ context.Context, _ uint64) (domain.TaskListItem, error) {
+	return domain.TaskListItem{}, nil
 }
 
 func TestCreateTaskRejectsMissingBranchName(t *testing.T) {

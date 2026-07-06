@@ -1,18 +1,21 @@
 package domain
 
 type Task struct {
-	ID             uint64   `json:"id"`
-	UUID           string   `json:"uuid"`
-	Title          string   `json:"title"`
-	Description    string   `json:"description"`
-	AssignedUserID uint64   `json:"assigned_user_id"`
-	BranchID       uint64   `json:"branch_id"`
-	BranchName     string   `json:"branch_name"`
-	VisitDate      string   `json:"visit_date,omitempty"`
-	DueDate        string   `json:"due_date,omitempty"`
-	Status         string   `json:"status"`
-	Priority       string   `json:"priority"`
-	CustomerIDs    []uint64 `json:"customer_ids"`
+	ID                    uint64   `json:"id"`
+	UUID                  string   `json:"uuid"`
+	Title                 string   `json:"title"`
+	Description           string   `json:"description"`
+	CreatedByUserID       uint64   `json:"created_by_user_id"`
+	CreatedByUserFullName string   `json:"created_by_user_full_name"`
+	AssignedUserID        uint64   `json:"assigned_user_id"`
+	AssignedUserFullName  string   `json:"assigned_user_full_name"`
+	BranchID              uint64   `json:"branch_id"`
+	BranchName            string   `json:"branch_name"`
+	VisitDate             string   `json:"visit_date,omitempty"`
+	DueDate               string   `json:"due_date,omitempty"`
+	Status                string   `json:"status"`
+	Priority              string   `json:"priority"`
+	CustomerIDs           []uint64 `json:"customer_ids"`
 }
 
 type CreateTaskInput struct {
@@ -40,4 +43,56 @@ type BranchUser struct {
 	ID    uint64
 	Name  string
 	Phone string
+}
+
+type TaskCustomer struct {
+	ID    uint64 `json:"id"`
+	Unvan string `json:"unvan"`
+	Ad    string `json:"ad"`
+	Soyad string `json:"soyad"`
+}
+
+type TaskListItem struct {
+	ID                    uint64         `json:"id"`
+	UUID                  string         `json:"uuid"`
+	Title                 string         `json:"title"`
+	Description           string         `json:"description"`
+	CreatedByUserFullName string         `json:"created_by_user_full_name"`
+	AssignedUserFullName  string         `json:"assigned_user_full_name"`
+	BranchName            string         `json:"branch_name"`
+	VisitDate             string         `json:"visit_date,omitempty"`
+	DueDate               string         `json:"due_date,omitempty"`
+	Status                string         `json:"status"`
+	Priority              string         `json:"priority"`
+	Customers             []TaskCustomer `json:"customers"`
+}
+
+type Pagination struct {
+	CurrentPage int  `json:"current_page"`
+	LastPage    int  `json:"last_page"`
+	PerPage     int  `json:"per_page"`
+	Total       int  `json:"total"`
+	From        *int `json:"from,omitempty"`
+	To          *int `json:"to,omitempty"`
+}
+
+type ListResult struct {
+	Items      []TaskListItem `json:"items"`
+	Pagination Pagination     `json:"pagination"`
+}
+
+type ListQuery struct {
+	Page                  int
+	PerPage               int
+	Title                 string
+	Customer              string
+	AssignedUserFullName  string
+	BranchName            string
+	VisitDate             string
+	DueDate               string
+	Priority              string
+	Status                string
+	CreatedByUserFullName string
+	SortBy                string
+	SortOrder             string
 }

@@ -1,6 +1,8 @@
 package http
 
 import (
+	"strconv"
+
 	"github.com/gofiber/fiber/v2"
 
 	authApp "github.com/umran/new.crm/backend/internal/auth/application"
@@ -31,7 +33,41 @@ func NewHandler(service *application.Service) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(router fiber.Router, authRequired fiber.Handler) {
+	router.Get("/tasks", authRequired, h.ListTasks)
+	router.Get("/tasks/:id", authRequired, h.GetTask)
 	router.Post("/tasks", authRequired, h.CreateTask)
+}
+
+func (h *Handler) ListTasks(c *fiber.Ctx) error {
+	result, err := h.service.ListTasks(c.UserContext(), domain.ListQuery{
+		Page:                  queryInt(c, "page", 1),
+		PerPage:               queryInt(c, "per_page", 10),
+		Title:                 c.Query("title"),
+		Customer:              c.Query("customer"),
+		AssignedUserFullName:  c.Query("assigned_user_full_name"),
+		BranchName:            c.Query("branch_name"),
+		VisitDate:             c.Query("visit_date"),
+		DueDate:               c.Query("due_date"),
+		Priority:              c.Query("priority"),
+		Status:                c.Query("status"),
+		CreatedByUserFullName: c.Query("created_by_user_full_name"),
+		SortBy:                c.Query("sort_by"),
+		SortOrder:             c.Query("sort_order"),
+	})
+	if err != nil {
+		return response.Error(c, fiber.StatusServiceUnavailable, "Görev listesi şu anda getirilemedi.", nil)
+	}
+
+	return response.Success(c, fiber.StatusOK, "Görevler getirildi.", result)
+}
+
+func (h *Handler) GetTask(c *fiber.Ctx) error {
+	task, err := h.service.GetTask(c.UserContext(), paramUint64(c, "id", 0))
+	if err != nil {
+		return response.Error(c, fiber.StatusServiceUnavailable, "Görev detayı şu anda getirilemedi.", nil)
+	}
+
+	return response.Success(c, fiber.StatusOK, "Görev detayı getirildi.", task)
 }
 
 func (h *Handler) CreateTask(c *fiber.Ctx) error {
@@ -67,4 +103,32 @@ func (h *Handler) CreateTask(c *fiber.Ctx) error {
 	}
 
 	return response.Success(c, fiber.StatusCreated, "Görev kaydedildi.", task)
+}
+
+func queryInt(c *fiber.Ctx, key string, fallback int) int {
+	value := c.Query(key)
+	if value == "" {
+		return fallback
+	}
+
+	parsedValue, err := strconv.Atoi(value)
+	if err != nil {
+		return fallback
+	}
+
+	return parsedValue
+}
+
+func paramUint64(c *fiber.Ctx, key string, fallback uint64) uint64 {
+	value := c.Params(key)
+	if value == "" {
+		return fallback
+	}
+
+	parsedValue, err := strconv.ParseUint(value, 10, 64)
+	if err != nil {
+		return fallback
+	}
+
+	return parsedValue
 }

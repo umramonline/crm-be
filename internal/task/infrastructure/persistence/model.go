@@ -18,7 +18,7 @@ type TaskModel struct {
 	BranchName            string     `gorm:"column:branch_name;type:varchar(50);not null"`
 	VisitDate             *time.Time `gorm:"column:visit_date;type:date"`
 	DueDate               *time.Time `gorm:"column:due_date;type:date"`
-	Status                string     `gorm:"type:enum('pending','in_progress','cancelled');not null;default:pending"`
+	Status                string     `gorm:"type:enum('pending','in_progress','cancelled','completed');not null;default:pending"`
 	Priority              string     `gorm:"type:enum('high','medium','low');not null;default:medium"`
 }
 
@@ -31,8 +31,12 @@ type TaskCustomerModel struct {
 }
 
 type CustomerModel struct {
-	ID       uint64  `gorm:"primaryKey;autoIncrement"`
-	BranchID *uint64 `gorm:"column:branch_id;type:int"`
+	ID        uint64     `gorm:"primaryKey;autoIncrement"`
+	BranchID  *uint64    `gorm:"column:branch_id;type:int"`
+	Unvan     *string    `gorm:"size:255"`
+	Ad        *string    `gorm:"size:255"`
+	Soyad     *string    `gorm:"size:255"`
+	DeletedAt *time.Time `gorm:"type:timestamp;index"`
 }
 
 func (TaskModel) TableName() string {

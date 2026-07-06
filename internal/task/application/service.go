@@ -12,6 +12,10 @@ import (
 
 var ErrTaskCreateUnavailable = errors.New("task create unavailable")
 
+var ErrTaskListUnavailable = errors.New("task list unavailable")
+
+var ErrTaskDetailUnavailable = errors.New("task detail unavailable")
+
 var ErrInvalidTaskCreateInput = errors.New("invalid task create input")
 
 type ValidationErrors map[string]string
@@ -24,6 +28,8 @@ type ReferenceProvider interface {
 type Repository interface {
 	InvalidCustomerIDsForBranch(ctx context.Context, customerIDs []uint64, branchID uint64) ([]uint64, error)
 	CreateTask(ctx context.Context, input domain.CreateTaskInput) (domain.Task, error)
+	ListTasks(ctx context.Context, query domain.ListQuery) (domain.ListResult, error)
+	GetTask(ctx context.Context, id uint64) (domain.TaskListItem, error)
 }
 
 type Service struct {
@@ -77,6 +83,56 @@ func (s *Service) CreateTask(ctx context.Context, input domain.CreateTaskInput) 
 	}
 
 	return task, nil, nil
+}
+
+func (s *Service) ListTasks(ctx context.Context, query domain.ListQuery) (domain.ListResult, error) {
+	if s == nil || s.repository == nil {
+		return domain.ListResult{}, ErrTaskListUnavailable
+	}
+
+	result, err := s.repository.ListTasks(ctx, normalizeListQuery(query))
+	if err != nil {
+		return domain.ListResult{}, ErrTaskListUnavailable
+	}
+
+	return result, nil
+}
+
+func (s *Service) GetTask(ctx context.Context, id uint64) (domain.TaskListItem, error) {
+	task, err := s.repository.GetTask(ctx, id)
+	if err != nil {
+		return domain.TaskListItem{}, ErrTaskDetailUnavailable
+	}
+
+	return task, nil
+}
+
+func normalizeListQuery(query domain.ListQuery) domain.ListQuery {
+	sortBy := strings.ToLower(strings.TrimSpace(query.SortBy))
+	if sortBy != "visit_date" && sortBy != "due_date" {
+		sortBy = ""
+	}
+
+	sortOrder := strings.ToLower(strings.TrimSpace(query.SortOrder))
+	if sortOrder != "asc" {
+		sortOrder = "desc"
+	}
+
+	return domain.ListQuery{
+		Page:                  query.Page,
+		PerPage:               query.PerPage,
+		Title:                 strings.TrimSpace(query.Title),
+		Customer:              strings.TrimSpace(query.Customer),
+		AssignedUserFullName:  strings.TrimSpace(query.AssignedUserFullName),
+		BranchName:            strings.TrimSpace(query.BranchName),
+		VisitDate:             strings.TrimSpace(query.VisitDate),
+		DueDate:               strings.TrimSpace(query.DueDate),
+		Priority:              strings.ToLower(strings.TrimSpace(query.Priority)),
+		Status:                strings.ToLower(strings.TrimSpace(query.Status)),
+		CreatedByUserFullName: strings.TrimSpace(query.CreatedByUserFullName),
+		SortBy:                sortBy,
+		SortOrder:             sortOrder,
+	}
 }
 
 func normalizeCreateTaskInput(input domain.CreateTaskInput) domain.CreateTaskInput {
