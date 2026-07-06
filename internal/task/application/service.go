@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 	"time"
 
@@ -30,7 +31,10 @@ type Service struct {
 	repository Repository
 }
 
-const taskTextMaxLength = 255
+const (
+	taskTextMaxLength       = 255
+	taskBranchNameMaxLength = 50
+)
 
 var taskPriorityOptions = map[string]struct{}{
 	"high":   {},
@@ -99,6 +103,7 @@ func normalizeCreateTaskInput(input domain.CreateTaskInput) domain.CreateTaskInp
 		CreatedByUserID:       input.CreatedByUserID,
 		CreatedByUserFullName: input.CreatedByUserFullName,
 		BranchID:              input.BranchID,
+		BranchName:            strings.TrimSpace(input.BranchName),
 		VisitDate:             strings.TrimSpace(input.VisitDate),
 		DueDate:               strings.TrimSpace(input.DueDate),
 		Priority:              strings.ToLower(strings.TrimSpace(input.Priority)),
@@ -111,9 +116,11 @@ func validateCreateTaskInput(input domain.CreateTaskInput) ValidationErrors {
 
 	requireField(errors, "title", input.Title, "Başlık zorunludur.")
 	requireField(errors, "assigned_user_full_name", input.AssignedUserFullName, "Atanacak kullanıcı adı zorunludur.")
+	requireField(errors, "branch_name", input.BranchName, "Bayi adı zorunludur.")
 	validateMaxLength(errors, "title", input.Title, "Başlık")
 	validateMaxLength(errors, "description", input.Description, "Açıklama")
 	validateMaxLength(errors, "assigned_user_full_name", input.AssignedUserFullName, "Atanacak kullanıcı adı")
+	validateMaxLengthLimit(errors, "branch_name", input.BranchName, "Bayi adı", taskBranchNameMaxLength)
 
 	if input.AssignedUserID == 0 {
 		errors["assigned_user_id"] = "Atanacak kullanıcı zorunludur."
@@ -150,8 +157,12 @@ func requireField(errors ValidationErrors, field string, value string, message s
 }
 
 func validateMaxLength(errors ValidationErrors, field string, value string, label string) {
-	if len([]rune(strings.TrimSpace(value))) > taskTextMaxLength {
-		errors[field] = label + " en fazla 255 karakter olabilir."
+	validateMaxLengthLimit(errors, field, value, label, taskTextMaxLength)
+}
+
+func validateMaxLengthLimit(errors ValidationErrors, field string, value string, label string, limit int) {
+	if len([]rune(strings.TrimSpace(value))) > limit {
+		errors[field] = label + " en fazla " + strconv.Itoa(limit) + " karakter olabilir."
 	}
 }
 

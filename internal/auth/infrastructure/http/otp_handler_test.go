@@ -28,7 +28,8 @@ type fakeOTPRequestService struct {
 type fakeSessionTokenService struct {
 	accessToken  string
 	refreshToken string
-	subject      string
+	userID       uint64
+	fullName     string
 	roleID       uint64
 	roleName     string
 	validateErr  error
@@ -55,12 +56,13 @@ func (f *fakeOTPRequestService) LoginWithPassword(_ context.Context, phone strin
 	return f.loginData, f.loginErr
 }
 
-func (f *fakeSessionTokenService) Issue(subject string, tokenType string, _ time.Duration, roleID uint64, roleName string) (string, error) {
+func (f *fakeSessionTokenService) Issue(userID uint64, tokenType string, _ time.Duration, roleID uint64, roleName string, fullName string) (string, error) {
 	if f.issueErr != nil {
 		return "", f.issueErr
 	}
 
-	f.subject = subject
+	f.userID = userID
+	f.fullName = fullName
 	f.roleID = roleID
 	f.roleName = roleName
 
@@ -77,11 +79,12 @@ func (f *fakeSessionTokenService) Validate(_ string, expectedType string) (appli
 	}
 
 	return application.SessionTokenClaims{
-		Subject:   f.subject,
-		TokenType: expectedType,
-		ExpiresAt: time.Now().Add(time.Minute).Unix(),
-		RoleID:    f.roleID,
-		RoleName:  f.roleName,
+		UserId:       f.userID,
+		UserFullName: f.fullName,
+		TokenType:    expectedType,
+		ExpiresAt:    time.Now().Add(time.Minute).Unix(),
+		RoleID:       f.roleID,
+		RoleName:     f.roleName,
 	}, nil
 }
 
@@ -327,7 +330,8 @@ func TestOTPHandlerRefreshesAccessCookie(t *testing.T) {
 	tokenService := &fakeSessionTokenService{
 		accessToken:  "new-access-token",
 		refreshToken: "refresh-token",
-		subject:      "1",
+		userID:       1,
+		fullName:     "Test User",
 	}
 	app := newTestAppWithTokenService(service, tokenService)
 
@@ -373,7 +377,7 @@ func TestOTPHandlerClearsCookiesOnLogout(t *testing.T) {
 
 func TestOTPHandlerReturnsSessionForValidAccessCookie(t *testing.T) {
 	service := &fakeOTPRequestService{}
-	tokenService := &fakeSessionTokenService{subject: "1"}
+	tokenService := &fakeSessionTokenService{userID: 1, fullName: "Test User"}
 	app := newTestAppWithTokenService(service, tokenService)
 
 	response := performSessionRequest(t, app, "access-token")
@@ -384,7 +388,7 @@ func TestOTPHandlerReturnsSessionForValidAccessCookie(t *testing.T) {
 	}
 
 	body := readBody(t, response.Body)
-	if !strings.Contains(body, `"user_id":"1"`) {
+	if !strings.Contains(body, `"user_id":1`) {
 		t.Fatalf("expected session user id, got %s", body)
 	}
 }
@@ -393,7 +397,8 @@ func newTestApp(service *fakeOTPRequestService) *fiber.App {
 	return newTestAppWithTokenService(service, &fakeSessionTokenService{
 		accessToken:  "access-token",
 		refreshToken: "refresh-token",
-		subject:      "1",
+		userID:       1,
+		fullName:     "Test User",
 	})
 }
 

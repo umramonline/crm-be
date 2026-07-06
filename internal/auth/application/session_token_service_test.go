@@ -12,7 +12,7 @@ func TestSessionTokenServiceIssuesAndValidatesToken(t *testing.T) {
 		return time.Unix(1000, 0)
 	}
 
-	token, err := service.Issue("1", TokenTypeAccess, time.Minute, 30, "Admin")
+	token, err := service.Issue(1, TokenTypeAccess, time.Minute, 30, "Admin", "Test User")
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -22,7 +22,7 @@ func TestSessionTokenServiceIssuesAndValidatesToken(t *testing.T) {
 		t.Fatalf("expected nil error, got %v", err)
 	}
 
-	if claims.Subject != "1" || claims.TokenType != TokenTypeAccess || claims.RoleID != 30 || claims.RoleName != "Admin" {
+	if claims.UserId != 1 || claims.UserFullName != "Test User" || claims.TokenType != TokenTypeAccess || claims.RoleID != 30 || claims.RoleName != "Admin" {
 		t.Fatalf("unexpected claims: %#v", claims)
 	}
 }
@@ -33,7 +33,7 @@ func TestSessionTokenServiceRejectsWrongTokenType(t *testing.T) {
 		return time.Unix(1000, 0)
 	}
 
-	token, err := service.Issue("1", TokenTypeAccess, time.Minute, 0, "")
+	token, err := service.Issue(1, TokenTypeAccess, time.Minute, 0, "", "Test User")
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -51,7 +51,7 @@ func TestSessionTokenServiceRejectsExpiredToken(t *testing.T) {
 		return currentTime
 	}
 
-	token, err := service.Issue("1", TokenTypeAccess, time.Minute, 0, "")
+	token, err := service.Issue(1, TokenTypeAccess, time.Minute, 0, "", "Test User")
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}

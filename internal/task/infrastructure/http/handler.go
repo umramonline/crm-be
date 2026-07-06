@@ -19,6 +19,7 @@ type createTaskRequest struct {
 	AssignedUserID       uint64   `json:"assigned_user_id"`
 	AssignedUserFullName string   `json:"assigned_user_full_name"`
 	BranchID             uint64   `json:"branch_id"`
+	BranchName           string   `json:"branch_name"`
 	VisitDate            string   `json:"visit_date"`
 	DueDate              string   `json:"due_date"`
 	Priority             string   `json:"priority"`
@@ -51,6 +52,7 @@ func (h *Handler) CreateTask(c *fiber.Ctx) error {
 		CreatedByUserID:       claims.UserId,
 		CreatedByUserFullName: claims.UserFullName,
 		BranchID:              request.BranchID,
+		BranchName:            request.BranchName,
 		VisitDate:             request.VisitDate,
 		DueDate:               request.DueDate,
 		Priority:              request.Priority,

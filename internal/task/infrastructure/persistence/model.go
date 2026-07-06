@@ -15,6 +15,7 @@ type TaskModel struct {
 	AssignedUserID        uint64     `gorm:"column:assigned_user_id;type:bigint unsigned;not null;index"`
 	AssignedUserFullName  string     `gorm:"column:assigned_user_full_name;type:varchar(255);not null"`
 	BranchID              uint64     `gorm:"column:branch_id;type:bigint unsigned;not null;index"`
+	BranchName            string     `gorm:"column:branch_name;type:varchar(50);not null"`
 	VisitDate             *time.Time `gorm:"column:visit_date;type:date"`
 	DueDate               *time.Time `gorm:"column:due_date;type:date"`
 	Status                string     `gorm:"type:enum('pending','in_progress','cancelled');not null;default:pending"`

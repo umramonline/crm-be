@@ -7,6 +7,7 @@ type Task struct {
 	Description    string   `json:"description"`
 	AssignedUserID uint64   `json:"assigned_user_id"`
 	BranchID       uint64   `json:"branch_id"`
+	BranchName     string   `json:"branch_name"`
 	VisitDate      string   `json:"visit_date,omitempty"`
 	DueDate        string   `json:"due_date,omitempty"`
 	Status         string   `json:"status"`
@@ -22,6 +23,7 @@ type CreateTaskInput struct {
 	AssignedUserID        uint64
 	AssignedUserFullName  string
 	BranchID              uint64
+	BranchName            string
 	VisitDate             string
 	DueDate               string
 	Priority              string
