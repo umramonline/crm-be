@@ -42,4 +42,18 @@ func (p *Provider) GetBranchUser(ctx context.Context, branchID uint64, userID ui
 	}, nil
 }
 
+func (p *Provider) SendTaskCreatedSMS(ctx context.Context, input domain.TaskCreatedSMSInput) error {
+	return p.client.SendTaskCreatedSMS(
+		ctx,
+		input.Phone,
+		input.TaskUUID,
+		input.Title,
+		input.AssignedUserFullName,
+		input.BranchName,
+		input.VisitDate,
+		input.DueDate,
+		input.Priority,
+	)
+}
+
 var _ taskapp.ReferenceProvider = (*Provider)(nil)

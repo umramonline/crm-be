@@ -50,6 +50,7 @@ func main() {
 		CitiesPath:              cfg.UmramonlineCitiesPath,
 		TownsPath:               cfg.UmramonlineTownsPath,
 		BranchesPath:            cfg.UmramonlineBranchesPath,
+		TaskSMSPath:             cfg.UmramonlineTaskSMSPath,
 		Timeout:                 cfg.UmramonlineTimeout(),
 	})
 	otpRequestService := authapp.NewOTPRequestService(umramonlineClient)
@@ -106,8 +107,9 @@ func main() {
 	customerService := customerapp.NewService(customerumramonline.NewProvider(umramonlineClient), customerRepository)
 	customerHandler := customerhttp.NewHandler(customerService)
 	taskRepository := taskpersistence.NewRepository(db)
-	taskService := taskapp.NewService(taskumramonline.NewProvider(umramonlineClient), taskRepository)
-	taskHandler := taskhttp.NewHandler(taskService)
+	taskProvider := taskumramonline.NewProvider(umramonlineClient)
+	taskService := taskapp.NewService(taskProvider, taskRepository)
+	taskHandler := taskhttp.NewHandler(taskService, taskProvider)
 	authRequired := authzhttp.RequirePermission(authorizationService, sessionTokenService, authzhttp.AuthMiddlewareConfig{})
 
 	server := httpserver.NewServer(httpserver.Config{

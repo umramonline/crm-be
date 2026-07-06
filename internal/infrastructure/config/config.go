@@ -26,6 +26,7 @@ type Config struct {
 	UmramonlineCitiesPath              string `env:"UMRAMONLINE_CITIES_PATH" envDefault:"/api/v1/crm/cities"`
 	UmramonlineTownsPath               string `env:"UMRAMONLINE_TOWNS_PATH" envDefault:"/api/v1/crm/towns"`
 	UmramonlineBranchesPath            string `env:"UMRAMONLINE_BRANCHES_PATH" envDefault:"/api/v1/crm/branches"`
+	UmramonlineTaskSMSPath             string `env:"UMRAMONLINE_TASK_SMS_PATH" envDefault:"/api/v1/crm/tasks/sms-created"`
 	UmramonlineTimeoutSeconds          int    `env:"UMRAMONLINE_TIMEOUT_SECONDS" envDefault:"10"`
 	CustomerSyncDailyAt                string `env:"CUSTOMER_SYNC_DAILY_AT" envDefault:"03:00"`
 	CustomerSyncCron                   string `env:"CUSTOMER_SYNC_CRON" envDefault:"0 3 * * *"`

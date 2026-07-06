@@ -9,6 +9,7 @@ type Task struct {
 	CreatedByUserFullName string   `json:"created_by_user_full_name"`
 	AssignedUserID        uint64   `json:"assigned_user_id"`
 	AssignedUserFullName  string   `json:"assigned_user_full_name"`
+	AssignedUserPhone     string   `json:"-"`
 	BranchID              uint64   `json:"branch_id"`
 	BranchName            string   `json:"branch_name"`
 	VisitDate             string   `json:"visit_date,omitempty"`
@@ -25,6 +26,7 @@ type CreateTaskInput struct {
 	Description           string
 	AssignedUserID        uint64
 	AssignedUserFullName  string
+	AssignedUserPhone     string
 	BranchID              uint64
 	BranchName            string
 	VisitDate             string
@@ -43,6 +45,17 @@ type BranchUser struct {
 	ID    uint64
 	Name  string
 	Phone string
+}
+
+type TaskCreatedSMSInput struct {
+	Phone                string
+	TaskUUID             string
+	Title                string
+	AssignedUserFullName string
+	BranchName           string
+	VisitDate            string
+	DueDate              string
+	Priority             string
 }
 
 type TaskCustomer struct {

@@ -66,9 +66,11 @@ func (s *Service) CreateTask(ctx context.Context, input domain.CreateTaskInput) 
 		return domain.Task{}, ValidationErrors{"branch_id": "Seçili bayi geçersiz."}, ErrInvalidTaskCreateInput
 	}
 
-	if _, err := s.provider.GetBranchUser(ctx, normalizedInput.BranchID, normalizedInput.AssignedUserID); err != nil {
+	branchUser, err := s.provider.GetBranchUser(ctx, normalizedInput.BranchID, normalizedInput.AssignedUserID)
+	if err != nil {
 		return domain.Task{}, ValidationErrors{"assigned_user_id": "Atanacak kullanıcı seçili bayiye ait değil."}, ErrInvalidTaskCreateInput
 	}
+	normalizedInput.AssignedUserPhone = branchUser.Phone
 
 	invalidCustomerIDs, err := s.repository.InvalidCustomerIDsForBranch(ctx, normalizedInput.CustomerIDs, normalizedInput.BranchID)
 	if err != nil {
@@ -84,6 +86,7 @@ func (s *Service) CreateTask(ctx context.Context, input domain.CreateTaskInput) 
 	if err != nil {
 		return domain.Task{}, nil, ErrTaskCreateUnavailable
 	}
+	task.AssignedUserPhone = normalizedInput.AssignedUserPhone
 
 	return task, nil, nil
 }
@@ -178,6 +181,7 @@ func normalizeCreateTaskInput(input domain.CreateTaskInput) domain.CreateTaskInp
 		Description:           strings.TrimSpace(input.Description),
 		AssignedUserID:        input.AssignedUserID,
 		AssignedUserFullName:  input.AssignedUserFullName,
+		AssignedUserPhone:     strings.TrimSpace(input.AssignedUserPhone),
 		CreatedByUserID:       input.CreatedByUserID,
 		CreatedByUserFullName: input.CreatedByUserFullName,
 		BranchID:              input.BranchID,

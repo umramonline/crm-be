@@ -30,6 +30,7 @@ type Config struct {
 	CitiesPath              string
 	TownsPath               string
 	BranchesPath            string
+	TaskSMSPath             string
 	Timeout                 time.Duration
 }
 
@@ -48,6 +49,7 @@ type Client struct {
 	citiesPath              string
 	townsPath               string
 	branchesPath            string
+	taskSMSPath             string
 	httpClient              *http.Client
 }
 
@@ -63,6 +65,17 @@ type otpVerifyRequest struct {
 type passwordLoginRequest struct {
 	Phone    string `json:"phone"`
 	Password string `json:"password"`
+}
+
+type taskCreatedSMSRequest struct {
+	Phone                string `json:"phone"`
+	TaskUUID             string `json:"task_uuid"`
+	Title                string `json:"title"`
+	AssignedUserFullName string `json:"assigned_user_full_name"`
+	BranchName           string `json:"branch_name"`
+	VisitDate            string `json:"visit_date"`
+	DueDate              string `json:"due_date"`
+	Priority             string `json:"priority"`
 }
 
 type apiResponse struct {
@@ -233,10 +246,68 @@ func NewClient(config Config) *Client {
 		citiesPath:              "/" + strings.Trim(config.CitiesPath, "/"),
 		townsPath:               "/" + strings.Trim(config.TownsPath, "/"),
 		branchesPath:            "/" + strings.Trim(config.BranchesPath, "/"),
+		taskSMSPath:             "/" + strings.Trim(config.TaskSMSPath, "/"),
 		httpClient: &http.Client{
 			Timeout: timeout,
 		},
 	}
+}
+
+func (c *Client) SendTaskCreatedSMS(
+	ctx context.Context,
+	phone string,
+	taskUUID string,
+	title string,
+	assignedUserFullName string,
+	branchName string,
+	visitDate string,
+	dueDate string,
+	priority string,
+) error {
+	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.taskSMSPath == "/" {
+		return ErrRequestFailed
+	}
+
+	body, err := json.Marshal(taskCreatedSMSRequest{
+		Phone:                "05455170595",
+		TaskUUID:             taskUUID,
+		Title:                title,
+		AssignedUserFullName: assignedUserFullName,
+		BranchName:           branchName,
+		VisitDate:            visitDate,
+		DueDate:              dueDate,
+		Priority:             priority,
+	})
+	if err != nil {
+		return ErrRequestFailed
+	}
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+c.taskSMSPath, bytes.NewReader(body))
+	if err != nil {
+		return ErrRequestFailed
+	}
+
+	request.Header.Set("Accept", "application/json")
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-API-KEY", c.apiKey)
+	request.Header.Set("Authorization", "Bearer "+c.apiToken)
+
+	response, err := c.httpClient.Do(request)
+	if err != nil {
+		return ErrRequestFailed
+	}
+	defer response.Body.Close()
+
+	var apiResponse apiResponse
+	if err := json.NewDecoder(response.Body).Decode(&apiResponse); err != nil {
+		return ErrRequestFailed
+	}
+
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices || !apiResponse.Success {
+		return fmt.Errorf("%w: status=%d", ErrRequestFailed, response.StatusCode)
+	}
+
+	return nil
 }
 
 func (c *Client) RequestOTP(ctx context.Context, phone string) error {

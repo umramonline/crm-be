@@ -1,7 +1,11 @@
 package http
 
 import (
+	"context"
+	"log"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 
@@ -12,7 +16,13 @@ import (
 )
 
 type Handler struct {
-	service *application.Service
+	service     *application.Service
+	smsNotifier TaskCreatedSMSNotifier
+	logger      *log.Logger
+}
+
+type TaskCreatedSMSNotifier interface {
+	SendTaskCreatedSMS(ctx context.Context, input domain.TaskCreatedSMSInput) error
 }
 
 type createTaskRequest struct {
@@ -28,8 +38,17 @@ type createTaskRequest struct {
 	CustomerIDs          []uint64 `json:"customer_ids"`
 }
 
-func NewHandler(service *application.Service) *Handler {
-	return &Handler{service: service}
+func NewHandler(service *application.Service, smsNotifiers ...TaskCreatedSMSNotifier) *Handler {
+	var smsNotifier TaskCreatedSMSNotifier
+	if len(smsNotifiers) > 0 {
+		smsNotifier = smsNotifiers[0]
+	}
+
+	return &Handler{
+		service:     service,
+		smsNotifier: smsNotifier,
+		logger:      log.Default(),
+	}
 }
 
 func (h *Handler) RegisterRoutes(router fiber.Router, authRequired fiber.Handler) {
@@ -112,7 +131,35 @@ func (h *Handler) CreateTask(c *fiber.Ctx) error {
 		return response.Error(c, fiber.StatusServiceUnavailable, "Görev kaydı şu anda oluşturulamadı.", nil)
 	}
 
+	h.dispatchTaskCreatedSMS(task)
+
 	return response.Success(c, fiber.StatusCreated, "Görev kaydedildi.", task)
+}
+
+func (h *Handler) dispatchTaskCreatedSMS(task domain.Task) {
+	if h == nil || h.smsNotifier == nil || strings.TrimSpace(task.AssignedUserPhone) == "" {
+		return
+	}
+
+	input := domain.TaskCreatedSMSInput{
+		Phone:                task.AssignedUserPhone,
+		TaskUUID:             task.UUID,
+		Title:                task.Title,
+		AssignedUserFullName: task.AssignedUserFullName,
+		BranchName:           task.BranchName,
+		VisitDate:            task.VisitDate,
+		DueDate:              task.DueDate,
+		Priority:             task.Priority,
+	}
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		if err := h.smsNotifier.SendTaskCreatedSMS(ctx, input); err != nil && h.logger != nil {
+			h.logger.Printf("task created SMS failed task_uuid=%s phone=%s error=%v", input.TaskUUID, maskPhone(input.Phone), err)
+		}
+	}()
 }
 
 func queryInt(c *fiber.Ctx, key string, fallback int) int {
@@ -127,4 +174,13 @@ func queryInt(c *fiber.Ctx, key string, fallback int) int {
 	}
 
 	return parsedValue
+}
+
+func maskPhone(phone string) string {
+	trimmedPhone := strings.TrimSpace(phone)
+	if len(trimmedPhone) <= 4 {
+		return "****"
+	}
+
+	return trimmedPhone[:2] + "*****" + trimmedPhone[len(trimmedPhone)-2:]
 }

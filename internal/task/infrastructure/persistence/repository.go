@@ -98,7 +98,10 @@ func (r *Repository) CreateTask(ctx context.Context, input domain.CreateTaskInpu
 		return domain.Task{}, err
 	}
 
-	return toTask(task, input.CustomerIDs), nil
+	createdTask := toTask(task, input.CustomerIDs)
+	createdTask.AssignedUserPhone = input.AssignedUserPhone
+
+	return createdTask, nil
 }
 
 func (r *Repository) ListTasks(ctx context.Context, query domain.ListQuery) (domain.ListResult, error) {
