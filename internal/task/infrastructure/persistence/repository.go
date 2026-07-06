@@ -2,7 +2,6 @@ package persistence
 
 import (
 	"context"
-	"sort"
 	"strings"
 	"time"
 
@@ -123,35 +122,41 @@ func (r *Repository) ListTasks(ctx context.Context, query domain.ListQuery) (dom
 		perPage = 100
 	}
 
+	baseQuery := r.taskListBaseQuery(ctx, query)
+
 	var total int64
-	if err := r.taskListBaseQuery(ctx, query).Distinct("tasks.id").Count(&total).Error; err != nil {
+	if err := baseQuery.Count(&total).Error; err != nil {
 		return domain.ListResult{}, err
 	}
 
-	var taskIDs []uint64
+	var rows []taskListCustomerRow
 	if err := r.taskListBaseQuery(ctx, query).
-		Select("tasks.id").
-		Group("tasks.id").
+		Select(`
+			tasks.uuid,
+			tasks.title,
+			tasks.description,
+			tasks.created_by_user_full_name,
+			tasks.assigned_user_full_name,
+			tasks.branch_name,
+			tasks.visit_date,
+			tasks.due_date,
+			tasks.status,
+			tasks.priority,
+			customers.id AS customer_id,
+			customers.unvan,
+			customers.ad,
+			customers.soyad
+		`).
 		Order(taskListOrder(query)).
-		Offset((page-1)*perPage).
+		Offset((page - 1) * perPage).
 		Limit(perPage).
-		Pluck("tasks.id", &taskIDs).Error; err != nil {
+		Scan(&rows).Error; err != nil {
 		return domain.ListResult{}, err
 	}
 
-	tasks, err := r.tasksByIDs(ctx, taskIDs)
-	if err != nil {
-		return domain.ListResult{}, err
-	}
-
-	customersByTaskID, err := r.customersByTaskIDs(ctx, taskIDs)
-	if err != nil {
-		return domain.ListResult{}, err
-	}
-
-	items := make([]domain.TaskListItem, 0, len(tasks))
-	for _, task := range tasks {
-		items = append(items, toTaskListItem(task, customersByTaskID[task.ID]))
+	items := make([]domain.TaskListItem, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, toTaskListItemFromCustomerRow(row))
 	}
 
 	lastPage := int((total + int64(perPage) - 1) / int64(perPage))
@@ -238,13 +243,11 @@ func (r *Repository) CancelTask(ctx context.Context, taskUUID string) (domain.Ta
 }
 
 func (r *Repository) taskListBaseQuery(ctx context.Context, filters domain.ListQuery) *gorm.DB {
-	query := r.db.WithContext(ctx).Model(&TaskModel{}).Where("tasks.deleted_at IS NULL")
-
-	if strings.TrimSpace(filters.Customer) != "" {
-		query = query.
-			Joins("JOIN tasks_customers ON tasks_customers.task_id = tasks.id").
-			Joins("JOIN customers ON customers.id = tasks_customers.customer_id AND customers.deleted_at IS NULL")
-	}
+	query := r.db.WithContext(ctx).
+		Model(&TaskModel{}).
+		Joins("JOIN tasks_customers ON tasks_customers.task_id = tasks.id").
+		Joins("JOIN customers ON customers.id = tasks_customers.customer_id AND customers.deleted_at IS NULL").
+		Where("tasks.deleted_at IS NULL")
 
 	return applyTaskFilters(query, filters)
 }
@@ -293,7 +296,7 @@ func applyTaskFilters(query *gorm.DB, filters domain.ListQuery) *gorm.DB {
 func taskListOrder(query domain.ListQuery) string {
 	sortBy := strings.ToLower(strings.TrimSpace(query.SortBy))
 	if sortBy != "visit_date" && sortBy != "due_date" {
-		return "tasks.id DESC"
+		return "tasks.id DESC, tasks_customers.customer_id ASC"
 	}
 
 	sortOrder := "DESC"
@@ -301,29 +304,7 @@ func taskListOrder(query domain.ListQuery) string {
 		sortOrder = "ASC"
 	}
 
-	return "tasks." + sortBy + " " + sortOrder + ", tasks.id DESC"
-}
-
-func (r *Repository) tasksByIDs(ctx context.Context, taskIDs []uint64) ([]TaskModel, error) {
-	if len(taskIDs) == 0 {
-		return []TaskModel{}, nil
-	}
-
-	var tasks []TaskModel
-	if err := r.db.WithContext(ctx).Where("id IN ?", taskIDs).Find(&tasks).Error; err != nil {
-		return nil, err
-	}
-
-	taskOrder := make(map[uint64]int, len(taskIDs))
-	for index, taskID := range taskIDs {
-		taskOrder[taskID] = index
-	}
-
-	sort.SliceStable(tasks, func(left int, right int) bool {
-		return taskOrder[tasks[left].ID] < taskOrder[tasks[right].ID]
-	})
-
-	return tasks, nil
+	return "tasks." + sortBy + " " + sortOrder + ", tasks.id DESC, tasks_customers.customer_id ASC"
 }
 
 type taskCustomerRow struct {
@@ -332,6 +313,23 @@ type taskCustomerRow struct {
 	Unvan      *string
 	Ad         *string
 	Soyad      *string
+}
+
+type taskListCustomerRow struct {
+	UUID                  string
+	Title                 string
+	Description           *string
+	CreatedByUserFullName string
+	AssignedUserFullName  string
+	BranchName            string
+	VisitDate             *time.Time
+	DueDate               *time.Time
+	Status                string
+	Priority              string
+	CustomerID            uint64
+	Unvan                 *string
+	Ad                    *string
+	Soyad                 *string
 }
 
 func (r *Repository) customersByTaskIDs(ctx context.Context, taskIDs []uint64) (map[uint64][]domain.TaskCustomer, error) {
@@ -431,6 +429,49 @@ func toTaskListItem(task TaskModel, customers []domain.TaskCustomer) domain.Task
 		Status:                task.Status,
 		Priority:              task.Priority,
 		Customers:             customers,
+	}
+}
+
+func toTaskListItemFromCustomerRow(row taskListCustomerRow) domain.TaskListItem {
+	description := ""
+	if row.Description != nil {
+		description = *row.Description
+	}
+
+	visitDate := ""
+	if row.VisitDate != nil {
+		visitDate = row.VisitDate.Format("2006-01-02")
+	}
+
+	dueDate := ""
+	if row.DueDate != nil {
+		dueDate = row.DueDate.Format("2006-01-02")
+	}
+
+	title := strings.TrimSpace(row.Title)
+	if title == "" {
+		title = "Potansiyel Müşteri"
+	}
+
+	return domain.TaskListItem{
+		UUID:                  row.UUID,
+		Title:                 title,
+		Description:           description,
+		CreatedByUserFullName: row.CreatedByUserFullName,
+		AssignedUserFullName:  row.AssignedUserFullName,
+		BranchName:            row.BranchName,
+		VisitDate:             visitDate,
+		DueDate:               dueDate,
+		Status:                row.Status,
+		Priority:              row.Priority,
+		Customers: []domain.TaskCustomer{
+			{
+				ID:    row.CustomerID,
+				Unvan: stringValue(row.Unvan),
+				Ad:    stringValue(row.Ad),
+				Soyad: stringValue(row.Soyad),
+			},
+		},
 	}
 }
 
