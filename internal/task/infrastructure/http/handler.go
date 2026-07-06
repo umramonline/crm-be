@@ -34,7 +34,7 @@ func NewHandler(service *application.Service) *Handler {
 
 func (h *Handler) RegisterRoutes(router fiber.Router, authRequired fiber.Handler) {
 	router.Get("/tasks", authRequired, h.ListTasks)
-	router.Get("/tasks/:id", authRequired, h.GetTask)
+	router.Get("/tasks/:uuid", authRequired, h.GetTask)
 	router.Post("/tasks", authRequired, h.CreateTask)
 }
 
@@ -62,7 +62,7 @@ func (h *Handler) ListTasks(c *fiber.Ctx) error {
 }
 
 func (h *Handler) GetTask(c *fiber.Ctx) error {
-	task, err := h.service.GetTask(c.UserContext(), paramUint64(c, "id", 0))
+	task, err := h.service.GetTask(c.UserContext(), c.Params("uuid"))
 	if err != nil {
 		return response.Error(c, fiber.StatusServiceUnavailable, "Görev detayı şu anda getirilemedi.", nil)
 	}
@@ -112,20 +112,6 @@ func queryInt(c *fiber.Ctx, key string, fallback int) int {
 	}
 
 	parsedValue, err := strconv.Atoi(value)
-	if err != nil {
-		return fallback
-	}
-
-	return parsedValue
-}
-
-func paramUint64(c *fiber.Ctx, key string, fallback uint64) uint64 {
-	value := c.Params(key)
-	if value == "" {
-		return fallback
-	}
-
-	parsedValue, err := strconv.ParseUint(value, 10, 64)
 	if err != nil {
 		return fallback
 	}

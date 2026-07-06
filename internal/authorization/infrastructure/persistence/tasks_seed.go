@@ -17,7 +17,7 @@ var taskMethodSeeds = []authorizationMethodSeed{
 		Name:        "tasks.detail",
 		Description: "Görev detayını görüntüler.",
 		Method:      stringPointer("GET"),
-		Path:        stringPointer("/api/v1/tasks/:id"),
+		Path:        stringPointer("/api/v1/tasks/:uuid"),
 	},
 	{
 		Name:        "tasks.create",

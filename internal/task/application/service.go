@@ -29,7 +29,7 @@ type Repository interface {
 	InvalidCustomerIDsForBranch(ctx context.Context, customerIDs []uint64, branchID uint64) ([]uint64, error)
 	CreateTask(ctx context.Context, input domain.CreateTaskInput) (domain.Task, error)
 	ListTasks(ctx context.Context, query domain.ListQuery) (domain.ListResult, error)
-	GetTask(ctx context.Context, id uint64) (domain.TaskListItem, error)
+	GetTask(ctx context.Context, uuid string) (domain.TaskListItem, error)
 }
 
 type Service struct {
@@ -98,8 +98,13 @@ func (s *Service) ListTasks(ctx context.Context, query domain.ListQuery) (domain
 	return result, nil
 }
 
-func (s *Service) GetTask(ctx context.Context, id uint64) (domain.TaskListItem, error) {
-	task, err := s.repository.GetTask(ctx, id)
+func (s *Service) GetTask(ctx context.Context, uuid string) (domain.TaskListItem, error) {
+	normalizedUUID := strings.TrimSpace(uuid)
+	if s == nil || s.repository == nil || normalizedUUID == "" {
+		return domain.TaskListItem{}, ErrTaskDetailUnavailable
+	}
+
+	task, err := s.repository.GetTask(ctx, normalizedUUID)
 	if err != nil {
 		return domain.TaskListItem{}, ErrTaskDetailUnavailable
 	}

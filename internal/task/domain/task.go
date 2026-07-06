@@ -1,7 +1,7 @@
 package domain
 
 type Task struct {
-	ID                    uint64   `json:"id"`
+	ID                    uint64   `json:"-"`
 	UUID                  string   `json:"uuid"`
 	Title                 string   `json:"title"`
 	Description           string   `json:"description"`
@@ -53,7 +53,6 @@ type TaskCustomer struct {
 }
 
 type TaskListItem struct {
-	ID                    uint64         `json:"id"`
 	UUID                  string         `json:"uuid"`
 	Title                 string         `json:"title"`
 	Description           string         `json:"description"`

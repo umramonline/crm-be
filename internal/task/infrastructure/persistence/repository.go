@@ -178,22 +178,25 @@ func (r *Repository) ListTasks(ctx context.Context, query domain.ListQuery) (dom
 	}, nil
 }
 
-func (r *Repository) GetTask(ctx context.Context, id uint64) (domain.TaskListItem, error) {
+func (r *Repository) GetTask(ctx context.Context, taskUUID string) (domain.TaskListItem, error) {
+	if r == nil || r.db == nil || strings.TrimSpace(taskUUID) == "" {
+		return domain.TaskListItem{}, gorm.ErrInvalidDB
+	}
 
 	var task TaskModel
 	if err := r.db.WithContext(ctx).
-		Where("id = ?", id).
+		Where("uuid = ?", strings.TrimSpace(taskUUID)).
 		Where("deleted_at IS NULL").
 		First(&task).Error; err != nil {
 		return domain.TaskListItem{}, err
 	}
 
-	customersByTaskID, err := r.customersByTaskIDs(ctx, []uint64{id})
+	customersByTaskID, err := r.customersByTaskIDs(ctx, []uint64{task.ID})
 	if err != nil {
 		return domain.TaskListItem{}, err
 	}
 
-	return toTaskListItem(task, customersByTaskID[id]), nil
+	return toTaskListItem(task, customersByTaskID[task.ID]), nil
 }
 
 func (r *Repository) taskListBaseQuery(ctx context.Context, filters domain.ListQuery) *gorm.DB {
@@ -379,7 +382,6 @@ func toTaskListItem(task TaskModel, customers []domain.TaskCustomer) domain.Task
 	}
 
 	return domain.TaskListItem{
-		ID:                    task.ID,
 		UUID:                  task.UUID,
 		Title:                 title,
 		Description:           description,

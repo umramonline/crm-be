@@ -60,7 +60,7 @@ func (f *fakeTaskRepository) ListTasks(_ context.Context, _ domain.ListQuery) (d
 	return domain.ListResult{}, nil
 }
 
-func (f *fakeTaskRepository) GetTask(_ context.Context, _ uint64) (domain.TaskListItem, error) {
+func (f *fakeTaskRepository) GetTask(_ context.Context, _ string) (domain.TaskListItem, error) {
 	return domain.TaskListItem{}, nil
 }
 
