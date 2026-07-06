@@ -186,7 +186,7 @@ func (r *Repository) ListTasks(ctx context.Context, query domain.ListQuery) (dom
 	}, nil
 }
 
-func (r *Repository) GetTask(ctx context.Context, taskUUID string) (domain.TaskListItem, error) {
+func (r *Repository) GetTask(ctx context.Context, taskUUID string, customerID uint64) (domain.TaskListItem, error) {
 	if r == nil || r.db == nil || strings.TrimSpace(taskUUID) == "" {
 		return domain.TaskListItem{}, gorm.ErrInvalidDB
 	}
@@ -204,7 +204,12 @@ func (r *Repository) GetTask(ctx context.Context, taskUUID string) (domain.TaskL
 		return domain.TaskListItem{}, err
 	}
 
-	return toTaskListItem(task, customersByTaskID[task.ID]), nil
+	customers, err := filterTaskCustomers(customersByTaskID[task.ID], customerID)
+	if err != nil {
+		return domain.TaskListItem{}, err
+	}
+
+	return toTaskListItem(task, customers), nil
 }
 
 func (r *Repository) CancelTask(ctx context.Context, taskUUID string) (domain.TaskListItem, error) {
@@ -359,6 +364,20 @@ func (r *Repository) customersByTaskIDs(ctx context.Context, taskIDs []uint64) (
 	}
 
 	return customersByTaskID, nil
+}
+
+func filterTaskCustomers(customers []domain.TaskCustomer, customerID uint64) ([]domain.TaskCustomer, error) {
+	if customerID == 0 {
+		return customers, nil
+	}
+
+	for _, customer := range customers {
+		if customer.ID == customerID {
+			return []domain.TaskCustomer{customer}, nil
+		}
+	}
+
+	return nil, gorm.ErrRecordNotFound
 }
 
 func toTask(task TaskModel, customerIDs []uint64) domain.Task {

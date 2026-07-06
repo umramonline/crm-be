@@ -82,7 +82,7 @@ func (h *Handler) ListTasks(c *fiber.Ctx) error {
 }
 
 func (h *Handler) GetTask(c *fiber.Ctx) error {
-	task, err := h.service.GetTask(c.UserContext(), c.Params("uuid"))
+	task, err := h.service.GetTask(c.UserContext(), c.Params("uuid"), queryUint64(c, "customer_id"))
 	if err != nil {
 		return response.Error(c, fiber.StatusServiceUnavailable, "Görev detayı şu anda getirilemedi.", nil)
 	}
@@ -171,6 +171,20 @@ func queryInt(c *fiber.Ctx, key string, fallback int) int {
 	parsedValue, err := strconv.Atoi(value)
 	if err != nil {
 		return fallback
+	}
+
+	return parsedValue
+}
+
+func queryUint64(c *fiber.Ctx, key string) uint64 {
+	value := c.Query(key)
+	if value == "" {
+		return 0
+	}
+
+	parsedValue, err := strconv.ParseUint(value, 10, 64)
+	if err != nil {
+		return 0
 	}
 
 	return parsedValue
