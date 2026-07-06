@@ -199,6 +199,41 @@ func (r *Repository) GetTask(ctx context.Context, taskUUID string) (domain.TaskL
 	return toTaskListItem(task, customersByTaskID[task.ID]), nil
 }
 
+func (r *Repository) CancelTask(ctx context.Context, taskUUID string) (domain.TaskListItem, error) {
+	if r == nil || r.db == nil || strings.TrimSpace(taskUUID) == "" {
+		return domain.TaskListItem{}, gorm.ErrInvalidDB
+	}
+
+	var task TaskModel
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.
+			Where("uuid = ?", strings.TrimSpace(taskUUID)).
+			Where("deleted_at IS NULL").
+			First(&task).Error; err != nil {
+			return err
+		}
+
+		if task.Status != "cancelled" {
+			task.Status = "cancelled"
+			if err := tx.Save(&task).Error; err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return domain.TaskListItem{}, err
+	}
+
+	customersByTaskID, err := r.customersByTaskIDs(ctx, []uint64{task.ID})
+	if err != nil {
+		return domain.TaskListItem{}, err
+	}
+
+	return toTaskListItem(task, customersByTaskID[task.ID]), nil
+}
+
 func (r *Repository) taskListBaseQuery(ctx context.Context, filters domain.ListQuery) *gorm.DB {
 	query := r.db.WithContext(ctx).Model(&TaskModel{}).Where("tasks.deleted_at IS NULL")
 

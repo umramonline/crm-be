@@ -16,6 +16,8 @@ var ErrTaskListUnavailable = errors.New("task list unavailable")
 
 var ErrTaskDetailUnavailable = errors.New("task detail unavailable")
 
+var ErrTaskCancelUnavailable = errors.New("task cancel unavailable")
+
 var ErrInvalidTaskCreateInput = errors.New("invalid task create input")
 
 type ValidationErrors map[string]string
@@ -30,6 +32,7 @@ type Repository interface {
 	CreateTask(ctx context.Context, input domain.CreateTaskInput) (domain.Task, error)
 	ListTasks(ctx context.Context, query domain.ListQuery) (domain.ListResult, error)
 	GetTask(ctx context.Context, uuid string) (domain.TaskListItem, error)
+	CancelTask(ctx context.Context, uuid string) (domain.TaskListItem, error)
 }
 
 type Service struct {
@@ -107,6 +110,20 @@ func (s *Service) GetTask(ctx context.Context, uuid string) (domain.TaskListItem
 	task, err := s.repository.GetTask(ctx, normalizedUUID)
 	if err != nil {
 		return domain.TaskListItem{}, ErrTaskDetailUnavailable
+	}
+
+	return task, nil
+}
+
+func (s *Service) CancelTask(ctx context.Context, uuid string) (domain.TaskListItem, error) {
+	normalizedUUID := strings.TrimSpace(uuid)
+	if s == nil || s.repository == nil || normalizedUUID == "" {
+		return domain.TaskListItem{}, ErrTaskCancelUnavailable
+	}
+
+	task, err := s.repository.CancelTask(ctx, normalizedUUID)
+	if err != nil {
+		return domain.TaskListItem{}, ErrTaskCancelUnavailable
 	}
 
 	return task, nil

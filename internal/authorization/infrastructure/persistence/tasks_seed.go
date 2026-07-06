@@ -20,6 +20,12 @@ var taskMethodSeeds = []authorizationMethodSeed{
 		Path:        stringPointer("/api/v1/tasks/:uuid"),
 	},
 	{
+		Name:        "tasks.cancel",
+		Description: "Görevi iptal eder.",
+		Method:      stringPointer("PATCH"),
+		Path:        stringPointer("/api/v1/tasks/:uuid/cancel"),
+	},
+	{
 		Name:        "tasks.create",
 		Description: "Seçili müşteriler için görev oluşturur.",
 		Method:      stringPointer("POST"),

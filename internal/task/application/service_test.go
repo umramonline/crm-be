@@ -64,6 +64,10 @@ func (f *fakeTaskRepository) GetTask(_ context.Context, _ string) (domain.TaskLi
 	return domain.TaskListItem{}, nil
 }
 
+func (f *fakeTaskRepository) CancelTask(_ context.Context, _ string) (domain.TaskListItem, error) {
+	return domain.TaskListItem{}, nil
+}
+
 func TestCreateTaskRejectsMissingBranchName(t *testing.T) {
 	service := NewService(fakeReferenceProvider{}, &fakeTaskRepository{})
 

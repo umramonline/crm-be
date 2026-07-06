@@ -35,6 +35,7 @@ func NewHandler(service *application.Service) *Handler {
 func (h *Handler) RegisterRoutes(router fiber.Router, authRequired fiber.Handler) {
 	router.Get("/tasks", authRequired, h.ListTasks)
 	router.Get("/tasks/:uuid", authRequired, h.GetTask)
+	router.Patch("/tasks/:uuid/cancel", authRequired, h.CancelTask)
 	router.Post("/tasks", authRequired, h.CreateTask)
 }
 
@@ -68,6 +69,15 @@ func (h *Handler) GetTask(c *fiber.Ctx) error {
 	}
 
 	return response.Success(c, fiber.StatusOK, "Görev detayı getirildi.", task)
+}
+
+func (h *Handler) CancelTask(c *fiber.Ctx) error {
+	task, err := h.service.CancelTask(c.UserContext(), c.Params("uuid"))
+	if err != nil {
+		return response.Error(c, fiber.StatusServiceUnavailable, "Görev şu anda iptal edilemedi.", nil)
+	}
+
+	return response.Success(c, fiber.StatusOK, "Görev iptal edildi.", task)
 }
 
 func (h *Handler) CreateTask(c *fiber.Ctx) error {
