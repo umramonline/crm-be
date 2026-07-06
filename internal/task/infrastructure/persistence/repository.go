@@ -69,7 +69,6 @@ func (r *Repository) CreateTask(ctx context.Context, input domain.CreateTaskInpu
 		BranchName:            input.BranchName,
 		VisitDate:             datePointer(input.VisitDate),
 		DueDate:               datePointer(input.DueDate),
-		Status:                "pending",
 		Priority:              input.Priority,
 	}
 
@@ -83,6 +82,7 @@ func (r *Repository) CreateTask(ctx context.Context, input domain.CreateTaskInpu
 			taskCustomers = append(taskCustomers, TaskCustomerModel{
 				TaskID:     task.ID,
 				CustomerID: customerID,
+				Status:     "pending",
 			})
 		}
 
@@ -140,7 +140,7 @@ func (r *Repository) ListTasks(ctx context.Context, query domain.ListQuery) (dom
 			tasks.branch_name,
 			tasks.visit_date,
 			tasks.due_date,
-			tasks.status,
+			tasks_customers.status,
 			tasks.priority,
 			customers.id AS customer_id,
 			customers.unvan,
@@ -212,8 +212,8 @@ func (r *Repository) GetTask(ctx context.Context, taskUUID string, customerID ui
 	return toTaskListItem(task, customers), nil
 }
 
-func (r *Repository) CancelTask(ctx context.Context, taskUUID string) (domain.TaskListItem, error) {
-	if r == nil || r.db == nil || strings.TrimSpace(taskUUID) == "" {
+func (r *Repository) CancelTask(ctx context.Context, taskUUID string, customerID uint64) (domain.TaskListItem, error) {
+	if r == nil || r.db == nil || strings.TrimSpace(taskUUID) == "" || customerID == 0 {
 		return domain.TaskListItem{}, gorm.ErrInvalidDB
 	}
 
@@ -226,11 +226,15 @@ func (r *Repository) CancelTask(ctx context.Context, taskUUID string) (domain.Ta
 			return err
 		}
 
-		if task.Status != "cancelled" {
-			task.Status = "cancelled"
-			if err := tx.Save(&task).Error; err != nil {
-				return err
-			}
+		result := tx.Model(&TaskCustomerModel{}).
+			Where("task_id = ?", task.ID).
+			Where("customer_id = ?", customerID).
+			Update("status", "cancelled")
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
 		}
 
 		return nil
@@ -244,7 +248,12 @@ func (r *Repository) CancelTask(ctx context.Context, taskUUID string) (domain.Ta
 		return domain.TaskListItem{}, err
 	}
 
-	return toTaskListItem(task, customersByTaskID[task.ID]), nil
+	customers, err := filterTaskCustomers(customersByTaskID[task.ID], customerID)
+	if err != nil {
+		return domain.TaskListItem{}, err
+	}
+
+	return toTaskListItem(task, customers), nil
 }
 
 func (r *Repository) taskListBaseQuery(ctx context.Context, filters domain.ListQuery) *gorm.DB {
@@ -288,7 +297,7 @@ func applyTaskFilters(query *gorm.DB, filters domain.ListQuery) *gorm.DB {
 	}
 
 	if strings.TrimSpace(filters.Status) != "" {
-		query = query.Where("tasks.status = ?", strings.ToLower(strings.TrimSpace(filters.Status)))
+		query = query.Where("tasks_customers.status = ?", strings.ToLower(strings.TrimSpace(filters.Status)))
 	}
 
 	if strings.TrimSpace(filters.CreatedByUserFullName) != "" {
@@ -318,6 +327,7 @@ type taskCustomerRow struct {
 	Unvan      *string
 	Ad         *string
 	Soyad      *string
+	Status     string
 }
 
 type taskListCustomerRow struct {
@@ -346,7 +356,7 @@ func (r *Repository) customersByTaskIDs(ctx context.Context, taskIDs []uint64) (
 	var rows []taskCustomerRow
 	if err := r.db.WithContext(ctx).
 		Model(&TaskCustomerModel{}).
-		Select("tasks_customers.task_id, customers.id AS customer_id, customers.unvan, customers.ad, customers.soyad").
+		Select("tasks_customers.task_id, customers.id AS customer_id, customers.unvan, customers.ad, customers.soyad, tasks_customers.status").
 		Joins("JOIN customers ON customers.id = tasks_customers.customer_id AND customers.deleted_at IS NULL").
 		Where("tasks_customers.task_id IN ?", taskIDs).
 		Order("tasks_customers.task_id ASC, customers.unvan ASC, customers.id ASC").
@@ -356,10 +366,11 @@ func (r *Repository) customersByTaskIDs(ctx context.Context, taskIDs []uint64) (
 
 	for _, row := range rows {
 		customersByTaskID[row.TaskID] = append(customersByTaskID[row.TaskID], domain.TaskCustomer{
-			ID:    row.CustomerID,
-			Unvan: stringValue(row.Unvan),
-			Ad:    stringValue(row.Ad),
-			Soyad: stringValue(row.Soyad),
+			ID:     row.CustomerID,
+			Unvan:  stringValue(row.Unvan),
+			Ad:     stringValue(row.Ad),
+			Soyad:  stringValue(row.Soyad),
+			Status: taskStatusValue(row.Status),
 		})
 	}
 
@@ -409,7 +420,6 @@ func toTask(task TaskModel, customerIDs []uint64) domain.Task {
 		BranchName:            task.BranchName,
 		VisitDate:             visitDate,
 		DueDate:               dueDate,
-		Status:                task.Status,
 		Priority:              task.Priority,
 		CustomerIDs:           customerIDs,
 	}
@@ -445,7 +455,7 @@ func toTaskListItem(task TaskModel, customers []domain.TaskCustomer) domain.Task
 		BranchName:            task.BranchName,
 		VisitDate:             visitDate,
 		DueDate:               dueDate,
-		Status:                task.Status,
+		Status:                taskListItemStatus(customers),
 		Priority:              task.Priority,
 		Customers:             customers,
 	}
@@ -481,16 +491,34 @@ func toTaskListItemFromCustomerRow(row taskListCustomerRow) domain.TaskListItem 
 		BranchName:            row.BranchName,
 		VisitDate:             visitDate,
 		DueDate:               dueDate,
-		Status:                row.Status,
+		Status:                taskStatusValue(row.Status),
 		Priority:              row.Priority,
 		Customers: []domain.TaskCustomer{
 			{
-				ID:    row.CustomerID,
-				Unvan: stringValue(row.Unvan),
-				Ad:    stringValue(row.Ad),
-				Soyad: stringValue(row.Soyad),
+				ID:     row.CustomerID,
+				Unvan:  stringValue(row.Unvan),
+				Ad:     stringValue(row.Ad),
+				Soyad:  stringValue(row.Soyad),
+				Status: taskStatusValue(row.Status),
 			},
 		},
+	}
+}
+
+func taskListItemStatus(customers []domain.TaskCustomer) string {
+	if len(customers) == 0 {
+		return "pending"
+	}
+
+	return taskStatusValue(customers[0].Status)
+}
+
+func taskStatusValue(status string) string {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "in_progress", "cancelled", "completed":
+		return strings.ToLower(strings.TrimSpace(status))
+	default:
+		return "pending"
 	}
 }
 

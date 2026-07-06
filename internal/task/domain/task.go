@@ -14,7 +14,6 @@ type Task struct {
 	BranchName            string   `json:"branch_name"`
 	VisitDate             string   `json:"visit_date,omitempty"`
 	DueDate               string   `json:"due_date,omitempty"`
-	Status                string   `json:"status"`
 	Priority              string   `json:"priority"`
 	CustomerIDs           []uint64 `json:"customer_ids"`
 }
@@ -59,10 +58,11 @@ type TaskCreatedSMSInput struct {
 }
 
 type TaskCustomer struct {
-	ID    uint64 `json:"id"`
-	Unvan string `json:"unvan"`
-	Ad    string `json:"ad"`
-	Soyad string `json:"soyad"`
+	ID     uint64 `json:"id"`
+	Unvan  string `json:"unvan"`
+	Ad     string `json:"ad"`
+	Soyad  string `json:"soyad"`
+	Status string `json:"-"`
 }
 
 type TaskListItem struct {

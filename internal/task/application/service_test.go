@@ -50,7 +50,6 @@ func (f *fakeTaskRepository) CreateTask(_ context.Context, input domain.CreateTa
 		AssignedUserFullName:  input.AssignedUserFullName,
 		BranchID:              input.BranchID,
 		BranchName:            input.BranchName,
-		Status:                "pending",
 		Priority:              input.Priority,
 		CustomerIDs:           input.CustomerIDs,
 	}, nil
@@ -64,7 +63,7 @@ func (f *fakeTaskRepository) GetTask(_ context.Context, _ string, _ uint64) (dom
 	return domain.TaskListItem{}, nil
 }
 
-func (f *fakeTaskRepository) CancelTask(_ context.Context, _ string) (domain.TaskListItem, error) {
+func (f *fakeTaskRepository) CancelTask(_ context.Context, _ string, _ uint64) (domain.TaskListItem, error) {
 	return domain.TaskListItem{}, nil
 }
 

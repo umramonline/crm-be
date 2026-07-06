@@ -32,7 +32,7 @@ type Repository interface {
 	CreateTask(ctx context.Context, input domain.CreateTaskInput) (domain.Task, error)
 	ListTasks(ctx context.Context, query domain.ListQuery) (domain.ListResult, error)
 	GetTask(ctx context.Context, uuid string, customerID uint64) (domain.TaskListItem, error)
-	CancelTask(ctx context.Context, uuid string) (domain.TaskListItem, error)
+	CancelTask(ctx context.Context, uuid string, customerID uint64) (domain.TaskListItem, error)
 }
 
 type Service struct {
@@ -118,13 +118,13 @@ func (s *Service) GetTask(ctx context.Context, uuid string, customerID uint64) (
 	return task, nil
 }
 
-func (s *Service) CancelTask(ctx context.Context, uuid string) (domain.TaskListItem, error) {
+func (s *Service) CancelTask(ctx context.Context, uuid string, customerID uint64) (domain.TaskListItem, error) {
 	normalizedUUID := strings.TrimSpace(uuid)
-	if s == nil || s.repository == nil || normalizedUUID == "" {
+	if s == nil || s.repository == nil || normalizedUUID == "" || customerID == 0 {
 		return domain.TaskListItem{}, ErrTaskCancelUnavailable
 	}
 
-	task, err := s.repository.CancelTask(ctx, normalizedUUID)
+	task, err := s.repository.CancelTask(ctx, normalizedUUID, customerID)
 	if err != nil {
 		return domain.TaskListItem{}, ErrTaskCancelUnavailable
 	}

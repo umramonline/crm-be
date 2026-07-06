@@ -91,7 +91,14 @@ func (h *Handler) GetTask(c *fiber.Ctx) error {
 }
 
 func (h *Handler) CancelTask(c *fiber.Ctx) error {
-	task, err := h.service.CancelTask(c.UserContext(), c.Params("uuid"))
+	customerID := queryUint64(c, "customer_id")
+	if customerID == 0 {
+		return response.Error(c, fiber.StatusUnprocessableEntity, "Müşteri bilgisi zorunludur.", fiber.Map{
+			"customer_id": "Müşteri bilgisi zorunludur.",
+		})
+	}
+
+	task, err := h.service.CancelTask(c.UserContext(), c.Params("uuid"), customerID)
 	if err != nil {
 		return response.Error(c, fiber.StatusServiceUnavailable, "Görev şu anda iptal edilemedi.", nil)
 	}

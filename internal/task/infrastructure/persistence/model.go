@@ -18,7 +18,6 @@ type TaskModel struct {
 	BranchName            string     `gorm:"column:branch_name;type:varchar(50);not null"`
 	VisitDate             *time.Time `gorm:"column:visit_date;type:date"`
 	DueDate               *time.Time `gorm:"column:due_date;type:date"`
-	Status                string     `gorm:"type:enum('pending','in_progress','cancelled','completed');not null;default:pending"`
 	Priority              string     `gorm:"type:enum('high','medium','low');not null;default:medium"`
 }
 
@@ -26,6 +25,7 @@ type TaskCustomerModel struct {
 	TaskID     uint64        `gorm:"column:task_id;type:bigint unsigned;not null;primaryKey"`
 	CustomerID uint64        `gorm:"column:customer_id;type:bigint unsigned;not null;primaryKey"`
 	CreatedAt  time.Time     `gorm:"type:timestamp;default:CURRENT_TIMESTAMP"`
+	Status     string        `gorm:"type:enum('pending','in_progress','cancelled','completed');not null;default:pending"`
 	Task       TaskModel     `gorm:"foreignKey:TaskID;constraint:OnDelete:CASCADE"`
 	Customer   CustomerModel `gorm:"foreignKey:CustomerID;constraint:OnDelete:CASCADE"`
 }
