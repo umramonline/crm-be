@@ -269,7 +269,7 @@ func (c *Client) SendTaskCreatedSMS(
 	}
 
 	body, err := json.Marshal(taskCreatedSMSRequest{
-		Phone:                "05455170595",
+		Phone:                phone,
 		TaskUUID:             taskUUID,
 		Title:                title,
 		AssignedUserFullName: assignedUserFullName,
