@@ -104,6 +104,16 @@ func (s *Service) ListTasks(ctx context.Context, query domain.ListQuery) (domain
 	return result, nil
 }
 
+func (s *Service) ListAssignedTasks(ctx context.Context, query domain.ListQuery, assignedUserID uint64) (domain.ListResult, error) {
+	if assignedUserID == 0 {
+		return domain.ListResult{}, ErrTaskListUnavailable
+	}
+
+	query.AssignedUserID = assignedUserID
+
+	return s.ListTasks(ctx, query)
+}
+
 func (s *Service) GetTask(ctx context.Context, uuid string, customerID uint64) (domain.TaskListItem, error) {
 	normalizedUUID := strings.TrimSpace(uuid)
 	if s == nil || s.repository == nil || normalizedUUID == "" {
@@ -148,6 +158,7 @@ func normalizeListQuery(query domain.ListQuery) domain.ListQuery {
 		PerPage:               query.PerPage,
 		Title:                 strings.TrimSpace(query.Title),
 		Customer:              strings.TrimSpace(query.Customer),
+		AssignedUserID:        query.AssignedUserID,
 		AssignedUserFullName:  strings.TrimSpace(query.AssignedUserFullName),
 		BranchName:            strings.TrimSpace(query.BranchName),
 		VisitDate:             strings.TrimSpace(query.VisitDate),

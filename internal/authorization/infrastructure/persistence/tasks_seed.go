@@ -14,6 +14,12 @@ var taskMethodSeeds = []authorizationMethodSeed{
 		Path:        stringPointer("/api/v1/tasks"),
 	},
 	{
+		Name:        "tasks.assigned.list",
+		Description: "Kullanıcının kendisine atanmış görevleri görüntüler.",
+		Method:      stringPointer("GET"),
+		Path:        stringPointer("/api/v1/tasks/assigned-to-me"),
+	},
+	{
 		Name:        "tasks.detail",
 		Description: "Görev detayını görüntüler.",
 		Method:      stringPointer("GET"),

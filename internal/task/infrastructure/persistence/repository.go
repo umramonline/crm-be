@@ -276,6 +276,10 @@ func applyTaskFilters(query *gorm.DB, filters domain.ListQuery) *gorm.DB {
 		query = query.Where("customers.unvan LIKE ? OR customers.ad LIKE ? OR customers.soyad LIKE ?", pattern, pattern, pattern)
 	}
 
+	if filters.AssignedUserID > 0 {
+		query = query.Where("tasks.assigned_user_id = ?", filters.AssignedUserID)
+	}
+
 	if strings.TrimSpace(filters.AssignedUserFullName) != "" {
 		query = query.Where("tasks.assigned_user_full_name LIKE ?", "%"+strings.TrimSpace(filters.AssignedUserFullName)+"%")
 	}
