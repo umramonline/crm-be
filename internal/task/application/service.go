@@ -31,8 +31,8 @@ type Repository interface {
 	InvalidCustomerIDsForBranch(ctx context.Context, customerIDs []uint64, branchID uint64) ([]uint64, error)
 	CreateTask(ctx context.Context, input domain.CreateTaskInput) (domain.Task, error)
 	ListTasks(ctx context.Context, query domain.ListQuery) (domain.ListResult, error)
-	GetTask(ctx context.Context, uuid string, customerID uint64) (domain.TaskListItem, error)
-	CancelTask(ctx context.Context, uuid string, customerID uint64) (domain.TaskListItem, error)
+	GetTask(ctx context.Context, uuid string, taskCustomerUUID string) (domain.TaskListItem, error)
+	CancelTask(ctx context.Context, uuid string, taskCustomerUUID string) (domain.TaskListItem, error)
 }
 
 type Service struct {
@@ -114,13 +114,13 @@ func (s *Service) ListAssignedTasks(ctx context.Context, query domain.ListQuery,
 	return s.ListTasks(ctx, query)
 }
 
-func (s *Service) GetTask(ctx context.Context, uuid string, customerID uint64) (domain.TaskListItem, error) {
+func (s *Service) GetTask(ctx context.Context, uuid string, taskCustomerUUID string) (domain.TaskListItem, error) {
 	normalizedUUID := strings.TrimSpace(uuid)
 	if s == nil || s.repository == nil || normalizedUUID == "" {
 		return domain.TaskListItem{}, ErrTaskDetailUnavailable
 	}
 
-	task, err := s.repository.GetTask(ctx, normalizedUUID, customerID)
+	task, err := s.repository.GetTask(ctx, normalizedUUID, strings.TrimSpace(taskCustomerUUID))
 	if err != nil {
 		return domain.TaskListItem{}, ErrTaskDetailUnavailable
 	}
@@ -128,13 +128,14 @@ func (s *Service) GetTask(ctx context.Context, uuid string, customerID uint64) (
 	return task, nil
 }
 
-func (s *Service) CancelTask(ctx context.Context, uuid string, customerID uint64) (domain.TaskListItem, error) {
+func (s *Service) CancelTask(ctx context.Context, uuid string, taskCustomerUUID string) (domain.TaskListItem, error) {
 	normalizedUUID := strings.TrimSpace(uuid)
-	if s == nil || s.repository == nil || normalizedUUID == "" || customerID == 0 {
+	normalizedTaskCustomerUUID := strings.TrimSpace(taskCustomerUUID)
+	if s == nil || s.repository == nil || normalizedUUID == "" || normalizedTaskCustomerUUID == "" {
 		return domain.TaskListItem{}, ErrTaskCancelUnavailable
 	}
 
-	task, err := s.repository.CancelTask(ctx, normalizedUUID, customerID)
+	task, err := s.repository.CancelTask(ctx, normalizedUUID, normalizedTaskCustomerUUID)
 	if err != nil {
 		return domain.TaskListItem{}, ErrTaskCancelUnavailable
 	}

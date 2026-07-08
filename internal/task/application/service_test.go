@@ -59,11 +59,11 @@ func (f *fakeTaskRepository) ListTasks(_ context.Context, _ domain.ListQuery) (d
 	return domain.ListResult{}, nil
 }
 
-func (f *fakeTaskRepository) GetTask(_ context.Context, _ string, _ uint64) (domain.TaskListItem, error) {
+func (f *fakeTaskRepository) GetTask(_ context.Context, _ string, _ string) (domain.TaskListItem, error) {
 	return domain.TaskListItem{}, nil
 }
 
-func (f *fakeTaskRepository) CancelTask(_ context.Context, _ string, _ uint64) (domain.TaskListItem, error) {
+func (f *fakeTaskRepository) CancelTask(_ context.Context, _ string, _ string) (domain.TaskListItem, error) {
 	return domain.TaskListItem{}, nil
 }
 

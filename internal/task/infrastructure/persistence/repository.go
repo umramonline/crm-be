@@ -80,6 +80,7 @@ func (r *Repository) CreateTask(ctx context.Context, input domain.CreateTaskInpu
 		taskCustomers := make([]TaskCustomerModel, 0, len(input.CustomerIDs))
 		for _, customerID := range input.CustomerIDs {
 			taskCustomers = append(taskCustomers, TaskCustomerModel{
+				UUID:       uuid.NewString(),
 				TaskID:     task.ID,
 				CustomerID: customerID,
 				Status:     "pending",
@@ -204,7 +205,7 @@ func (r *Repository) ListTasks(ctx context.Context, query domain.ListQuery) (dom
 	}, nil
 }
 
-func (r *Repository) GetTask(ctx context.Context, taskUUID string, customerID uint64) (domain.TaskListItem, error) {
+func (r *Repository) GetTask(ctx context.Context, taskUUID string, taskCustomerUUID string) (domain.TaskListItem, error) {
 	if r == nil || r.db == nil || strings.TrimSpace(taskUUID) == "" {
 		return domain.TaskListItem{}, gorm.ErrInvalidDB
 	}
@@ -222,7 +223,7 @@ func (r *Repository) GetTask(ctx context.Context, taskUUID string, customerID ui
 		return domain.TaskListItem{}, err
 	}
 
-	customers, err := filterTaskCustomers(customersByTaskID[task.ID], customerID)
+	customers, err := filterTaskCustomers(customersByTaskID[task.ID], taskCustomerUUID)
 	if err != nil {
 		return domain.TaskListItem{}, err
 	}
@@ -230,8 +231,8 @@ func (r *Repository) GetTask(ctx context.Context, taskUUID string, customerID ui
 	return toTaskListItem(task, customers), nil
 }
 
-func (r *Repository) CancelTask(ctx context.Context, taskUUID string, customerID uint64) (domain.TaskListItem, error) {
-	if r == nil || r.db == nil || strings.TrimSpace(taskUUID) == "" || customerID == 0 {
+func (r *Repository) CancelTask(ctx context.Context, taskUUID string, taskCustomerUUID string) (domain.TaskListItem, error) {
+	if r == nil || r.db == nil || strings.TrimSpace(taskUUID) == "" || strings.TrimSpace(taskCustomerUUID) == "" {
 		return domain.TaskListItem{}, gorm.ErrInvalidDB
 	}
 
@@ -246,7 +247,7 @@ func (r *Repository) CancelTask(ctx context.Context, taskUUID string, customerID
 
 		result := tx.Model(&TaskCustomerModel{}).
 			Where("task_id = ?", task.ID).
-			Where("customer_id = ?", customerID).
+			Where("uuid = ?", strings.TrimSpace(taskCustomerUUID)).
 			Update("status", "cancelled")
 		if result.Error != nil {
 			return result.Error
@@ -266,7 +267,7 @@ func (r *Repository) CancelTask(ctx context.Context, taskUUID string, customerID
 		return domain.TaskListItem{}, err
 	}
 
-	customers, err := filterTaskCustomers(customersByTaskID[task.ID], customerID)
+	customers, err := filterTaskCustomers(customersByTaskID[task.ID], taskCustomerUUID)
 	if err != nil {
 		return domain.TaskListItem{}, err
 	}
@@ -341,6 +342,8 @@ func taskListOrder(query domain.ListQuery) string {
 
 type taskCustomerRow struct {
 	TaskID     uint64
+	ID         uint64
+	UUID       string
 	CustomerID uint64
 	Unvan      *string
 	Ad         *string
@@ -370,7 +373,7 @@ func (r *Repository) customersByTaskIDs(ctx context.Context, taskIDs []uint64) (
 	var rows []taskCustomerRow
 	if err := r.db.WithContext(ctx).
 		Model(&TaskCustomerModel{}).
-		Select("tasks_customers.task_id, customers.id AS customer_id, customers.unvan, customers.ad, customers.soyad, tasks_customers.status").
+		Select("tasks_customers.task_id, tasks_customers.id, tasks_customers.uuid, customers.id AS customer_id, customers.unvan, customers.ad, customers.soyad, tasks_customers.status").
 		Joins("JOIN customers ON customers.id = tasks_customers.customer_id AND customers.deleted_at IS NULL").
 		Where("tasks_customers.task_id IN ?", taskIDs).
 		Order("tasks_customers.task_id ASC, customers.unvan ASC, customers.id ASC").
@@ -380,24 +383,27 @@ func (r *Repository) customersByTaskIDs(ctx context.Context, taskIDs []uint64) (
 
 	for _, row := range rows {
 		customersByTaskID[row.TaskID] = append(customersByTaskID[row.TaskID], domain.TaskCustomer{
-			ID:     row.CustomerID,
-			Unvan:  stringValue(row.Unvan),
-			Ad:     stringValue(row.Ad),
-			Soyad:  stringValue(row.Soyad),
-			Status: taskStatusValue(row.Status),
+			ID:         row.ID,
+			UUID:       row.UUID,
+			CustomerID: row.CustomerID,
+			Unvan:      stringValue(row.Unvan),
+			Ad:         stringValue(row.Ad),
+			Soyad:      stringValue(row.Soyad),
+			Status:     taskStatusValue(row.Status),
 		})
 	}
 
 	return customersByTaskID, nil
 }
 
-func filterTaskCustomers(customers []domain.TaskCustomer, customerID uint64) ([]domain.TaskCustomer, error) {
-	if customerID == 0 {
+func filterTaskCustomers(customers []domain.TaskCustomer, taskCustomerUUID string) ([]domain.TaskCustomer, error) {
+	normalizedTaskCustomerUUID := strings.TrimSpace(taskCustomerUUID)
+	if normalizedTaskCustomerUUID == "" {
 		return customers, nil
 	}
 
 	for _, customer := range customers {
-		if customer.ID == customerID {
+		if customer.UUID == normalizedTaskCustomerUUID {
 			return []domain.TaskCustomer{customer}, nil
 		}
 	}

@@ -105,7 +105,7 @@ func (h *Handler) ListAssignedTasks(c *fiber.Ctx) error {
 }
 
 func (h *Handler) GetTask(c *fiber.Ctx) error {
-	task, err := h.service.GetTask(c.UserContext(), c.Params("uuid"), queryUint64(c, "customer_id"))
+	task, err := h.service.GetTask(c.UserContext(), c.Params("uuid"), c.Query("tasks_customer_uuid"))
 	if err != nil {
 		return response.Error(c, fiber.StatusServiceUnavailable, "Görev detayı şu anda getirilemedi.", nil)
 	}
@@ -114,14 +114,14 @@ func (h *Handler) GetTask(c *fiber.Ctx) error {
 }
 
 func (h *Handler) CancelTask(c *fiber.Ctx) error {
-	customerID := queryUint64(c, "customer_id")
-	if customerID == 0 {
+	taskCustomerUUID := strings.TrimSpace(c.Query("tasks_customer_uuid"))
+	if taskCustomerUUID == "" {
 		return response.Error(c, fiber.StatusUnprocessableEntity, "Müşteri bilgisi zorunludur.", fiber.Map{
-			"customer_id": "Müşteri bilgisi zorunludur.",
+			"tasks_customer_uuid": "Müşteri bilgisi zorunludur.",
 		})
 	}
 
-	task, err := h.service.CancelTask(c.UserContext(), c.Params("uuid"), customerID)
+	task, err := h.service.CancelTask(c.UserContext(), c.Params("uuid"), taskCustomerUUID)
 	if err != nil {
 		return response.Error(c, fiber.StatusServiceUnavailable, "Görev şu anda iptal edilemedi.", nil)
 	}

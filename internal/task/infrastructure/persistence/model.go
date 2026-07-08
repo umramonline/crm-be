@@ -22,8 +22,10 @@ type TaskModel struct {
 }
 
 type TaskCustomerModel struct {
-	TaskID     uint64        `gorm:"column:task_id;type:bigint unsigned;not null;primaryKey"`
-	CustomerID uint64        `gorm:"column:customer_id;type:bigint unsigned;not null;primaryKey"`
+	ID         uint64        `gorm:"primaryKey;autoIncrement"`
+	UUID       string        `gorm:"column:uuid;type:char(36);not null;uniqueIndex"`
+	TaskID     uint64        `gorm:"column:task_id;type:bigint unsigned;not null;uniqueIndex:idx_tasks_customers_task_customer"`
+	CustomerID uint64        `gorm:"column:customer_id;type:bigint unsigned;not null;uniqueIndex:idx_tasks_customers_task_customer"`
 	CreatedAt  time.Time     `gorm:"type:timestamp;default:CURRENT_TIMESTAMP"`
 	Status     string        `gorm:"type:enum('pending','in_progress','cancelled','completed');not null;default:pending"`
 	Task       TaskModel     `gorm:"foreignKey:TaskID;constraint:OnDelete:CASCADE"`
