@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	authapp "github.com/umran/new.crm/backend/internal/auth/application"
 	"github.com/umran/new.crm/backend/internal/followup/application"
 	"github.com/umran/new.crm/backend/internal/followup/domain"
 	"github.com/umran/new.crm/backend/internal/shared/response"
@@ -48,6 +49,8 @@ func (h *Handler) CreateFollowUp(c *fiber.Ctx) error {
 	if err != nil {
 		return response.Error(c, fiber.StatusUnprocessableEntity, "Takip kaydı bilgileri geçersiz.", validationErrors)
 	}
+	claims := c.Locals("claims").(authapp.SessionTokenClaims)
+	input.AuthenticatedUserID = claims.UserId
 
 	followUp, validationErrors, err := h.service.CreateFollowUp(c.UserContext(), input)
 	if err != nil {

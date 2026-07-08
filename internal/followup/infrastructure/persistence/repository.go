@@ -28,18 +28,32 @@ func (r *Repository) FindTaskCustomerByUUID(ctx context.Context, taskCustomerUUI
 		return domain.TaskCustomer{}, gorm.ErrInvalidDB
 	}
 
-	var taskCustomer TaskCustomerModel
+	var taskCustomer taskCustomerRow
 	if err := r.db.WithContext(ctx).
-		Where("uuid = ?", strings.TrimSpace(taskCustomerUUID)).
-		First(&taskCustomer).Error; err != nil {
+		Model(&TaskCustomerModel{}).
+		Select("tasks_customers.id, tasks_customers.uuid, tasks_customers.status, tasks.assigned_user_id").
+		Joins("JOIN tasks ON tasks.id = tasks_customers.task_id AND tasks.deleted_at IS NULL").
+		Where("tasks_customers.uuid = ?", strings.TrimSpace(taskCustomerUUID)).
+		Scan(&taskCustomer).Error; err != nil {
 		return domain.TaskCustomer{}, err
+	}
+	if taskCustomer.ID == 0 {
+		return domain.TaskCustomer{}, gorm.ErrRecordNotFound
 	}
 
 	return domain.TaskCustomer{
-		ID:     taskCustomer.ID,
-		UUID:   taskCustomer.UUID,
-		Status: taskCustomer.Status,
+		ID:             taskCustomer.ID,
+		UUID:           taskCustomer.UUID,
+		Status:         taskCustomer.Status,
+		AssignedUserID: taskCustomer.AssignedUserID,
 	}, nil
+}
+
+type taskCustomerRow struct {
+	ID             uint64
+	UUID           string
+	Status         string
+	AssignedUserID uint64
 }
 
 func (r *Repository) CreateFollowUp(ctx context.Context, input domain.PersistFollowUpInput) (domain.FollowUp, error) {

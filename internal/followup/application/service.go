@@ -99,6 +99,11 @@ func (s *Service) CreateFollowUp(ctx context.Context, input domain.CreateFollowU
 			"tasks_customer_uuid": "Takip kaydı sadece bekleyen veya devam eden görev müşterileri için oluşturulabilir.",
 		}, ErrInvalidFollowUpCreateInput
 	}
+	if taskCustomer.AssignedUserID != normalizedInput.AuthenticatedUserID {
+		return domain.FollowUp{}, ValidationErrors{
+			"tasks_customer_uuid": "Bu görev müşterisi için takip kaydı oluşturma yetkiniz yok.",
+		}, ErrInvalidFollowUpCreateInput
+	}
 
 	followUpUUID := uuid.NewString()
 	storedImages, err := s.storage.SaveFollowUpImages(ctx, followUpUUID, normalizedInput.Images)
@@ -149,6 +154,7 @@ func normalizeCreateFollowUpInput(input domain.CreateFollowUpInput) domain.Creat
 	}
 
 	return domain.CreateFollowUpInput{
+		AuthenticatedUserID:    input.AuthenticatedUserID,
 		TasksCustomerUUID:      strings.TrimSpace(input.TasksCustomerUUID),
 		VisitDate:              strings.TrimSpace(input.VisitDate),
 		NextVisitDate:          strings.TrimSpace(input.NextVisitDate),
@@ -166,6 +172,9 @@ func validateCreateFollowUpInput(input domain.CreateFollowUpInput) ValidationErr
 	requireField(errors, "tasks_customer_uuid", input.TasksCustomerUUID, "Görev müşterisi zorunludur.")
 	requireField(errors, "visit_date", input.VisitDate, "Ziyaret tarihi zorunludur.")
 	requireField(errors, "next_visit_date", input.NextVisitDate, "Sonraki ziyaret tarihi zorunludur.")
+	if input.AuthenticatedUserID == 0 {
+		errors["user"] = "Oturum kullanıcısı zorunludur."
+	}
 	validateNote(errors, input.Note)
 	validateAgreement(errors, input)
 	validateDates(errors, input.VisitDate, input.NextVisitDate)

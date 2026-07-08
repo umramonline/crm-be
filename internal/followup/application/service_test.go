@@ -72,7 +72,7 @@ func TestCreateFollowUpRejectsAgreementFailureReasonWhenAgreementReached(t *test
 
 func TestCreateFollowUpRejectsInvalidTaskCustomerStatus(t *testing.T) {
 	repository := &fakeRepository{
-		taskCustomer: domain.TaskCustomer{ID: 10, UUID: "task-customer-uuid", Status: "completed"},
+		taskCustomer: domain.TaskCustomer{ID: 10, UUID: "task-customer-uuid", Status: "completed", AssignedUserID: 20},
 	}
 	service := NewService(repository, &fakeStorage{})
 
@@ -86,9 +86,25 @@ func TestCreateFollowUpRejectsInvalidTaskCustomerStatus(t *testing.T) {
 	}
 }
 
+func TestCreateFollowUpRejectsUnassignedUser(t *testing.T) {
+	repository := &fakeRepository{
+		taskCustomer: domain.TaskCustomer{ID: 10, UUID: "task-customer-uuid", Status: "pending", AssignedUserID: 99},
+	}
+	service := NewService(repository, &fakeStorage{})
+
+	_, validationErrors, err := service.CreateFollowUp(context.Background(), validCreateFollowUpInput())
+
+	if !errors.Is(err, ErrInvalidFollowUpCreateInput) {
+		t.Fatalf("expected ErrInvalidFollowUpCreateInput, got %v", err)
+	}
+	if validationErrors["tasks_customer_uuid"] != "Bu görev müşterisi için takip kaydı oluşturma yetkiniz yok." {
+		t.Fatalf("expected assigned user validation error, got %#v", validationErrors)
+	}
+}
+
 func TestCreateFollowUpPassesResolvedTaskCustomerIDToRepository(t *testing.T) {
 	repository := &fakeRepository{
-		taskCustomer: domain.TaskCustomer{ID: 10, UUID: "task-customer-uuid", Status: "pending"},
+		taskCustomer: domain.TaskCustomer{ID: 10, UUID: "task-customer-uuid", Status: "pending", AssignedUserID: 20},
 	}
 	service := NewService(repository, &fakeStorage{})
 
@@ -107,7 +123,7 @@ func TestCreateFollowUpPassesResolvedTaskCustomerIDToRepository(t *testing.T) {
 
 func TestCreateFollowUpDeletesStoredImagesWhenRepositoryFails(t *testing.T) {
 	repository := &fakeRepository{
-		taskCustomer: domain.TaskCustomer{ID: 10, UUID: "task-customer-uuid", Status: "pending"},
+		taskCustomer: domain.TaskCustomer{ID: 10, UUID: "task-customer-uuid", Status: "pending", AssignedUserID: 20},
 		createErr:    errors.New("create failed"),
 	}
 	storage := &fakeStorage{
@@ -130,6 +146,7 @@ func validCreateFollowUpInput(mutators ...func(*domain.CreateFollowUpInput)) dom
 	today := time.Now().Format("2006-01-02")
 	tomorrow := time.Now().Add(24 * time.Hour).Format("2006-01-02")
 	input := domain.CreateFollowUpInput{
+		AuthenticatedUserID:    20,
 		TasksCustomerUUID:      "task-customer-uuid",
 		VisitDate:              today,
 		NextVisitDate:          tomorrow,

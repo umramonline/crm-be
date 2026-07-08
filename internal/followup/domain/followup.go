@@ -1,6 +1,7 @@
 package domain
 
 type CreateFollowUpInput struct {
+	AuthenticatedUserID    uint64
 	TasksCustomerUUID      string
 	VisitDate              string
 	NextVisitDate          string
@@ -33,9 +34,10 @@ type MeetPersonInput struct {
 }
 
 type TaskCustomer struct {
-	ID     uint64
-	UUID   string
-	Status string
+	ID             uint64
+	UUID           string
+	Status         string
+	AssignedUserID uint64
 }
 
 type PersistFollowUpInput struct {
