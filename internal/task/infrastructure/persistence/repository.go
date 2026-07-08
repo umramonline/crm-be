@@ -318,10 +318,6 @@ func applyTaskFilters(query *gorm.DB, filters domain.ListQuery) *gorm.DB {
 		query = query.Where("tasks.priority = ?", strings.ToLower(strings.TrimSpace(filters.Priority)))
 	}
 
-	if strings.TrimSpace(filters.Status) != "" {
-		query = query.Where("tasks_customers.status = ?", strings.ToLower(strings.TrimSpace(filters.Status)))
-	}
-
 	if strings.TrimSpace(filters.CreatedByUserFullName) != "" {
 		query = query.Where("tasks.created_by_user_full_name LIKE ?", "%"+strings.TrimSpace(filters.CreatedByUserFullName)+"%")
 	}
@@ -510,7 +506,6 @@ func toTaskListItemFromRow(row taskListRow, customers []domain.TaskCustomer) dom
 		BranchName:            row.BranchName,
 		VisitDate:             visitDate,
 		DueDate:               dueDate,
-		Status:                taskListItemStatus(customers),
 		Priority:              row.Priority,
 		CustomerCount:         len(customers),
 		Customers:             customers,

@@ -164,7 +164,6 @@ func normalizeListQuery(query domain.ListQuery) domain.ListQuery {
 		VisitDate:             strings.TrimSpace(query.VisitDate),
 		DueDate:               strings.TrimSpace(query.DueDate),
 		Priority:              strings.ToLower(strings.TrimSpace(query.Priority)),
-		Status:                strings.ToLower(strings.TrimSpace(query.Status)),
 		CreatedByUserFullName: strings.TrimSpace(query.CreatedByUserFullName),
 		SortBy:                sortBy,
 		SortOrder:             sortOrder,

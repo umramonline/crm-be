@@ -74,7 +74,7 @@ type TaskListItem struct {
 	BranchName            string         `json:"branch_name"`
 	VisitDate             string         `json:"visit_date,omitempty"`
 	DueDate               string         `json:"due_date,omitempty"`
-	Status                string         `json:"status"`
+	Status                string         `json:"status,omitempty"`
 	Priority              string         `json:"priority"`
 	CustomerCount         int            `json:"customer_count"`
 	Customers             []TaskCustomer `json:"customers"`
@@ -105,7 +105,6 @@ type ListQuery struct {
 	VisitDate             string
 	DueDate               string
 	Priority              string
-	Status                string
 	CreatedByUserFullName string
 	SortBy                string
 	SortOrder             string
