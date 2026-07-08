@@ -10,6 +10,7 @@ import (
 	authhttp "github.com/umran/new.crm/backend/internal/auth/infrastructure/http"
 	authzhttp "github.com/umran/new.crm/backend/internal/authorization/infrastructure/http"
 	customerhttp "github.com/umran/new.crm/backend/internal/customer/infrastructure/http"
+	followuphttp "github.com/umran/new.crm/backend/internal/followup/infrastructure/http"
 	"github.com/umran/new.crm/backend/internal/infrastructure/http/handler"
 	taskhttp "github.com/umran/new.crm/backend/internal/task/infrastructure/http"
 )
@@ -30,6 +31,7 @@ func NewServer(config Config,
 	authorizationHandler *authzhttp.Handler,
 	customerHandler *customerhttp.Handler,
 	taskHandler *taskhttp.Handler,
+	followUpHandler *followuphttp.Handler,
 	authRequired fiber.Handler) *Server {
 	greetingService := app.NewService()
 	helloHandler := handler.NewHelloHandler(greetingService)
@@ -43,6 +45,7 @@ func NewServer(config Config,
 	}))
 
 	fiberApp.Get("/", helloHandler.Handle)
+	fiberApp.Static("/storage/follow-ups", "storage/follow-ups")
 
 	apiV1 := fiberApp.Group("/api/v1")
 	apiV1.Post("/auth/otp/request", otpHandler.RequestOTP)
@@ -54,6 +57,7 @@ func NewServer(config Config,
 	authorizationHandler.RegisterRoutes(apiV1, authRequired)
 	customerHandler.RegisterRoutes(apiV1, authRequired)
 	taskHandler.RegisterRoutes(apiV1, authRequired)
+	followUpHandler.RegisterRoutes(apiV1, authRequired)
 
 	return &Server{
 		addr: config.Addr,

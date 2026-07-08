@@ -37,6 +37,12 @@ var taskMethodSeeds = []authorizationMethodSeed{
 		Method:      stringPointer("POST"),
 		Path:        stringPointer("/api/v1/tasks"),
 	},
+	{
+		Name:        "follow_ups.create",
+		Description: "Görev müşterisi için takip kaydı oluşturur.",
+		Method:      stringPointer("POST"),
+		Path:        stringPointer("/api/v1/follow-ups"),
+	},
 }
 
 func SeedTasks(db *gorm.DB) error {
