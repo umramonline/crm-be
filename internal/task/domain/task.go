@@ -62,7 +62,7 @@ type TaskCustomer struct {
 	Unvan  string `json:"unvan"`
 	Ad     string `json:"ad"`
 	Soyad  string `json:"soyad"`
-	Status string `json:"-"`
+	Status string `json:"status"`
 }
 
 type TaskListItem struct {
