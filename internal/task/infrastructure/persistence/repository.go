@@ -122,16 +122,17 @@ func (r *Repository) ListTasks(ctx context.Context, query domain.ListQuery) (dom
 		perPage = 100
 	}
 
-	baseQuery := r.taskListBaseQuery(ctx, query)
-
 	var total int64
-	if err := baseQuery.Count(&total).Error; err != nil {
+	if err := r.taskListBaseQuery(ctx, query).
+		Distinct("tasks.id").
+		Count(&total).Error; err != nil {
 		return domain.ListResult{}, err
 	}
 
-	var rows []taskListCustomerRow
+	var rows []taskListRow
 	if err := r.taskListBaseQuery(ctx, query).
 		Select(`
+			tasks.id,
 			tasks.uuid,
 			tasks.title,
 			tasks.description,
@@ -140,12 +141,19 @@ func (r *Repository) ListTasks(ctx context.Context, query domain.ListQuery) (dom
 			tasks.branch_name,
 			tasks.visit_date,
 			tasks.due_date,
-			tasks_customers.status,
-			tasks.priority,
-			customers.id AS customer_id,
-			customers.unvan,
-			customers.ad,
-			customers.soyad
+			tasks.priority
+		`).
+		Group(`
+			tasks.id,
+			tasks.uuid,
+			tasks.title,
+			tasks.description,
+			tasks.created_by_user_full_name,
+			tasks.assigned_user_full_name,
+			tasks.branch_name,
+			tasks.visit_date,
+			tasks.due_date,
+			tasks.priority
 		`).
 		Order(taskListOrder(query)).
 		Offset((page - 1) * perPage).
@@ -154,9 +162,19 @@ func (r *Repository) ListTasks(ctx context.Context, query domain.ListQuery) (dom
 		return domain.ListResult{}, err
 	}
 
+	taskIDs := make([]uint64, 0, len(rows))
+	for _, row := range rows {
+		taskIDs = append(taskIDs, row.ID)
+	}
+
+	customersByTaskID, err := r.customersByTaskIDs(ctx, taskIDs)
+	if err != nil {
+		return domain.ListResult{}, err
+	}
+
 	items := make([]domain.TaskListItem, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, toTaskListItemFromCustomerRow(row))
+		items = append(items, toTaskListItemFromRow(row, customersByTaskID[row.ID]))
 	}
 
 	lastPage := int((total + int64(perPage) - 1) / int64(perPage))
@@ -314,7 +332,7 @@ func applyTaskFilters(query *gorm.DB, filters domain.ListQuery) *gorm.DB {
 func taskListOrder(query domain.ListQuery) string {
 	sortBy := strings.ToLower(strings.TrimSpace(query.SortBy))
 	if sortBy != "visit_date" && sortBy != "due_date" {
-		return "tasks.id DESC, tasks_customers.customer_id ASC"
+		return "tasks.id DESC"
 	}
 
 	sortOrder := "DESC"
@@ -322,7 +340,7 @@ func taskListOrder(query domain.ListQuery) string {
 		sortOrder = "ASC"
 	}
 
-	return "tasks." + sortBy + " " + sortOrder + ", tasks.id DESC, tasks_customers.customer_id ASC"
+	return "tasks." + sortBy + " " + sortOrder + ", tasks.id DESC"
 }
 
 type taskCustomerRow struct {
@@ -334,7 +352,8 @@ type taskCustomerRow struct {
 	Status     string
 }
 
-type taskListCustomerRow struct {
+type taskListRow struct {
+	ID                    uint64
 	UUID                  string
 	Title                 string
 	Description           *string
@@ -343,12 +362,7 @@ type taskListCustomerRow struct {
 	BranchName            string
 	VisitDate             *time.Time
 	DueDate               *time.Time
-	Status                string
 	Priority              string
-	CustomerID            uint64
-	Unvan                 *string
-	Ad                    *string
-	Soyad                 *string
 }
 
 func (r *Repository) customersByTaskIDs(ctx context.Context, taskIDs []uint64) (map[uint64][]domain.TaskCustomer, error) {
@@ -461,11 +475,12 @@ func toTaskListItem(task TaskModel, customers []domain.TaskCustomer) domain.Task
 		DueDate:               dueDate,
 		Status:                taskListItemStatus(customers),
 		Priority:              task.Priority,
+		CustomerCount:         len(customers),
 		Customers:             customers,
 	}
 }
 
-func toTaskListItemFromCustomerRow(row taskListCustomerRow) domain.TaskListItem {
+func toTaskListItemFromRow(row taskListRow, customers []domain.TaskCustomer) domain.TaskListItem {
 	description := ""
 	if row.Description != nil {
 		description = *row.Description
@@ -495,17 +510,10 @@ func toTaskListItemFromCustomerRow(row taskListCustomerRow) domain.TaskListItem 
 		BranchName:            row.BranchName,
 		VisitDate:             visitDate,
 		DueDate:               dueDate,
-		Status:                taskStatusValue(row.Status),
+		Status:                taskListItemStatus(customers),
 		Priority:              row.Priority,
-		Customers: []domain.TaskCustomer{
-			{
-				ID:     row.CustomerID,
-				Unvan:  stringValue(row.Unvan),
-				Ad:     stringValue(row.Ad),
-				Soyad:  stringValue(row.Soyad),
-				Status: taskStatusValue(row.Status),
-			},
-		},
+		CustomerCount:         len(customers),
+		Customers:             customers,
 	}
 }
 

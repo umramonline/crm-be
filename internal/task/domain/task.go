@@ -76,6 +76,7 @@ type TaskListItem struct {
 	DueDate               string         `json:"due_date,omitempty"`
 	Status                string         `json:"status"`
 	Priority              string         `json:"priority"`
+	CustomerCount         int            `json:"customer_count"`
 	Customers             []TaskCustomer `json:"customers"`
 }
 
