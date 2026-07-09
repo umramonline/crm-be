@@ -474,6 +474,7 @@ func toTaskListItem(task TaskModel, customers []domain.TaskCustomer) domain.Task
 		Description:           description,
 		CreatedByUserFullName: task.CreatedByUserFullName,
 		AssignedUserFullName:  task.AssignedUserFullName,
+		AssignedUserID:        task.AssignedUserID,
 		BranchName:            task.BranchName,
 		VisitDate:             visitDate,
 		DueDate:               dueDate,
