@@ -206,20 +206,6 @@ func queryInt(c *fiber.Ctx, key string, fallback int) int {
 	return parsedValue
 }
 
-func queryUint64(c *fiber.Ctx, key string) uint64 {
-	value := c.Query(key)
-	if value == "" {
-		return 0
-	}
-
-	parsedValue, err := strconv.ParseUint(value, 10, 64)
-	if err != nil {
-		return 0
-	}
-
-	return parsedValue
-}
-
 func maskPhone(phone string) string {
 	trimmedPhone := strings.TrimSpace(phone)
 	if len(trimmedPhone) <= 4 {

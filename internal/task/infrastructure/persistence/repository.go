@@ -139,6 +139,7 @@ func (r *Repository) ListTasks(ctx context.Context, query domain.ListQuery) (dom
 			tasks.description,
 			tasks.created_by_user_full_name,
 			tasks.assigned_user_full_name,
+			tasks.assigned_user_id,
 			tasks.branch_name,
 			tasks.visit_date,
 			tasks.due_date,
@@ -358,6 +359,7 @@ type taskListRow struct {
 	Description           *string
 	CreatedByUserFullName string
 	AssignedUserFullName  string
+	AssignedUserID        uint64
 	BranchName            string
 	VisitDate             *time.Time
 	DueDate               *time.Time
@@ -509,6 +511,7 @@ func toTaskListItemFromRow(row taskListRow, customers []domain.TaskCustomer) dom
 		Description:           description,
 		CreatedByUserFullName: row.CreatedByUserFullName,
 		AssignedUserFullName:  row.AssignedUserFullName,
+		AssignedUserID:        row.AssignedUserID,
 		BranchName:            row.BranchName,
 		VisitDate:             visitDate,
 		DueDate:               dueDate,

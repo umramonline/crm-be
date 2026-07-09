@@ -73,6 +73,7 @@ type TaskListItem struct {
 	Description           string         `json:"description"`
 	CreatedByUserFullName string         `json:"created_by_user_full_name"`
 	AssignedUserFullName  string         `json:"assigned_user_full_name"`
+	AssignedUserID        uint64         `json:"assigned_user_id"`
 	BranchName            string         `json:"branch_name"`
 	VisitDate             string         `json:"visit_date,omitempty"`
 	DueDate               string         `json:"due_date,omitempty"`
