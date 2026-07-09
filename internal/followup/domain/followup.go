@@ -3,6 +3,7 @@ package domain
 type CreateFollowUpInput struct {
 	AuthenticatedUserID    uint64
 	TasksCustomerUUID      string
+	VisitType              string
 	VisitDate              string
 	NextVisitDate          string
 	AgreementReached       *bool
@@ -44,6 +45,7 @@ type PersistFollowUpInput struct {
 	UUID                   string
 	TasksCustomerID        uint64
 	TasksCustomerUUID      string
+	VisitType              string
 	VisitDate              string
 	NextVisitDate          string
 	AgreementReached       bool
@@ -56,6 +58,7 @@ type PersistFollowUpInput struct {
 type FollowUp struct {
 	UUID                   string       `json:"uuid"`
 	TasksCustomerUUID      string       `json:"tasks_customer_uuid"`
+	VisitType              string       `json:"visit_type"`
 	VisitDate              string       `json:"visit_date"`
 	NextVisitDate          string       `json:"next_visit_date"`
 	AgreementReached       bool         `json:"agreement_reached"`

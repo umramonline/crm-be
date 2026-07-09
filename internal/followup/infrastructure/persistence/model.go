@@ -6,6 +6,7 @@ type FollowUpModel struct {
 	ID                     uint64            `gorm:"primaryKey;autoIncrement"`
 	UUID                   string            `gorm:"column:uuid;type:char(36);not null;uniqueIndex"`
 	TasksCustomerID        uint64            `gorm:"column:tasks_customer_id;type:bigint unsigned;not null;index"`
+	VisitType              string            `gorm:"column:visit_type;type:enum('Yerinde Ziyaret');not null"`
 	VisitDate              time.Time         `gorm:"column:visit_date;type:timestamp;not null"`
 	NextVisitDate          *time.Time        `gorm:"column:next_visit_date;type:timestamp"`
 	AgreementReached       bool              `gorm:"column:agreement_reached;type:tinyint(1);not null;default:0"`

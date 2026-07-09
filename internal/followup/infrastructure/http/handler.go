@@ -20,6 +20,7 @@ type Handler struct {
 
 type createFollowUpRequest struct {
 	TasksCustomerUUID      string                    `json:"tasks_customer_uuid"`
+	VisitType              string                    `json:"visit_type"`
 	VisitDate              string                    `json:"visit_date"`
 	NextVisitDate          string                    `json:"next_visit_date"`
 	AgreementReached       *bool                     `json:"agreement_reached"`
@@ -104,6 +105,7 @@ func multipartFollowUpInput(c *fiber.Ctx) (domain.CreateFollowUpInput, applicati
 
 	return requestToInput(createFollowUpRequest{
 		TasksCustomerUUID:      c.FormValue("tasks_customer_uuid"),
+		VisitType:              c.FormValue("visit_type"),
 		VisitDate:              c.FormValue("visit_date"),
 		NextVisitDate:          c.FormValue("next_visit_date"),
 		AgreementReached:       agreementReached,
@@ -127,6 +129,7 @@ func requestToInput(request createFollowUpRequest, images []domain.ImageUpload) 
 
 	return domain.CreateFollowUpInput{
 		TasksCustomerUUID:      request.TasksCustomerUUID,
+		VisitType:              request.VisitType,
 		VisitDate:              request.VisitDate,
 		NextVisitDate:          request.NextVisitDate,
 		AgreementReached:       request.AgreementReached,

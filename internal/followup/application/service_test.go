@@ -70,6 +70,36 @@ func TestCreateFollowUpRejectsAgreementFailureReasonWhenAgreementReached(t *test
 	}
 }
 
+func TestCreateFollowUpRejectsMissingVisitType(t *testing.T) {
+	service := NewService(&fakeRepository{}, &fakeStorage{})
+
+	_, validationErrors, err := service.CreateFollowUp(context.Background(), validCreateFollowUpInput(func(input *domain.CreateFollowUpInput) {
+		input.VisitType = " "
+	}))
+
+	if !errors.Is(err, ErrInvalidFollowUpCreateInput) {
+		t.Fatalf("expected ErrInvalidFollowUpCreateInput, got %v", err)
+	}
+	if validationErrors["visit_type"] != "Ziyaret tipi zorunludur." {
+		t.Fatalf("expected visit_type required validation error, got %#v", validationErrors)
+	}
+}
+
+func TestCreateFollowUpRejectsInvalidVisitType(t *testing.T) {
+	service := NewService(&fakeRepository{}, &fakeStorage{})
+
+	_, validationErrors, err := service.CreateFollowUp(context.Background(), validCreateFollowUpInput(func(input *domain.CreateFollowUpInput) {
+		input.VisitType = "Telefon Görüşmesi"
+	}))
+
+	if !errors.Is(err, ErrInvalidFollowUpCreateInput) {
+		t.Fatalf("expected ErrInvalidFollowUpCreateInput, got %v", err)
+	}
+	if validationErrors["visit_type"] != "Ziyaret tipi geçersiz." {
+		t.Fatalf("expected visit_type enum validation error, got %#v", validationErrors)
+	}
+}
+
 func TestCreateFollowUpRejectsInvalidTaskCustomerStatus(t *testing.T) {
 	repository := &fakeRepository{
 		taskCustomer: domain.TaskCustomer{ID: 10, UUID: "task-customer-uuid", Status: "completed", AssignedUserID: 20},
@@ -119,6 +149,9 @@ func TestCreateFollowUpPassesResolvedTaskCustomerIDToRepository(t *testing.T) {
 	if repository.createInput.TasksCustomerUUID != "task-customer-uuid" {
 		t.Fatalf("expected tasks customer uuid, got %q", repository.createInput.TasksCustomerUUID)
 	}
+	if repository.createInput.VisitType != "Yerinde Ziyaret" {
+		t.Fatalf("expected visit type, got %q", repository.createInput.VisitType)
+	}
 }
 
 func TestCreateFollowUpDeletesStoredImagesWhenRepositoryFails(t *testing.T) {
@@ -148,6 +181,7 @@ func validCreateFollowUpInput(mutators ...func(*domain.CreateFollowUpInput)) dom
 	input := domain.CreateFollowUpInput{
 		AuthenticatedUserID:    20,
 		TasksCustomerUUID:      "task-customer-uuid",
+		VisitType:              "Yerinde Ziyaret",
 		VisitDate:              today,
 		NextVisitDate:          tomorrow,
 		AgreementReached:       &agreementReached,

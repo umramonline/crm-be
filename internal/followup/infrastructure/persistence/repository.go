@@ -73,6 +73,7 @@ func (r *Repository) CreateFollowUp(ctx context.Context, input domain.PersistFol
 	followUp := FollowUpModel{
 		UUID:                   input.UUID,
 		TasksCustomerID:        input.TasksCustomerID,
+		VisitType:              input.VisitType,
 		VisitDate:              visitDate,
 		NextVisitDate:          &nextVisitDate,
 		AgreementReached:       input.AgreementReached,
@@ -152,6 +153,7 @@ func (r *Repository) CreateFollowUp(ctx context.Context, input domain.PersistFol
 	return domain.FollowUp{
 		UUID:                   followUp.UUID,
 		TasksCustomerUUID:      input.TasksCustomerUUID,
+		VisitType:              input.VisitType,
 		VisitDate:              input.VisitDate,
 		NextVisitDate:          input.NextVisitDate,
 		AgreementReached:       input.AgreementReached,

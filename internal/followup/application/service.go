@@ -53,6 +53,10 @@ var agreementFailureReasonOptions = map[string]struct{}{
 	"Değerlendirme":               {},
 }
 
+var visitTypeOptions = map[string]struct{}{
+	"Yerinde Ziyaret": {},
+}
+
 var meetPersonTitleOptions = map[string]struct{}{
 	"Genel Müdür":      {},
 	"Satış Müdürü":     {},
@@ -115,6 +119,7 @@ func (s *Service) CreateFollowUp(ctx context.Context, input domain.CreateFollowU
 		UUID:                   followUpUUID,
 		TasksCustomerID:        taskCustomer.ID,
 		TasksCustomerUUID:      taskCustomer.UUID,
+		VisitType:              normalizedInput.VisitType,
 		VisitDate:              normalizedInput.VisitDate,
 		NextVisitDate:          normalizedInput.NextVisitDate,
 		AgreementReached:       *normalizedInput.AgreementReached,
@@ -156,6 +161,7 @@ func normalizeCreateFollowUpInput(input domain.CreateFollowUpInput) domain.Creat
 	return domain.CreateFollowUpInput{
 		AuthenticatedUserID:    input.AuthenticatedUserID,
 		TasksCustomerUUID:      strings.TrimSpace(input.TasksCustomerUUID),
+		VisitType:              strings.TrimSpace(input.VisitType),
 		VisitDate:              strings.TrimSpace(input.VisitDate),
 		NextVisitDate:          strings.TrimSpace(input.NextVisitDate),
 		AgreementReached:       input.AgreementReached,
@@ -170,11 +176,13 @@ func validateCreateFollowUpInput(input domain.CreateFollowUpInput) ValidationErr
 	errors := ValidationErrors{}
 
 	requireField(errors, "tasks_customer_uuid", input.TasksCustomerUUID, "Görev müşterisi zorunludur.")
+	requireField(errors, "visit_type", input.VisitType, "Ziyaret tipi zorunludur.")
 	requireField(errors, "visit_date", input.VisitDate, "Ziyaret tarihi zorunludur.")
 	requireField(errors, "next_visit_date", input.NextVisitDate, "Sonraki ziyaret tarihi zorunludur.")
 	if input.AuthenticatedUserID == 0 {
 		errors["user"] = "Oturum kullanıcısı zorunludur."
 	}
+	validateVisitType(errors, input.VisitType)
 	validateNote(errors, input.Note)
 	validateAgreement(errors, input)
 	validateDates(errors, input.VisitDate, input.NextVisitDate)
@@ -182,6 +190,16 @@ func validateCreateFollowUpInput(input domain.CreateFollowUpInput) ValidationErr
 	validateMeetPeople(errors, input.MeetPeople)
 
 	return errors
+}
+
+func validateVisitType(errors ValidationErrors, visitType string) {
+	if strings.TrimSpace(visitType) == "" {
+		return
+	}
+
+	if _, ok := visitTypeOptions[visitType]; !ok {
+		errors["visit_type"] = "Ziyaret tipi geçersiz."
+	}
 }
 
 func requireField(errors ValidationErrors, field string, value string, message string) {
