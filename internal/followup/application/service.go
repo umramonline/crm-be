@@ -178,7 +178,6 @@ func validateCreateFollowUpInput(input domain.CreateFollowUpInput) ValidationErr
 	requireField(errors, "tasks_customer_uuid", input.TasksCustomerUUID, "Görev müşterisi zorunludur.")
 	requireField(errors, "visit_type", input.VisitType, "Ziyaret tipi zorunludur.")
 	requireField(errors, "visit_date", input.VisitDate, "Ziyaret tarihi zorunludur.")
-	requireField(errors, "next_visit_date", input.NextVisitDate, "Sonraki ziyaret tarihi zorunludur.")
 	if input.AuthenticatedUserID == 0 {
 		errors["user"] = "Oturum kullanıcısı zorunludur."
 	}

@@ -65,9 +65,14 @@ func (r *Repository) CreateFollowUp(ctx context.Context, input domain.PersistFol
 	if err != nil {
 		return domain.FollowUp{}, err
 	}
-	nextVisitDate, err := parseDateTime(input.NextVisitDate)
-	if err != nil {
-		return domain.FollowUp{}, err
+
+	var nextVisitDate *time.Time
+	if strings.TrimSpace(input.NextVisitDate) != "" {
+		parsedNextVisitDate, err := parseDateTime(input.NextVisitDate)
+		if err != nil {
+			return domain.FollowUp{}, err
+		}
+		nextVisitDate = &parsedNextVisitDate
 	}
 
 	followUp := FollowUpModel{
@@ -75,7 +80,7 @@ func (r *Repository) CreateFollowUp(ctx context.Context, input domain.PersistFol
 		TasksCustomerID:        input.TasksCustomerID,
 		VisitType:              input.VisitType,
 		VisitDate:              visitDate,
-		NextVisitDate:          &nextVisitDate,
+		NextVisitDate:          nextVisitDate,
 		AgreementReached:       input.AgreementReached,
 		AgreementFailureReason: stringPointer(input.AgreementFailureReason),
 		Note:                   stringPointer(input.Note),
@@ -141,6 +146,14 @@ func (r *Repository) CreateFollowUp(ctx context.Context, input domain.PersistFol
 		}
 		if len(meetPersonModels) > 0 {
 			if err := tx.Create(&meetPersonModels).Error; err != nil {
+				return err
+			}
+		}
+
+		if strings.TrimSpace(input.NextVisitDate) == "" {
+			if err := tx.Model(&TaskCustomerModel{}).
+				Where("id = ?", input.TasksCustomerID).
+				Update("status", "completed").Error; err != nil {
 				return err
 			}
 		}
