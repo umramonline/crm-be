@@ -48,6 +48,9 @@ type CustomerDetail struct {
 	Type                   string              `json:"type"`
 	CreatedAt              *string             `json:"created_at,omitempty"`
 	Telephones             []CustomerTelephone `json:"telephones,omitempty"`
+	PlusCardNo             string              `json:"plus_card_no,omitempty"`
+	Credit                 uint64              `json:"credit,omitempty"`
+	Point                  uint64              `json:"point,omitempty"`
 }
 
 type CustomerSearchResult struct {

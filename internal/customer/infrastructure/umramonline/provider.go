@@ -52,7 +52,7 @@ func (p *Provider) ListCustomers(ctx context.Context, query domain.ListQuery) (d
 			BranchName:   item.BranchName,
 			ZoneName:     item.ZoneName,
 			PlusCardNo:   item.PlusCardNo,
-			Credit:       string(item.Credit),
+			Credit:       item.Credit,
 			Source:       item.Source,
 			City:         item.City,
 			Town:         item.Town,
@@ -116,6 +116,9 @@ func (p *Provider) SearchCustomer(ctx context.Context, query string) (domain.Cus
 		TCNo:       customer.TCNo,
 		Type:       customer.Type,
 		CreatedAt:  customer.CreatedAt,
+		PlusCardNo: customer.PlusCardNo,
+		Credit:     customer.Credit,
+		Point:      customer.Point,
 	}, true, nil
 }
 
@@ -142,6 +145,9 @@ func (p *Provider) GetCustomer(ctx context.Context, id uint64) (domain.CustomerD
 		TCNo:       customer.TCNo,
 		Type:       customer.Type,
 		CreatedAt:  customer.CreatedAt,
+		PlusCardNo: customer.PlusCardNo,
+		Credit:     customer.Credit,
+		Point:      customer.Point,
 	}, nil
 }
 

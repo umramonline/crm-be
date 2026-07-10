@@ -342,14 +342,17 @@ func taskListOrder(query domain.ListQuery) string {
 }
 
 type taskCustomerRow struct {
-	TaskID     uint64
-	ID         uint64
-	UUID       string
-	CustomerID uint64
-	Unvan      *string
-	Ad         *string
-	Soyad      *string
-	Status     string
+	TaskID            uint64
+	ID                uint64
+	UUID              string
+	UoId              string
+	VehicleStockCount int `json:"vehicle_stock_count"`
+	CustomerID        uint64
+	Unvan             *string
+	Ad                *string
+	Soyad             *string
+	Eposta            *string
+	Status            string
 }
 
 type taskListRow struct {
@@ -375,7 +378,7 @@ func (r *Repository) customersByTaskIDs(ctx context.Context, taskIDs []uint64) (
 	var rows []taskCustomerRow
 	if err := r.db.WithContext(ctx).
 		Model(&TaskCustomerModel{}).
-		Select("tasks_customers.task_id, tasks_customers.id, tasks_customers.uuid, customers.id AS customer_id, customers.unvan, customers.ad, customers.soyad, tasks_customers.status").
+		Select("tasks_customers.task_id, tasks_customers.id, tasks_customers.uuid, customers.uo_id, customers.vehicle_stock_count, customers.id AS customer_id, customers.unvan, customers.ad, customers.soyad, customers.eposta, tasks_customers.status").
 		Joins("JOIN customers ON customers.id = tasks_customers.customer_id AND customers.deleted_at IS NULL").
 		Where("tasks_customers.task_id IN ?", taskIDs).
 		Order("tasks_customers.task_id ASC, customers.unvan ASC, customers.id ASC").
@@ -385,13 +388,16 @@ func (r *Repository) customersByTaskIDs(ctx context.Context, taskIDs []uint64) (
 
 	for _, row := range rows {
 		customersByTaskID[row.TaskID] = append(customersByTaskID[row.TaskID], domain.TaskCustomer{
-			ID:         row.ID,
-			UUID:       row.UUID,
-			CustomerID: row.CustomerID,
-			Unvan:      stringValue(row.Unvan),
-			Ad:         stringValue(row.Ad),
-			Soyad:      stringValue(row.Soyad),
-			Status:     taskStatusValue(row.Status),
+			ID:                row.ID,
+			UUID:              row.UUID,
+			UoId:              row.UoId,
+			VehicleStockCount: row.VehicleStockCount,
+			CustomerID:        row.CustomerID,
+			Unvan:             stringValue(row.Unvan),
+			Ad:                stringValue(row.Ad),
+			Soyad:             stringValue(row.Soyad),
+			Eposta:            stringValue(row.Eposta),
+			Status:            taskStatusValue(row.Status),
 		})
 	}
 

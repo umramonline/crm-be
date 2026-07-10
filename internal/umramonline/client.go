@@ -99,28 +99,6 @@ type Role struct {
 	Name string `json:"name"`
 }
 
-type FlexibleString string
-
-func (value *FlexibleString) UnmarshalJSON(data []byte) error {
-	var decoded any
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		return err
-	}
-
-	switch typedValue := decoded.(type) {
-	case nil:
-		*value = ""
-	case string:
-		*value = FlexibleString(typedValue)
-	case float64:
-		*value = FlexibleString(strconv.FormatFloat(typedValue, 'f', -1, 64))
-	default:
-		*value = FlexibleString(fmt.Sprint(typedValue))
-	}
-
-	return nil
-}
-
 type Zone struct {
 	ID   uint64 `json:"id"`
 	Name string `json:"name"`
@@ -173,23 +151,23 @@ type CustomerListQuery struct {
 }
 
 type CustomerListItem struct {
-	ID           uint64         `json:"id"`
-	Situation    string         `json:"situation"`
-	Unvan        string         `json:"unvan"`
-	Cep          string         `json:"cep"`
-	Ad           string         `json:"ad"`
-	Soyad        string         `json:"soyad"`
-	BranchName   string         `json:"branch_name"`
-	ZoneName     string         `json:"zone_name"`
-	PlusCardNo   string         `json:"plus_card_no"`
-	Credit       FlexibleString `json:"credit"`
-	Source       string         `json:"source"`
-	City         string         `json:"city"`
-	Town         string         `json:"town"`
-	CreatedAt    *string        `json:"created_at"`
-	Type         string         `json:"type"`
-	DaysSpending *int           `json:"daysSpending"`
-	DaysLoading  *int           `json:"daysLoading"`
+	ID           uint64  `json:"id"`
+	Situation    string  `json:"situation"`
+	Unvan        string  `json:"unvan"`
+	Cep          string  `json:"cep"`
+	Ad           string  `json:"ad"`
+	Soyad        string  `json:"soyad"`
+	BranchName   string  `json:"branch_name"`
+	ZoneName     string  `json:"zone_name"`
+	PlusCardNo   string  `json:"plus_card_no"`
+	Credit       string  `json:"credit"`
+	Source       string  `json:"source"`
+	City         string  `json:"city"`
+	Town         string  `json:"town"`
+	CreatedAt    *string `json:"created_at"`
+	Type         string  `json:"type"`
+	DaysSpending *int    `json:"daysSpending"`
+	DaysLoading  *int    `json:"daysLoading"`
 }
 
 type CustomerSearchItem struct {
@@ -209,6 +187,9 @@ type CustomerSearchItem struct {
 	TCNo       string  `json:"tc_no"`
 	Type       string  `json:"type"`
 	CreatedAt  *string `json:"created_at"`
+	PlusCardNo string  `json:"plus_card_no"`
+	Credit     uint64  `json:"credit"`
+	Point      uint64  `json:"point"`
 }
 
 type Pagination struct {

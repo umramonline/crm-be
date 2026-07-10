@@ -58,13 +58,16 @@ type TaskCreatedSMSInput struct {
 }
 
 type TaskCustomer struct {
-	ID         uint64 `json:"-"`
-	UUID       string `json:"uuid"`
-	CustomerID uint64 `json:"customer_id"`
-	Unvan      string `json:"unvan"`
-	Ad         string `json:"ad"`
-	Soyad      string `json:"soyad"`
-	Status     string `json:"status"`
+	ID                uint64 `json:"-"`
+	UUID              string `json:"uuid"`
+	UoId              string `json:"uo_id"`
+	VehicleStockCount int    `json:"vehicle_stock_count"`
+	CustomerID        uint64 `json:"customer_id"`
+	Unvan             string `json:"unvan"`
+	Ad                string `json:"ad"`
+	Soyad             string `json:"soyad"`
+	Eposta            string `json:"eposta"`
+	Status            string `json:"status"`
 }
 
 type TaskListItem struct {
