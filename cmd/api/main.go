@@ -98,6 +98,10 @@ func main() {
 		log.Fatal(err)
 	}
 
+	if err := authzpersistence.SeedFollowUps(db); err != nil {
+		log.Fatal(err)
+	}
+
 	authorizationRepository := authzpersistence.NewRepository(db)
 	permissionRepository = authorizationRepository
 	moduleRepository = authorizationRepository
