@@ -33,6 +33,14 @@ func (f *fakeRepository) CreateFollowUp(_ context.Context, input domain.PersistF
 	return domain.FollowUp{UUID: input.UUID, TasksCustomerUUID: input.TasksCustomerUUID}, nil
 }
 
+func (f *fakeRepository) ListFollowUps(_ context.Context, _ domain.ListQuery) (domain.ListResult, error) {
+	return domain.ListResult{}, nil
+}
+
+func (f *fakeRepository) GetFollowUp(_ context.Context, _ string) (domain.FollowUp, error) {
+	return domain.FollowUp{}, nil
+}
+
 type fakeStorage struct {
 	saveErr       error
 	savedImages   []domain.StoredImage

@@ -17,11 +17,17 @@ var ErrInvalidFollowUpCreateInput = errors.New("invalid follow up create input")
 
 var ErrFollowUpCreateUnavailable = errors.New("follow up create unavailable")
 
+var ErrFollowUpListUnavailable = errors.New("follow up list unavailable")
+
+var ErrFollowUpDetailUnavailable = errors.New("follow up detail unavailable")
+
 type ValidationErrors map[string]string
 
 type Repository interface {
 	FindTaskCustomerByUUID(ctx context.Context, uuid string) (domain.TaskCustomer, error)
 	CreateFollowUp(ctx context.Context, input domain.PersistFollowUpInput) (domain.FollowUp, error)
+	ListFollowUps(ctx context.Context, query domain.ListQuery) (domain.ListResult, error)
+	GetFollowUp(ctx context.Context, uuid string) (domain.FollowUp, error)
 }
 
 type ImageStorage interface {
@@ -81,6 +87,33 @@ func NewService(repository Repository, storage ImageStorage) *Service {
 	return &Service{repository: repository, storage: storage}
 }
 
+func (s *Service) ListFollowUps(ctx context.Context, query domain.ListQuery) (domain.ListResult, error) {
+	if s == nil || s.repository == nil {
+		return domain.ListResult{}, ErrFollowUpListUnavailable
+	}
+
+	result, err := s.repository.ListFollowUps(ctx, normalizeListQuery(query))
+	if err != nil {
+		return domain.ListResult{}, ErrFollowUpListUnavailable
+	}
+
+	return result, nil
+}
+
+func (s *Service) GetFollowUp(ctx context.Context, followUpUUID string) (domain.FollowUp, error) {
+	normalizedUUID := strings.TrimSpace(followUpUUID)
+	if s == nil || s.repository == nil || normalizedUUID == "" {
+		return domain.FollowUp{}, ErrFollowUpDetailUnavailable
+	}
+
+	followUp, err := s.repository.GetFollowUp(ctx, normalizedUUID)
+	if err != nil {
+		return domain.FollowUp{}, ErrFollowUpDetailUnavailable
+	}
+
+	return followUp, nil
+}
+
 func (s *Service) CreateFollowUp(ctx context.Context, input domain.CreateFollowUpInput) (domain.FollowUp, ValidationErrors, error) {
 	normalizedInput := normalizeCreateFollowUpInput(input)
 	validationErrors := validateCreateFollowUpInput(normalizedInput)
@@ -134,6 +167,33 @@ func (s *Service) CreateFollowUp(ctx context.Context, input domain.CreateFollowU
 	}
 
 	return followUp, nil, nil
+}
+
+func normalizeListQuery(query domain.ListQuery) domain.ListQuery {
+	sortBy := strings.ToLower(strings.TrimSpace(query.SortBy))
+	switch sortBy {
+	case "visit_date", "next_visit_date", "agreement_reached":
+	default:
+		sortBy = ""
+	}
+
+	sortOrder := strings.ToLower(strings.TrimSpace(query.SortOrder))
+	if sortOrder != "asc" {
+		sortOrder = "desc"
+	}
+
+	return domain.ListQuery{
+		Page:                 query.Page,
+		PerPage:              query.PerPage,
+		Title:                strings.TrimSpace(query.Title),
+		Customer:             strings.TrimSpace(query.Customer),
+		AssignedUserFullName: strings.TrimSpace(query.AssignedUserFullName),
+		BranchName:           strings.TrimSpace(query.BranchName),
+		VisitDate:            strings.TrimSpace(query.VisitDate),
+		NextVisitDate:        strings.TrimSpace(query.NextVisitDate),
+		SortBy:               sortBy,
+		SortOrder:            sortOrder,
+	}
 }
 
 func normalizeCreateFollowUpInput(input domain.CreateFollowUpInput) domain.CreateFollowUpInput {

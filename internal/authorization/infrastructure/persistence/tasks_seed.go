@@ -43,6 +43,22 @@ var taskMethodSeeds = []authorizationMethodSeed{
 		Method:      stringPointer("POST"),
 		Path:        stringPointer("/api/v1/follow-ups"),
 	},
+	{
+		Name:        "follow_ups.menu",
+		Description: "Sol menüde Tüm Takip Kayıtları menüsünü gösterir.",
+	},
+	{
+		Name:        "follow_ups.list",
+		Description: "Takip kayıtları listesini görüntüler.",
+		Method:      stringPointer("GET"),
+		Path:        stringPointer("/api/v1/follow-ups"),
+	},
+	{
+		Name:        "follow_ups.detail",
+		Description: "Takip kaydı detayını görüntüler.",
+		Method:      stringPointer("GET"),
+		Path:        stringPointer("/api/v1/follow-ups/:uuid"),
+	},
 }
 
 func SeedTasks(db *gorm.DB) error {
