@@ -340,12 +340,14 @@ func (r *Repository) CreateFollowUp(ctx context.Context, input domain.PersistFol
 			}
 		}
 
+		nextStatus := "in_progress"
 		if strings.TrimSpace(input.NextVisitDate) == "" {
-			if err := tx.Model(&TaskCustomerModel{}).
-				Where("id = ?", input.TasksCustomerID).
-				Update("status", "completed").Error; err != nil {
-				return err
-			}
+			nextStatus = "completed"
+		}
+		if err := tx.Model(&TaskCustomerModel{}).
+			Where("id = ?", input.TasksCustomerID).
+			Update("status", nextStatus).Error; err != nil {
+			return err
 		}
 
 		return nil
