@@ -38,6 +38,7 @@ func (f *fakeRepository) FindFollowUpUpdateTargetByUUID(_ context.Context, uuid 
 		ID:              1,
 		UUID:            uuid,
 		TasksCustomerID: 10,
+		AssignedUserID:  20,
 		VisitDate:       time.Now().Format("2006-01-02"),
 	}, nil
 }

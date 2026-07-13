@@ -140,6 +140,8 @@ func (h *Handler) UpdateFollowUp(c *fiber.Ctx) error {
 		return response.Error(c, fiber.StatusUnprocessableEntity, "Takip kaydı bilgileri geçersiz.", validationErrors)
 	}
 	input.UUID = c.Params("uuid")
+	claims := c.Locals("claims").(authapp.SessionTokenClaims)
+	input.AuthenticatedUserID = claims.UserId
 
 	followUp, validationErrors, err := h.service.UpdateFollowUp(c.UserContext(), input)
 	if err != nil {

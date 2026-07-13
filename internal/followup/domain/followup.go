@@ -14,6 +14,7 @@ type CreateFollowUpInput struct {
 }
 
 type UpdateFollowUpInput struct {
+	AuthenticatedUserID    uint64
 	UUID                   string
 	VisitType              string
 	NextVisitDate          string
@@ -71,6 +72,7 @@ type FollowUpUpdateTarget struct {
 	ID              uint64
 	UUID            string
 	TasksCustomerID uint64
+	AssignedUserID  uint64
 	VisitDate       string
 }
 

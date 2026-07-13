@@ -148,9 +148,17 @@ func (r *Repository) FindFollowUpUpdateTargetByUUID(ctx context.Context, followU
 	var row followUpUpdateTargetRow
 	if err := r.db.WithContext(ctx).
 		Model(&FollowUpModel{}).
-		Select("id, uuid, tasks_customer_id, visit_date").
-		Where("uuid = ?", strings.TrimSpace(followUpUUID)).
-		Where("deleted_at IS NULL").
+		Select(`
+			tasks_follow_ups.id,
+			tasks_follow_ups.uuid,
+			tasks_follow_ups.tasks_customer_id,
+			tasks.assigned_user_id,
+			tasks_follow_ups.visit_date
+		`).
+		Joins("JOIN tasks_customers ON tasks_customers.id = tasks_follow_ups.tasks_customer_id").
+		Joins("JOIN tasks ON tasks.id = tasks_customers.task_id AND tasks.deleted_at IS NULL").
+		Where("tasks_follow_ups.uuid = ?", strings.TrimSpace(followUpUUID)).
+		Where("tasks_follow_ups.deleted_at IS NULL").
 		Scan(&row).Error; err != nil {
 		return domain.FollowUpUpdateTarget{}, err
 	}
@@ -162,6 +170,7 @@ func (r *Repository) FindFollowUpUpdateTargetByUUID(ctx context.Context, followU
 		ID:              row.ID,
 		UUID:            row.UUID,
 		TasksCustomerID: row.TasksCustomerID,
+		AssignedUserID:  row.AssignedUserID,
 		VisitDate:       formatDate(row.VisitDate),
 	}, nil
 }
@@ -244,6 +253,7 @@ type followUpUpdateTargetRow struct {
 	ID              uint64
 	UUID            string
 	TasksCustomerID uint64
+	AssignedUserID  uint64
 	VisitDate       *time.Time
 }
 

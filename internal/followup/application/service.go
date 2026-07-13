@@ -137,6 +137,11 @@ func (s *Service) UpdateFollowUp(ctx context.Context, input domain.UpdateFollowU
 			"uuid": "Takip kaydı bulunamadı.",
 		}, ErrInvalidFollowUpUpdateInput
 	}
+	if target.AssignedUserID != normalizedInput.AuthenticatedUserID {
+		return domain.FollowUp{}, ValidationErrors{
+			"tasks_customer_uuid": "Bu görev müşterisi için takip kaydı güncelleme yetkiniz yok.",
+		}, ErrInvalidFollowUpUpdateInput
+	}
 
 	validationErrors = validateUpdateFollowUpInput(normalizedInput, target.VisitDate)
 	if len(validationErrors) > 0 {
@@ -281,6 +286,7 @@ func normalizeUpdateFollowUpInput(input domain.UpdateFollowUpInput) domain.Updat
 	}
 
 	return domain.UpdateFollowUpInput{
+		AuthenticatedUserID:    input.AuthenticatedUserID,
 		UUID:                   strings.TrimSpace(input.UUID),
 		VisitType:              normalizedCreateInput.VisitType,
 		NextVisitDate:          normalizedCreateInput.NextVisitDate,
@@ -297,6 +303,9 @@ func validateUpdateFollowUpInput(input domain.UpdateFollowUpInput, visitDate str
 	errors := ValidationErrors{}
 
 	requireField(errors, "uuid", input.UUID, "Takip kaydı zorunludur.")
+	if input.AuthenticatedUserID == 0 {
+		errors["user"] = "Oturum kullanıcısı zorunludur."
+	}
 	requireField(errors, "visit_type", input.VisitType, "Ziyaret tipi zorunludur.")
 	validateVisitType(errors, input.VisitType)
 	validateNote(errors, input.Note)
