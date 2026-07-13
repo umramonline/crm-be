@@ -43,6 +43,7 @@ func NewHandler(service *application.Service) *Handler {
 
 func (h *Handler) RegisterRoutes(router fiber.Router, authRequired fiber.Handler) {
 	router.Get("/follow-ups", authRequired, h.ListFollowUps)
+	router.Get("/follow-ups/assigned-to-me", authRequired, h.ListAssignedFollowUps)
 	router.Get("/follow-ups/:uuid", authRequired, h.GetFollowUp)
 	router.Post("/follow-ups", authRequired, h.CreateFollowUp)
 }
@@ -53,6 +54,28 @@ func (h *Handler) ListFollowUps(c *fiber.Ctx) error {
 		PerPage:              queryInt(c, "per_page", 10),
 		Title:                c.Query("title"),
 		Customer:             c.Query("customer"),
+		AssignedUserFullName: c.Query("assigned_user_full_name"),
+		BranchName:           c.Query("branch_name"),
+		VisitDate:            c.Query("visit_date"),
+		NextVisitDate:        c.Query("next_visit_date"),
+		SortBy:               c.Query("sort_by"),
+		SortOrder:            c.Query("sort_order"),
+	})
+	if err != nil {
+		return response.Error(c, fiber.StatusServiceUnavailable, "Takip kayıtları şu anda getirilemedi.", nil)
+	}
+
+	return response.Success(c, fiber.StatusOK, "Takip kayıtları getirildi.", result)
+}
+
+func (h *Handler) ListAssignedFollowUps(c *fiber.Ctx) error {
+	claims := c.Locals("claims").(authapp.SessionTokenClaims)
+	result, err := h.service.ListFollowUps(c.UserContext(), domain.ListQuery{
+		Page:                 queryInt(c, "page", 1),
+		PerPage:              queryInt(c, "per_page", 10),
+		Title:                c.Query("title"),
+		Customer:             c.Query("customer"),
+		AssignedUserID:       claims.UserId,
 		AssignedUserFullName: c.Query("assigned_user_full_name"),
 		BranchName:           c.Query("branch_name"),
 		VisitDate:            c.Query("visit_date"),

@@ -107,6 +107,7 @@ type ListQuery struct {
 	PerPage              int
 	Title                string
 	Customer             string
+	AssignedUserID       uint64
 	AssignedUserFullName string
 	BranchName           string
 	VisitDate            string

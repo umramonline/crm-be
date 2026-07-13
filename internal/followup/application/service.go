@@ -187,6 +187,7 @@ func normalizeListQuery(query domain.ListQuery) domain.ListQuery {
 		PerPage:              query.PerPage,
 		Title:                strings.TrimSpace(query.Title),
 		Customer:             strings.TrimSpace(query.Customer),
+		AssignedUserID:       query.AssignedUserID,
 		AssignedUserFullName: strings.TrimSpace(query.AssignedUserFullName),
 		BranchName:           strings.TrimSpace(query.BranchName),
 		VisitDate:            strings.TrimSpace(query.VisitDate),

@@ -14,6 +14,12 @@ var followUpMethodSeeds = []authorizationMethodSeed{
 		Path:        stringPointer("/api/v1/follow-ups"),
 	},
 	{
+		Name:        "follow_ups.assigned.list",
+		Description: "Kullanıcının kendisine atanmış takip kayıtlarını görüntüler.",
+		Method:      stringPointer("GET"),
+		Path:        stringPointer("/api/v1/follow-ups/assigned-to-me"),
+	},
+	{
 		Name:        "follow_ups.detail",
 		Description: "Takip kaydı detayını görüntüler.",
 		Method:      stringPointer("GET"),
