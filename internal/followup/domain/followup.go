@@ -13,6 +13,18 @@ type CreateFollowUpInput struct {
 	MeetPeople             []MeetPersonInput
 }
 
+type UpdateFollowUpInput struct {
+	UUID                   string
+	VisitType              string
+	NextVisitDate          string
+	AgreementReached       *bool
+	AgreementFailureReason string
+	Note                   string
+	Images                 []ImageUpload
+	ExistingImageUUIDs     []string
+	MeetPeople             []MeetPersonInput
+}
+
 type ImageUpload struct {
 	FileName    string
 	ContentType string
@@ -52,6 +64,28 @@ type PersistFollowUpInput struct {
 	AgreementFailureReason string
 	Note                   string
 	Images                 []StoredImage
+	MeetPeople             []MeetPersonInput
+}
+
+type FollowUpUpdateTarget struct {
+	ID              uint64
+	UUID            string
+	TasksCustomerID uint64
+	VisitDate       string
+}
+
+type PersistUpdateFollowUpInput struct {
+	ID                     uint64
+	UUID                   string
+	TasksCustomerID        uint64
+	VisitType              string
+	VisitDate              string
+	NextVisitDate          string
+	AgreementReached       bool
+	AgreementFailureReason string
+	Note                   string
+	Images                 []StoredImage
+	ExistingImageUUIDs     []string
 	MeetPeople             []MeetPersonInput
 }
 

@@ -140,6 +140,32 @@ func (r *Repository) FindTaskCustomerByUUID(ctx context.Context, taskCustomerUUI
 	}, nil
 }
 
+func (r *Repository) FindFollowUpUpdateTargetByUUID(ctx context.Context, followUpUUID string) (domain.FollowUpUpdateTarget, error) {
+	if r == nil || r.db == nil || strings.TrimSpace(followUpUUID) == "" {
+		return domain.FollowUpUpdateTarget{}, gorm.ErrInvalidDB
+	}
+
+	var row followUpUpdateTargetRow
+	if err := r.db.WithContext(ctx).
+		Model(&FollowUpModel{}).
+		Select("id, uuid, tasks_customer_id, visit_date").
+		Where("uuid = ?", strings.TrimSpace(followUpUUID)).
+		Where("deleted_at IS NULL").
+		Scan(&row).Error; err != nil {
+		return domain.FollowUpUpdateTarget{}, err
+	}
+	if row.ID == 0 {
+		return domain.FollowUpUpdateTarget{}, gorm.ErrRecordNotFound
+	}
+
+	return domain.FollowUpUpdateTarget{
+		ID:              row.ID,
+		UUID:            row.UUID,
+		TasksCustomerID: row.TasksCustomerID,
+		VisitDate:       formatDate(row.VisitDate),
+	}, nil
+}
+
 func (r *Repository) GetFollowUp(ctx context.Context, followUpUUID string) (domain.FollowUp, error) {
 	if r == nil || r.db == nil || strings.TrimSpace(followUpUUID) == "" {
 		return domain.FollowUp{}, gorm.ErrInvalidDB
@@ -212,6 +238,13 @@ type taskCustomerRow struct {
 	UUID           string
 	Status         string
 	AssignedUserID uint64
+}
+
+type followUpUpdateTargetRow struct {
+	ID              uint64
+	UUID            string
+	TasksCustomerID uint64
+	VisitDate       *time.Time
 }
 
 type followUpListRow struct {
@@ -367,6 +400,139 @@ func (r *Repository) CreateFollowUp(ctx context.Context, input domain.PersistFol
 		Images:                 images,
 		MeetPeople:             meetPeople,
 	}, nil
+}
+
+func (r *Repository) UpdateFollowUp(ctx context.Context, input domain.PersistUpdateFollowUpInput) (domain.FollowUp, []domain.StoredImage, error) {
+	if r == nil || r.db == nil {
+		return domain.FollowUp{}, nil, gorm.ErrInvalidDB
+	}
+
+	var nextVisitDate *time.Time
+	if strings.TrimSpace(input.NextVisitDate) != "" {
+		parsedNextVisitDate, err := parseDateTime(input.NextVisitDate)
+		if err != nil {
+			return domain.FollowUp{}, nil, err
+		}
+		nextVisitDate = &parsedNextVisitDate
+	}
+
+	imageModels := make([]FollowUpImageModel, 0, len(input.Images))
+	for _, image := range input.Images {
+		imageUUID := image.UUID
+		if imageUUID == "" {
+			imageUUID = uuid.NewString()
+		}
+		imageModels = append(imageModels, FollowUpImageModel{
+			UUID:            imageUUID,
+			TasksFollowUpID: input.ID,
+			Path:            image.Path,
+			URL:             image.URL,
+		})
+	}
+
+	meetPersonModels := make([]MeetPersonModel, 0, len(input.MeetPeople))
+	for _, person := range input.MeetPeople {
+		meetPersonModels = append(meetPersonModels, MeetPersonModel{
+			UUID:            uuid.NewString(),
+			TasksFollowUpID: input.ID,
+			Title:           person.Title,
+			Name:            person.Name,
+			Surname:         person.Surname,
+			Phone:           person.Phone,
+			Email:           stringPointer(person.Email),
+		})
+	}
+
+	var deletedImages []domain.StoredImage
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&FollowUpModel{}).
+			Where("id = ?", input.ID).
+			Updates(map[string]any{
+				"visit_type":               input.VisitType,
+				"next_visit_date":          nextVisitDate,
+				"agreement_reached":        input.AgreementReached,
+				"agreement_failure_reason": stringPointer(input.AgreementFailureReason),
+				"note":                     stringPointer(input.Note),
+			}).Error; err != nil {
+			return err
+		}
+
+		var existingImages []FollowUpImageModel
+		if err := tx.Where("tasks_follow_up_id = ?", input.ID).
+			Find(&existingImages).Error; err != nil {
+			return err
+		}
+
+		keepImageUUIDs := map[string]struct{}{}
+		for _, imageUUID := range input.ExistingImageUUIDs {
+			keepImageUUIDs[imageUUID] = struct{}{}
+		}
+
+		keptImageCount := 0
+		deleteImageIDs := make([]uint64, 0)
+		for _, image := range existingImages {
+			if _, keep := keepImageUUIDs[image.UUID]; keep {
+				keptImageCount++
+				continue
+			}
+
+			deleteImageIDs = append(deleteImageIDs, image.ID)
+			deletedImages = append(deletedImages, domain.StoredImage{
+				UUID: image.UUID,
+				Path: image.Path,
+				URL:  image.URL,
+			})
+		}
+
+		if keptImageCount+len(imageModels) > 3 {
+			return gorm.ErrInvalidData
+		}
+
+		if len(deleteImageIDs) > 0 {
+			if err := tx.Delete(&FollowUpImageModel{}, deleteImageIDs).Error; err != nil {
+				return err
+			}
+		}
+
+		if len(imageModels) > 0 {
+			if err := tx.Create(&imageModels).Error; err != nil {
+				return err
+			}
+		}
+
+		if err := tx.Where("tasks_follow_up_id = ?", input.ID).
+			Delete(&MeetPersonModel{}).Error; err != nil {
+			return err
+		}
+
+		if len(meetPersonModels) > 0 {
+			if err := tx.Create(&meetPersonModels).Error; err != nil {
+				return err
+			}
+		}
+
+		nextStatus := "in_progress"
+		if strings.TrimSpace(input.NextVisitDate) == "" {
+			nextStatus = "completed"
+		}
+		if err := tx.Model(&TaskCustomerModel{}).
+			Where("id = ?", input.TasksCustomerID).
+			Update("status", nextStatus).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
+		return domain.FollowUp{}, nil, err
+	}
+
+	followUp, err := r.GetFollowUp(ctx, input.UUID)
+	if err != nil {
+		return domain.FollowUp{}, nil, err
+	}
+
+	return followUp, deletedImages, nil
 }
 
 func (r *Repository) followUpListBaseQuery(ctx context.Context, filters domain.ListQuery) *gorm.DB {

@@ -31,6 +31,12 @@ var followUpMethodSeeds = []authorizationMethodSeed{
 		Method:      stringPointer("POST"),
 		Path:        stringPointer("/api/v1/follow-ups"),
 	},
+	{
+		Name:        "follow_ups.update",
+		Description: "Takip kaydını günceller.",
+		Method:      stringPointer("PUT"),
+		Path:        stringPointer("/api/v1/follow-ups/:uuid"),
+	},
 }
 
 func SeedFollowUps(db *gorm.DB) error {

@@ -29,6 +29,16 @@ type createFollowUpRequest struct {
 	MeetPeople             []createMeetPersonRequest `json:"meet_people"`
 }
 
+type updateFollowUpRequest struct {
+	VisitType              string                    `json:"visit_type"`
+	NextVisitDate          string                    `json:"next_visit_date"`
+	AgreementReached       *bool                     `json:"agreement_reached"`
+	AgreementFailureReason string                    `json:"agreement_failure_reason"`
+	Note                   string                    `json:"note"`
+	ExistingImageUUIDs     []string                  `json:"existing_image_uuids"`
+	MeetPeople             []createMeetPersonRequest `json:"meet_people"`
+}
+
 type createMeetPersonRequest struct {
 	Title   string `json:"title"`
 	Name    string `json:"name"`
@@ -46,6 +56,7 @@ func (h *Handler) RegisterRoutes(router fiber.Router, authRequired fiber.Handler
 	router.Get("/follow-ups/assigned-to-me", authRequired, h.ListAssignedFollowUps)
 	router.Get("/follow-ups/:uuid", authRequired, h.GetFollowUp)
 	router.Post("/follow-ups", authRequired, h.CreateFollowUp)
+	router.Put("/follow-ups/:uuid", authRequired, h.UpdateFollowUp)
 }
 
 func (h *Handler) ListFollowUps(c *fiber.Ctx) error {
@@ -119,20 +130,47 @@ func (h *Handler) CreateFollowUp(c *fiber.Ctx) error {
 	return response.Success(c, fiber.StatusCreated, "Takip kaydı oluşturuldu.", followUp)
 }
 
+func (h *Handler) UpdateFollowUp(c *fiber.Ctx) error {
+	input, validationErrors, err := updateFollowUpInput(c)
+	if err != nil {
+		if err == fiber.ErrUnsupportedMediaType {
+			return response.Error(c, fiber.StatusUnsupportedMediaType, "Takip kaydı multipart/form-data olarak gönderilmelidir.", validationErrors)
+		}
+
+		return response.Error(c, fiber.StatusUnprocessableEntity, "Takip kaydı bilgileri geçersiz.", validationErrors)
+	}
+	input.UUID = c.Params("uuid")
+
+	followUp, validationErrors, err := h.service.UpdateFollowUp(c.UserContext(), input)
+	if err != nil {
+		if err == application.ErrInvalidFollowUpUpdateInput {
+			return response.Error(c, fiber.StatusUnprocessableEntity, "Takip kaydı bilgileri geçersiz.", validationErrors)
+		}
+
+		return response.Error(c, fiber.StatusServiceUnavailable, "Takip kaydı şu anda güncellenemedi.", nil)
+	}
+
+	return response.Success(c, fiber.StatusOK, "Takip kaydı güncellendi.", followUp)
+}
+
 func createFollowUpInput(c *fiber.Ctx) (domain.CreateFollowUpInput, application.ValidationErrors, error) {
 	contentType := strings.ToLower(c.Get(fiber.HeaderContentType))
 	if strings.HasPrefix(contentType, "multipart/form-data") {
 		return multipartFollowUpInput(c)
 	}
 
-	var request createFollowUpRequest
-	if err := c.BodyParser(&request); err != nil {
-		return domain.CreateFollowUpInput{}, application.ValidationErrors{
-			"request": "Takip kaydı bilgileri geçersiz.",
-		}, err
+	return domain.CreateFollowUpInput{}, application.ValidationErrors{}, nil
+}
+
+func updateFollowUpInput(c *fiber.Ctx) (domain.UpdateFollowUpInput, application.ValidationErrors, error) {
+	contentType := strings.ToLower(c.Get(fiber.HeaderContentType))
+	if strings.HasPrefix(contentType, "multipart/form-data") {
+		return multipartUpdateFollowUpInput(c)
 	}
 
-	return requestToInput(request, nil), nil, nil
+	return domain.UpdateFollowUpInput{}, application.ValidationErrors{
+		"request": "Takip kaydı multipart/form-data olarak gönderilmelidir.",
+	}, fiber.ErrUnsupportedMediaType
 }
 
 func multipartFollowUpInput(c *fiber.Ctx) (domain.CreateFollowUpInput, application.ValidationErrors, error) {
@@ -169,6 +207,46 @@ func multipartFollowUpInput(c *fiber.Ctx) (domain.CreateFollowUpInput, applicati
 	}, images), nil, nil
 }
 
+func multipartUpdateFollowUpInput(c *fiber.Ctx) (domain.UpdateFollowUpInput, application.ValidationErrors, error) {
+	agreementReached, err := parseBoolPointer(c.FormValue("agreement_reached"))
+	if err != nil {
+		return domain.UpdateFollowUpInput{}, application.ValidationErrors{
+			"agreement_reached": "Anlaşma durumu boolean olmalıdır.",
+		}, err
+	}
+
+	meetPeople, err := parseMeetPeople(c.FormValue("meet_people"))
+	if err != nil {
+		return domain.UpdateFollowUpInput{}, application.ValidationErrors{
+			"meet_people": "Görüşülen kişiler geçersiz.",
+		}, err
+	}
+
+	existingImageUUIDs, err := parseStringArray(c.FormValue("existing_image_uuids"))
+	if err != nil {
+		return domain.UpdateFollowUpInput{}, application.ValidationErrors{
+			"existing_image_uuids": "Mevcut resim bilgileri geçersiz.",
+		}, err
+	}
+
+	images, err := multipartImages(c)
+	if err != nil {
+		return domain.UpdateFollowUpInput{}, application.ValidationErrors{
+			"images": "Dosyalar okunamadı.",
+		}, err
+	}
+
+	return updateRequestToInput(updateFollowUpRequest{
+		VisitType:              c.FormValue("visit_type"),
+		NextVisitDate:          c.FormValue("next_visit_date"),
+		AgreementReached:       agreementReached,
+		AgreementFailureReason: c.FormValue("agreement_failure_reason"),
+		Note:                   c.FormValue("note"),
+		ExistingImageUUIDs:     existingImageUUIDs,
+		MeetPeople:             meetPeople,
+	}, images), nil, nil
+}
+
 func requestToInput(request createFollowUpRequest, images []domain.ImageUpload) domain.CreateFollowUpInput {
 	meetPeople := make([]domain.MeetPersonInput, 0, len(request.MeetPeople))
 	for _, person := range request.MeetPeople {
@@ -190,6 +268,30 @@ func requestToInput(request createFollowUpRequest, images []domain.ImageUpload) 
 		AgreementFailureReason: request.AgreementFailureReason,
 		Note:                   request.Note,
 		Images:                 images,
+		MeetPeople:             meetPeople,
+	}
+}
+
+func updateRequestToInput(request updateFollowUpRequest, images []domain.ImageUpload) domain.UpdateFollowUpInput {
+	meetPeople := make([]domain.MeetPersonInput, 0, len(request.MeetPeople))
+	for _, person := range request.MeetPeople {
+		meetPeople = append(meetPeople, domain.MeetPersonInput{
+			Title:   person.Title,
+			Name:    person.Name,
+			Surname: person.Surname,
+			Phone:   person.Phone,
+			Email:   person.Email,
+		})
+	}
+
+	return domain.UpdateFollowUpInput{
+		VisitType:              request.VisitType,
+		NextVisitDate:          request.NextVisitDate,
+		AgreementReached:       request.AgreementReached,
+		AgreementFailureReason: request.AgreementFailureReason,
+		Note:                   request.Note,
+		Images:                 images,
+		ExistingImageUUIDs:     request.ExistingImageUUIDs,
 		MeetPeople:             meetPeople,
 	}
 }
@@ -220,6 +322,20 @@ func parseMeetPeople(value string) ([]createMeetPersonRequest, error) {
 	}
 
 	return meetPeople, nil
+}
+
+func parseStringArray(value string) ([]string, error) {
+	trimmedValue := strings.TrimSpace(value)
+	if trimmedValue == "" {
+		return nil, nil
+	}
+
+	var values []string
+	if err := json.Unmarshal([]byte(trimmedValue), &values); err != nil {
+		return nil, err
+	}
+
+	return values, nil
 }
 
 func multipartImages(c *fiber.Ctx) ([]domain.ImageUpload, error) {

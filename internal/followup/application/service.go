@@ -21,11 +21,17 @@ var ErrFollowUpListUnavailable = errors.New("follow up list unavailable")
 
 var ErrFollowUpDetailUnavailable = errors.New("follow up detail unavailable")
 
+var ErrInvalidFollowUpUpdateInput = errors.New("invalid follow up update input")
+
+var ErrFollowUpUpdateUnavailable = errors.New("follow up update unavailable")
+
 type ValidationErrors map[string]string
 
 type Repository interface {
 	FindTaskCustomerByUUID(ctx context.Context, uuid string) (domain.TaskCustomer, error)
+	FindFollowUpUpdateTargetByUUID(ctx context.Context, uuid string) (domain.FollowUpUpdateTarget, error)
 	CreateFollowUp(ctx context.Context, input domain.PersistFollowUpInput) (domain.FollowUp, error)
+	UpdateFollowUp(ctx context.Context, input domain.PersistUpdateFollowUpInput) (domain.FollowUp, []domain.StoredImage, error)
 	ListFollowUps(ctx context.Context, query domain.ListQuery) (domain.ListResult, error)
 	GetFollowUp(ctx context.Context, uuid string) (domain.FollowUp, error)
 }
@@ -114,6 +120,58 @@ func (s *Service) GetFollowUp(ctx context.Context, followUpUUID string) (domain.
 	return followUp, nil
 }
 
+func (s *Service) UpdateFollowUp(ctx context.Context, input domain.UpdateFollowUpInput) (domain.FollowUp, ValidationErrors, error) {
+	normalizedInput := normalizeUpdateFollowUpInput(input)
+	validationErrors := validateUpdateFollowUpInput(normalizedInput, "")
+	if len(validationErrors) > 0 {
+		return domain.FollowUp{}, validationErrors, ErrInvalidFollowUpUpdateInput
+	}
+
+	if s == nil || s.repository == nil || s.storage == nil {
+		return domain.FollowUp{}, nil, ErrFollowUpUpdateUnavailable
+	}
+
+	target, err := s.repository.FindFollowUpUpdateTargetByUUID(ctx, normalizedInput.UUID)
+	if err != nil {
+		return domain.FollowUp{}, ValidationErrors{
+			"uuid": "Takip kaydı bulunamadı.",
+		}, ErrInvalidFollowUpUpdateInput
+	}
+
+	validationErrors = validateUpdateFollowUpInput(normalizedInput, target.VisitDate)
+	if len(validationErrors) > 0 {
+		return domain.FollowUp{}, validationErrors, ErrInvalidFollowUpUpdateInput
+	}
+
+	storedImages, err := s.storage.SaveFollowUpImages(ctx, target.UUID, normalizedInput.Images)
+	if err != nil {
+		return domain.FollowUp{}, nil, ErrFollowUpUpdateUnavailable
+	}
+
+	followUp, deletedImages, err := s.repository.UpdateFollowUp(ctx, domain.PersistUpdateFollowUpInput{
+		ID:                     target.ID,
+		UUID:                   target.UUID,
+		TasksCustomerID:        target.TasksCustomerID,
+		VisitType:              normalizedInput.VisitType,
+		VisitDate:              target.VisitDate,
+		NextVisitDate:          normalizedInput.NextVisitDate,
+		AgreementReached:       *normalizedInput.AgreementReached,
+		AgreementFailureReason: normalizedInput.AgreementFailureReason,
+		Note:                   normalizedInput.Note,
+		Images:                 storedImages,
+		ExistingImageUUIDs:     normalizedInput.ExistingImageUUIDs,
+		MeetPeople:             normalizedInput.MeetPeople,
+	})
+	if err != nil {
+		_ = s.storage.DeleteImages(ctx, storedImages)
+		return domain.FollowUp{}, nil, ErrFollowUpUpdateUnavailable
+	}
+
+	_ = s.storage.DeleteImages(ctx, deletedImages)
+
+	return followUp, nil, nil
+}
+
 func (s *Service) CreateFollowUp(ctx context.Context, input domain.CreateFollowUpInput) (domain.FollowUp, ValidationErrors, error) {
 	normalizedInput := normalizeCreateFollowUpInput(input)
 	validationErrors := validateCreateFollowUpInput(normalizedInput)
@@ -194,6 +252,81 @@ func normalizeListQuery(query domain.ListQuery) domain.ListQuery {
 		NextVisitDate:        strings.TrimSpace(query.NextVisitDate),
 		SortBy:               sortBy,
 		SortOrder:            sortOrder,
+	}
+}
+
+func normalizeUpdateFollowUpInput(input domain.UpdateFollowUpInput) domain.UpdateFollowUpInput {
+	normalizedCreateInput := normalizeCreateFollowUpInput(domain.CreateFollowUpInput{
+		VisitType:              input.VisitType,
+		NextVisitDate:          input.NextVisitDate,
+		AgreementReached:       input.AgreementReached,
+		AgreementFailureReason: input.AgreementFailureReason,
+		Note:                   input.Note,
+		Images:                 input.Images,
+		MeetPeople:             input.MeetPeople,
+	})
+
+	existingImageUUIDs := make([]string, 0, len(input.ExistingImageUUIDs))
+	seenImageUUIDs := map[string]struct{}{}
+	for _, imageUUID := range input.ExistingImageUUIDs {
+		normalizedUUID := strings.TrimSpace(imageUUID)
+		if normalizedUUID == "" {
+			continue
+		}
+		if _, ok := seenImageUUIDs[normalizedUUID]; ok {
+			continue
+		}
+		seenImageUUIDs[normalizedUUID] = struct{}{}
+		existingImageUUIDs = append(existingImageUUIDs, normalizedUUID)
+	}
+
+	return domain.UpdateFollowUpInput{
+		UUID:                   strings.TrimSpace(input.UUID),
+		VisitType:              normalizedCreateInput.VisitType,
+		NextVisitDate:          normalizedCreateInput.NextVisitDate,
+		AgreementReached:       normalizedCreateInput.AgreementReached,
+		AgreementFailureReason: normalizedCreateInput.AgreementFailureReason,
+		Note:                   normalizedCreateInput.Note,
+		Images:                 normalizedCreateInput.Images,
+		ExistingImageUUIDs:     existingImageUUIDs,
+		MeetPeople:             normalizedCreateInput.MeetPeople,
+	}
+}
+
+func validateUpdateFollowUpInput(input domain.UpdateFollowUpInput, visitDate string) ValidationErrors {
+	errors := ValidationErrors{}
+
+	requireField(errors, "uuid", input.UUID, "Takip kaydı zorunludur.")
+	requireField(errors, "visit_type", input.VisitType, "Ziyaret tipi zorunludur.")
+	validateVisitType(errors, input.VisitType)
+	validateNote(errors, input.Note)
+	validateAgreement(errors, domain.CreateFollowUpInput{
+		AgreementReached:       input.AgreementReached,
+		AgreementFailureReason: input.AgreementFailureReason,
+	})
+	validateUpdateDates(errors, visitDate, input.NextVisitDate)
+	validateImages(errors, input.Images)
+	validateMeetPeople(errors, input.MeetPeople)
+	if len(input.ExistingImageUUIDs)+len(input.Images) > imageMaxCount {
+		errors["images"] = "En fazla " + strconv.Itoa(imageMaxCount) + " dosya yüklenebilir."
+	}
+
+	return errors
+}
+
+func validateUpdateDates(errors ValidationErrors, visitDateValue string, nextVisitDateValue string) {
+	visitDate, visitDateErr := parseDateTime(visitDateValue)
+	if strings.TrimSpace(visitDateValue) != "" && visitDateErr != nil {
+		errors["visit_date"] = "Ziyaret tarihi geçersiz."
+	}
+
+	nextVisitDate, nextVisitDateErr := parseDateTime(nextVisitDateValue)
+	if strings.TrimSpace(nextVisitDateValue) != "" && nextVisitDateErr != nil {
+		errors["next_visit_date"] = "Sonraki ziyaret tarihi geçersiz."
+	}
+
+	if visitDateErr == nil && nextVisitDateErr == nil && visitDate != nil && nextVisitDate != nil && nextVisitDate.Before(*visitDate) {
+		errors["next_visit_date"] = "Sonraki ziyaret tarihi ziyaret tarihinden önce olamaz."
 	}
 }
 

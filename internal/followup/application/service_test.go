@@ -33,6 +33,26 @@ func (f *fakeRepository) CreateFollowUp(_ context.Context, input domain.PersistF
 	return domain.FollowUp{UUID: input.UUID, TasksCustomerUUID: input.TasksCustomerUUID}, nil
 }
 
+func (f *fakeRepository) FindFollowUpUpdateTargetByUUID(_ context.Context, uuid string) (domain.FollowUpUpdateTarget, error) {
+	return domain.FollowUpUpdateTarget{
+		ID:              1,
+		UUID:            uuid,
+		TasksCustomerID: 10,
+		VisitDate:       time.Now().Format("2006-01-02"),
+	}, nil
+}
+
+func (f *fakeRepository) UpdateFollowUp(_ context.Context, input domain.PersistUpdateFollowUpInput) (domain.FollowUp, []domain.StoredImage, error) {
+	return domain.FollowUp{
+		UUID:                   input.UUID,
+		VisitDate:              input.VisitDate,
+		NextVisitDate:          input.NextVisitDate,
+		AgreementReached:       input.AgreementReached,
+		AgreementFailureReason: input.AgreementFailureReason,
+		Note:                   input.Note,
+	}, nil, nil
+}
+
 func (f *fakeRepository) ListFollowUps(_ context.Context, _ domain.ListQuery) (domain.ListResult, error) {
 	return domain.ListResult{}, nil
 }
