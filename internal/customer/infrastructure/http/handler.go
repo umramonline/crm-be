@@ -11,6 +11,8 @@ import (
 	"github.com/umran/new.crm/backend/internal/shared/response"
 )
 
+const adminRoleID uint64 = 30
+
 type Handler struct {
 	service *application.Service
 }
@@ -321,7 +323,12 @@ func (h *Handler) SearchCustomer(c *fiber.Ctx) error {
 }
 
 func (h *Handler) ListZones(c *fiber.Ctx) error {
-	zones, err := h.service.ListZones(c.UserContext())
+	claims := c.Locals("claims").(authapp.SessionTokenClaims)
+	zones, err := h.service.ListZones(
+		c.UserContext(),
+		claims.BranchIds,
+		claims.RoleID == adminRoleID,
+	)
 	if err != nil {
 		return response.Error(c, fiber.StatusServiceUnavailable, "Bölge listesi şu anda getirilemedi.", nil)
 	}
@@ -348,7 +355,12 @@ func (h *Handler) ListTowns(c *fiber.Ctx) error {
 }
 
 func (h *Handler) ListBranches(c *fiber.Ctx) error {
-	branches, err := h.service.ListBranches(c.UserContext())
+	claims := c.Locals("claims").(authapp.SessionTokenClaims)
+	branches, err := h.service.ListBranches(
+		c.UserContext(),
+		claims.BranchIds,
+		claims.RoleID == adminRoleID,
+	)
 	if err != nil {
 		return response.Error(c, fiber.StatusServiceUnavailable, "Bayi listesi şu anda getirilemedi.", nil)
 	}

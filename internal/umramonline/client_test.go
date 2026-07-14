@@ -169,13 +169,61 @@ func TestClientListZonesReturnsItemsForSuccessfulResponse(t *testing.T) {
 		ZonesPath: "/api/v1/crm/zones",
 	})
 
-	zones, err := client.ListZones(context.Background())
+	zones, err := client.ListZones(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
 
 	if len(zones) != 1 || zones[0].Name != "Marmara" {
 		t.Fatalf("unexpected zones: %#v", zones)
+	}
+}
+
+func TestClientListZonesForwardsBranchIDs(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		branchIDs := r.URL.Query()["branch_ids[]"]
+		if len(branchIDs) != 2 || branchIDs[0] != "2" || branchIDs[1] != "7" {
+			t.Fatalf("unexpected branch ids: %#v", branchIDs)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true,"items":[]}`))
+	}))
+	t.Cleanup(server.Close)
+
+	client := NewClient(Config{
+		BaseURL:   server.URL,
+		APIKey:    "test-key",
+		APIToken:  "test-token",
+		ZonesPath: "/api/v1/crm/zones",
+	})
+
+	if _, err := client.ListZones(context.Background(), []uint64{2, 7}); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+}
+
+func TestClientListBranchesForwardsBranchIDs(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		branchIDs := r.URL.Query()["branch_ids[]"]
+		if len(branchIDs) != 2 || branchIDs[0] != "2" || branchIDs[1] != "7" {
+			t.Fatalf("unexpected branch ids: %#v", branchIDs)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true,"items":[]}`))
+	}))
+	t.Cleanup(server.Close)
+
+	client := NewClient(Config{
+		BaseURL:      server.URL,
+		APIKey:       "test-key",
+		APIToken:     "test-token",
+		BranchesPath: "/api/v1/crm/branches",
+	})
+
+	if _, err := client.ListBranches(context.Background(), []uint64{2, 7}); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
 	}
 }
 

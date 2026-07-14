@@ -47,13 +47,13 @@ var corporateSectorOptions = map[string]struct{}{
 
 type CustomerProvider interface {
 	ListCustomers(ctx context.Context, query domain.ListQuery) (domain.ListResult, error)
-	ListZones(ctx context.Context) ([]domain.Zone, error)
+	ListZones(ctx context.Context, branchIDs []uint64) ([]domain.Zone, error)
 	SearchCustomer(ctx context.Context, query string) (domain.CustomerDetail, bool, error)
 	GetCustomer(ctx context.Context, id uint64) (domain.CustomerDetail, error)
 	PhoneExists(ctx context.Context, phone string) (bool, error)
 	ListCities(ctx context.Context) ([]domain.City, error)
 	ListTowns(ctx context.Context, cityID uint64) ([]domain.Town, error)
-	ListBranches(ctx context.Context) ([]domain.Branch, error)
+	ListBranches(ctx context.Context, branchIDs []uint64) ([]domain.Branch, error)
 	ListBranchUsers(ctx context.Context, branchID uint64) ([]domain.BranchUser, error)
 }
 
@@ -91,12 +91,16 @@ func (s *Service) ListCustomers(ctx context.Context, query domain.ListQuery) (do
 	return s.provider.ListCustomers(ctx, query)
 }
 
-func (s *Service) ListZones(ctx context.Context) ([]domain.Zone, error) {
+func (s *Service) ListZones(ctx context.Context, branchIDs []uint64, includeAll bool) ([]domain.Zone, error) {
 	if s == nil || s.provider == nil {
 		return nil, ErrZoneListUnavailable
 	}
 
-	return s.provider.ListZones(ctx)
+	if !includeAll && len(branchIDs) == 0 {
+		return []domain.Zone{}, nil
+	}
+
+	return s.provider.ListZones(ctx, branchIDs)
 }
 
 func (s *Service) GetCustomer(ctx context.Context, id uint64, dataSource string) (domain.CustomerDetail, error) {
@@ -293,12 +297,16 @@ func (s *Service) ListTowns(ctx context.Context, cityID uint64) ([]domain.Town, 
 	return s.provider.ListTowns(ctx, cityID)
 }
 
-func (s *Service) ListBranches(ctx context.Context) ([]domain.Branch, error) {
+func (s *Service) ListBranches(ctx context.Context, branchIDs []uint64, includeAll bool) ([]domain.Branch, error) {
 	if s == nil || s.provider == nil {
 		return nil, ErrReferenceDataUnavailable
 	}
 
-	return s.provider.ListBranches(ctx)
+	if !includeAll && len(branchIDs) == 0 {
+		return []domain.Branch{}, nil
+	}
+
+	return s.provider.ListBranches(ctx, branchIDs)
 }
 
 func (s *Service) ListBranchUsers(ctx context.Context, branchID uint64) ([]domain.BranchUser, error) {
@@ -322,7 +330,7 @@ func (s *Service) listBackendCustomers(ctx context.Context, query domain.ListQue
 		return emptyListResult(query), nil
 	}
 
-	branches, err := s.provider.ListBranches(ctx)
+	branches, err := s.provider.ListBranches(ctx, nil)
 	if err != nil {
 		return domain.ListResult{}, ErrCustomerListUnavailable
 	}

@@ -77,8 +77,8 @@ func (p *Provider) ListCustomers(ctx context.Context, query domain.ListQuery) (d
 	}, nil
 }
 
-func (p *Provider) ListZones(ctx context.Context) ([]domain.Zone, error) {
-	zones, err := p.client.ListZones(ctx)
+func (p *Provider) ListZones(ctx context.Context, branchIDs []uint64) ([]domain.Zone, error) {
+	zones, err := p.client.ListZones(ctx, branchIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -192,8 +192,8 @@ func (p *Provider) ListTowns(ctx context.Context, cityID uint64) ([]domain.Town,
 	return result, nil
 }
 
-func (p *Provider) ListBranches(ctx context.Context) ([]domain.Branch, error) {
-	branches, err := p.client.ListBranches(ctx)
+func (p *Provider) ListBranches(ctx context.Context, branchIDs []uint64) ([]domain.Branch, error) {
+	branches, err := p.client.ListBranches(ctx, branchIDs)
 	if err != nil {
 		return nil, err
 	}

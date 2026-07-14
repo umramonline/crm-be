@@ -460,34 +460,21 @@ func (c *Client) ListRoles(ctx context.Context) ([]Role, error) {
 	return apiResponse.Items, nil
 }
 
-func (c *Client) ListZones(ctx context.Context) ([]Zone, error) {
+func (c *Client) ListZones(ctx context.Context, branchIDs []uint64) ([]Zone, error) {
 	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.zonesPath == "/" {
 		return nil, ErrRequestFailed
 	}
 
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+c.zonesPath, nil)
-	if err != nil {
-		return nil, ErrRequestFailed
+	values := url.Values{}
+	for _, branchID := range branchIDs {
+		if branchID > 0 {
+			values.Add("branch_ids[]", strconv.FormatUint(branchID, 10))
+		}
 	}
-
-	request.Header.Set("Accept", "application/json")
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("X-API-KEY", c.apiKey)
-	request.Header.Set("Authorization", "Bearer "+c.apiToken)
-
-	response, err := c.httpClient.Do(request)
-	if err != nil {
-		return nil, ErrRequestFailed
-	}
-	defer response.Body.Close()
 
 	var apiResponse listResponse[Zone]
-	if err := json.NewDecoder(response.Body).Decode(&apiResponse); err != nil {
-		return nil, ErrRequestFailed
-	}
-
-	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices || !apiResponse.Success {
-		return nil, fmt.Errorf("%w: status=%d", ErrRequestFailed, response.StatusCode)
+	if err := c.getJSON(ctx, c.zonesPath, values, &apiResponse); err != nil {
+		return nil, err
 	}
 
 	return apiResponse.Items, nil
@@ -560,13 +547,20 @@ func (c *Client) ListTowns(ctx context.Context, cityID uint64) ([]Town, error) {
 	return apiResponse.Items, nil
 }
 
-func (c *Client) ListBranches(ctx context.Context) ([]Branch, error) {
+func (c *Client) ListBranches(ctx context.Context, branchIDs []uint64) ([]Branch, error) {
 	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.branchesPath == "/" {
 		return nil, ErrRequestFailed
 	}
 
+	values := url.Values{}
+	for _, branchID := range branchIDs {
+		if branchID > 0 {
+			values.Add("branch_ids[]", strconv.FormatUint(branchID, 10))
+		}
+	}
+
 	var apiResponse listResponse[Branch]
-	if err := c.getJSON(ctx, c.branchesPath, nil, &apiResponse); err != nil {
+	if err := c.getJSON(ctx, c.branchesPath, values, &apiResponse); err != nil {
 		return nil, err
 	}
 
