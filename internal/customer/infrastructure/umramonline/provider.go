@@ -35,6 +35,7 @@ func (p *Provider) ListCustomers(ctx context.Context, query domain.ListQuery) (d
 		SortBy:     query.SortBy,
 		SortOrder:  query.SortOrder,
 		ZoneID:     query.ZoneID,
+		BranchIDs:  query.BranchIDs,
 	})
 	if err != nil {
 		return domain.ListResult{}, err

@@ -5,6 +5,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
+	authapp "github.com/umran/new.crm/backend/internal/auth/application"
 	"github.com/umran/new.crm/backend/internal/customer/application"
 	"github.com/umran/new.crm/backend/internal/customer/domain"
 	"github.com/umran/new.crm/backend/internal/shared/response"
@@ -25,8 +26,10 @@ func (h *Handler) RegisterRoutes(router fiber.Router, authRequired fiber.Handler
 	router.Get("/customers/full-registration/:id/phone-exists", authRequired, h.FullRegistrationPhoneExists)
 	router.Get("/customers/full-registration/:id", authRequired, h.GetFullRegistrationCustomer)
 	router.Put("/customers/full-registration/:id", authRequired, h.CompleteFullRegistration)
+	router.Get("/customers/backend/my-branches", authRequired, h.ListBackendCustomersMyBranches)
 	router.Get("/customers/backend", authRequired, h.ListBackendCustomers)
 	router.Get("/customers/backend/:id", authRequired, h.GetBackendCustomer)
+	router.Get("/customers/umramonline/my-branches", authRequired, h.ListUmramonlineCustomersMyBranches)
 	router.Get("/customers/umramonline", authRequired, h.ListUmramonlineCustomers)
 	router.Get("/customers/umramonline/:id", authRequired, h.GetUmramonlineCustomer)
 	router.Get("/customers/:id", authRequired, h.GetCustomer)
@@ -81,18 +84,46 @@ type fullRegistrationRequest struct {
 }
 
 func (h *Handler) ListCustomers(c *fiber.Ctx) error {
-	return h.listCustomers(c, c.Query("data_source"))
+	return h.listCustomers(c, c.Query("data_source"), nil)
 }
 
 func (h *Handler) ListBackendCustomers(c *fiber.Ctx) error {
-	return h.listCustomers(c, "backend")
+	return h.listCustomers(c, "backend", nil)
 }
 
 func (h *Handler) ListUmramonlineCustomers(c *fiber.Ctx) error {
-	return h.listCustomers(c, "umramonline")
+	return h.listCustomers(c, "umramonline", nil)
 }
 
-func (h *Handler) listCustomers(c *fiber.Ctx, dataSource string) error {
+func (h *Handler) ListBackendCustomersMyBranches(c *fiber.Ctx) error {
+	return h.listCustomersScopedToClaimsBranches(c, "backend")
+}
+
+func (h *Handler) ListUmramonlineCustomersMyBranches(c *fiber.Ctx) error {
+	return h.listCustomersScopedToClaimsBranches(c, "umramonline")
+}
+
+func (h *Handler) listCustomersScopedToClaimsBranches(c *fiber.Ctx, dataSource string) error {
+	claims := c.Locals("claims").(authapp.SessionTokenClaims)
+	branchIDs := uint64SliceToInt32(claims.BranchIds)
+	if len(branchIDs) == 0 {
+		page := queryInt(c, "page", 1)
+		perPage := queryInt(c, "per_page", 10)
+		return response.Success(c, fiber.StatusOK, "Müşteriler getirildi.", domain.ListResult{
+			Items: []domain.Customer{},
+			Pagination: domain.Pagination{
+				CurrentPage: page,
+				LastPage:    1,
+				PerPage:     perPage,
+				Total:       0,
+			},
+		})
+	}
+
+	return h.listCustomers(c, dataSource, branchIDs)
+}
+
+func (h *Handler) listCustomers(c *fiber.Ctx, dataSource string, branchIDs []int32) error {
 	query := domain.ListQuery{
 		Page:       queryInt(c, "page", 1),
 		PerPage:    queryInt(c, "per_page", 10),
@@ -112,6 +143,7 @@ func (h *Handler) listCustomers(c *fiber.Ctx, dataSource string) error {
 		SortBy:     c.Query("sort_by"),
 		SortOrder:  c.Query("sort_order"),
 		ZoneID:     queryInt(c, "zone_id", 0),
+		BranchIDs:  branchIDs,
 	}
 
 	result, err := h.service.ListCustomers(c.UserContext(), query)
@@ -120,6 +152,22 @@ func (h *Handler) listCustomers(c *fiber.Ctx, dataSource string) error {
 	}
 
 	return response.Success(c, fiber.StatusOK, "Müşteriler getirildi.", result)
+}
+
+func uint64SliceToInt32(values []uint64) []int32 {
+	if len(values) == 0 {
+		return nil
+	}
+
+	result := make([]int32, 0, len(values))
+	for _, value := range values {
+		if value == 0 || value > uint64(^uint32(0)>>1) {
+			continue
+		}
+		result = append(result, int32(value))
+	}
+
+	return result
 }
 
 func (h *Handler) GetCustomer(c *fiber.Ctx) error {

@@ -20,10 +20,22 @@ var customerMethodSeeds = []authorizationMethodSeed{
 		Path:        stringPointer("/api/v1/customers/umramonline"),
 	},
 	{
+		Name:        "customers.list.umramonline.my_branches",
+		Description: "Kullanıcının erişebildiği şubelere ait umramonline müşteri listesini görüntüler.",
+		Method:      stringPointer("GET"),
+		Path:        stringPointer("/api/v1/customers/umramonline/my-branches"),
+	},
+	{
 		Name:        "customers.list.backend",
 		Description: "Backend veritabanındaki müşteri listesini görüntüler.",
 		Method:      stringPointer("GET"),
 		Path:        stringPointer("/api/v1/customers/backend"),
+	},
+	{
+		Name:        "customers.list.backend.my_branches",
+		Description: "Kullanıcının erişebildiği şubelere ait backend müşteri listesini görüntüler.",
+		Method:      stringPointer("GET"),
+		Path:        stringPointer("/api/v1/customers/backend/my-branches"),
 	},
 	{
 		Name:        "customers.search",

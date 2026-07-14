@@ -338,9 +338,13 @@ func (s *Service) listBackendCustomers(ctx context.Context, query domain.ListQue
 	}
 
 	localQuery := query
-	localQuery.BranchIDs = matchingBranchIDs(branches, query.BranchName)
+	localQuery.BranchIDs = resolveBranchIDs(query.BranchIDs, matchingBranchIDs(branches, query.BranchName), query.BranchName)
 	localQuery.CityIDs = matchingCityIDs(cities, query.City)
 	localQuery.TownIDs = matchingTownIDs(towns, query.Town)
+
+	if len(query.BranchIDs) > 0 && len(localQuery.BranchIDs) == 0 {
+		return emptyListResult(query), nil
+	}
 
 	if strings.TrimSpace(query.BranchName) != "" && len(localQuery.BranchIDs) == 0 {
 		return emptyListResult(query), nil
@@ -418,6 +422,38 @@ func matchingBranchIDs(branches []domain.Branch, query string) []int32 {
 	}
 
 	return ids
+}
+
+func resolveBranchIDs(allowedBranchIDs []int32, nameMatchedBranchIDs []int32, branchName string) []int32 {
+	if len(allowedBranchIDs) == 0 {
+		return nameMatchedBranchIDs
+	}
+
+	if strings.TrimSpace(branchName) == "" {
+		return append([]int32(nil), allowedBranchIDs...)
+	}
+
+	return intersectInt32(allowedBranchIDs, nameMatchedBranchIDs)
+}
+
+func intersectInt32(left []int32, right []int32) []int32 {
+	if len(left) == 0 || len(right) == 0 {
+		return nil
+	}
+
+	rightSet := make(map[int32]struct{}, len(right))
+	for _, value := range right {
+		rightSet[value] = struct{}{}
+	}
+
+	result := make([]int32, 0, len(left))
+	for _, value := range left {
+		if _, ok := rightSet[value]; ok {
+			result = append(result, value)
+		}
+	}
+
+	return result
 }
 
 func matchingCityIDs(cities []domain.City, query string) []string {

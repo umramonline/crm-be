@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -134,6 +135,7 @@ func TestClientListCustomersForwardsQueryParameters(t *testing.T) {
 		SortBy:     "credit",
 		SortOrder:  "asc",
 		BranchName: "Merkez",
+		BranchIDs:  []int32{1, 2},
 	})
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
@@ -141,6 +143,10 @@ func TestClientListCustomersForwardsQueryParameters(t *testing.T) {
 
 	if capturedQuery == "" {
 		t.Fatal("expected query parameters to be forwarded")
+	}
+
+	if !strings.Contains(capturedQuery, "branch_ids") {
+		t.Fatalf("expected branch_ids in query, got %q", capturedQuery)
 	}
 }
 

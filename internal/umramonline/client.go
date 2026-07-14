@@ -148,6 +148,7 @@ type CustomerListQuery struct {
 	SortBy     string
 	SortOrder  string
 	ZoneID     int
+	BranchIDs  []int32
 }
 
 type CustomerListItem struct {
@@ -747,6 +748,11 @@ func customerListQueryValues(query CustomerListQuery) url.Values {
 	setQueryString(values, "sort_by", query.SortBy)
 	setQueryString(values, "sort_order", query.SortOrder)
 	setQueryInt(values, "zone_id", query.ZoneID)
+	for _, branchID := range query.BranchIDs {
+		if branchID > 0 {
+			values.Add("branch_ids[]", strconv.FormatInt(int64(branchID), 10))
+		}
+	}
 
 	return values
 }
