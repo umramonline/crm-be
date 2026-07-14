@@ -26,11 +26,18 @@ type Permission struct {
 }
 
 type User struct {
-	ID       uint64 `json:"id"`
-	FullName string `json:"full_name,omitempty"`
-	Phone    string `json:"phone,omitempty"`
-	RoleID   uint64 `json:"role_id"`
-	RoleName string `json:"role_name,omitempty"`
+	ID        uint64   `json:"id"`
+	FullName  string   `json:"full_name,omitempty"`
+	Phone     string   `json:"phone,omitempty"`
+	RoleID    uint64   `json:"role_id"`
+	RoleName  string   `json:"role_name,omitempty"`
+	BranchIds []uint64 `json:"branch_ids,omitempty"`
+	Branches  []Branch `json:"branches,omitempty"`
+}
+
+type Branch struct {
+	ID     uint64 `json:"id"`
+	KisaAd string `json:"kisa_ad"`
 }
 
 type SessionData struct {
@@ -234,14 +241,44 @@ func userFromLoginData(data map[string]any) (User, error) {
 	}
 
 	roleID, _ := uintFromAny(rawUser["role_id"])
+	branches, branchIds, err := parseBranches(rawUser["branches"])
+	if err != nil {
+		return User{}, err
+	}
 
 	return User{
-		ID:       id,
-		FullName: stringFromAny(rawUser["name"]),
-		Phone:    stringFromAny(rawUser["phone"]),
-		RoleID:   roleID,
-		RoleName: stringFromAny(rawUser["role_name"]),
+		ID:        id,
+		FullName:  stringFromAny(rawUser["name"]),
+		Phone:     stringFromAny(rawUser["phone"]),
+		RoleID:    roleID,
+		RoleName:  stringFromAny(rawUser["role_name"]),
+		BranchIds: branchIds,
+		Branches:  branches,
 	}, nil
+}
+
+func parseBranches(raw interface{}) ([]Branch, []uint64, error) {
+	branchesData, ok := raw.([]interface{})
+	if !ok {
+		return nil, nil, ErrInvalidUser
+	}
+
+	branches := make([]Branch, 0, len(branchesData))
+	branchIds := make([]uint64, 0, len(branchesData))
+	for _, item := range branchesData {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			return nil, nil, ErrInvalidUser
+		}
+
+		branches = append(branches, Branch{
+			ID:     uint64(m["id"].(float64)),
+			KisaAd: m["kisa_ad"].(string),
+		})
+		branchIds = append(branchIds, uint64(m["id"].(float64)))
+	}
+
+	return branches, branchIds, nil
 }
 
 func normalizeModuleMethodInput(input ModuleMethodInput) ModuleMethodInput {

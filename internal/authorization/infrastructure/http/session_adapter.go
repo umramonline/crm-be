@@ -26,11 +26,12 @@ func (a *SessionAdapter) SessionFromLoginData(ctx context.Context, data map[stri
 
 func (a *SessionAdapter) SessionForUser(ctx context.Context, user authhttp.SessionUser) (authhttp.SessionData, error) {
 	session, err := a.service.SessionForUser(ctx, application.User{
-		ID:       user.ID,
-		FullName: user.FullName,
-		Phone:    user.Phone,
-		RoleID:   user.RoleID,
-		RoleName: user.RoleName,
+		ID:        user.ID,
+		FullName:  user.FullName,
+		Phone:     user.Phone,
+		BranchIds: user.BranchIds,
+		RoleID:    user.RoleID,
+		RoleName:  user.RoleName,
 	})
 	if err != nil {
 		return authhttp.SessionData{}, err
@@ -56,11 +57,12 @@ func toAuthSessionData(session application.SessionData) authhttp.SessionData {
 	return authhttp.SessionData{
 		UserID: session.User.ID,
 		User: authhttp.SessionUser{
-			ID:       session.User.ID,
-			FullName: session.User.FullName,
-			Phone:    session.User.Phone,
-			RoleID:   session.User.RoleID,
-			RoleName: session.User.RoleName,
+			ID:        session.User.ID,
+			FullName:  session.User.FullName,
+			Phone:     session.User.Phone,
+			RoleID:    session.User.RoleID,
+			RoleName:  session.User.RoleName,
+			BranchIds: session.User.BranchIds,
 		},
 		Permissions: permissions,
 	}

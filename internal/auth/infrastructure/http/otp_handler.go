@@ -20,7 +20,7 @@ type OTPRequestService interface {
 }
 
 type SessionTokenService interface {
-	Issue(userId uint64, tokenType string, ttl time.Duration, roleID uint64, roleName string, name string) (string, error)
+	Issue(userId uint64, tokenType string, ttl time.Duration, roleID uint64, roleName string, name string, branchIds []uint64) (string, error)
 	Validate(token string, expectedType string) (application.SessionTokenClaims, error)
 }
 
@@ -35,11 +35,12 @@ type Permission struct {
 }
 
 type SessionUser struct {
-	ID       uint64 `json:"id"`
-	FullName string `json:"full_name,omitempty"`
-	Phone    string `json:"phone,omitempty"`
-	RoleID   uint64 `json:"role_id"`
-	RoleName string `json:"role_name,omitempty"`
+	ID        uint64   `json:"id"`
+	FullName  string   `json:"full_name,omitempty"`
+	Phone     string   `json:"phone,omitempty"`
+	RoleID    uint64   `json:"role_id"`
+	RoleName  string   `json:"role_name,omitempty"`
+	BranchIds []uint64 `json:"branch_ids,omitempty"`
 }
 
 type SessionData struct {
@@ -215,7 +216,7 @@ func (h *OTPHandler) RefreshSession(c *fiber.Ctx) error {
 		return response.Error(c, fiber.StatusUnauthorized, "Oturum geçersiz.", nil)
 	}
 
-	accessToken, err := h.tokenService.Issue(claims.UserId, application.TokenTypeAccess, h.sessionConfig.AccessTTL, claims.RoleID, claims.RoleName, claims.UserFullName)
+	accessToken, err := h.tokenService.Issue(claims.UserId, application.TokenTypeAccess, h.sessionConfig.AccessTTL, claims.RoleID, claims.RoleName, claims.UserFullName, claims.BranchIds)
 	if err != nil {
 		return response.Error(c, fiber.StatusInternalServerError, "Oturum yenilenemedi.", nil)
 	}
@@ -258,12 +259,12 @@ func (h *OTPHandler) Session(c *fiber.Ctx) error {
 
 func (h *OTPHandler) setSessionCookies(c *fiber.Ctx, user SessionUser) error {
 	userID := user.ID
-	accessToken, err := h.tokenService.Issue(userID, application.TokenTypeAccess, h.sessionConfig.AccessTTL, user.RoleID, user.RoleName, user.FullName)
+	accessToken, err := h.tokenService.Issue(userID, application.TokenTypeAccess, h.sessionConfig.AccessTTL, user.RoleID, user.RoleName, user.FullName, user.BranchIds)
 	if err != nil {
 		return err
 	}
 
-	refreshToken, err := h.tokenService.Issue(userID, application.TokenTypeRefresh, h.sessionConfig.RefreshTTL, user.RoleID, user.RoleName, user.FullName)
+	refreshToken, err := h.tokenService.Issue(userID, application.TokenTypeRefresh, h.sessionConfig.RefreshTTL, user.RoleID, user.RoleName, user.FullName, user.BranchIds)
 	if err != nil {
 		return err
 	}
@@ -330,10 +331,11 @@ func (h *OTPHandler) sessionDataFromLoginData(ctx context.Context, data map[stri
 
 func (h *OTPHandler) sessionDataFromClaims(ctx context.Context, claims application.SessionTokenClaims) (SessionData, error) {
 	user := SessionUser{
-		ID:       claims.UserId,
-		FullName: claims.UserFullName,
-		RoleID:   claims.RoleID,
-		RoleName: claims.RoleName,
+		ID:        claims.UserId,
+		FullName:  claims.UserFullName,
+		BranchIds: claims.BranchIds,
+		RoleID:    claims.RoleID,
+		RoleName:  claims.RoleName,
 	}
 
 	if h.authorization == nil {

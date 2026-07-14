@@ -21,12 +21,13 @@ var (
 )
 
 type SessionTokenClaims struct {
-	UserId       uint64 `json:"user_id"`
-	UserFullName string `json:"user_full_name,omitempty"`
-	TokenType    string `json:"typ"`
-	ExpiresAt    int64  `json:"exp"`
-	RoleID       uint64 `json:"role_id,omitempty"`
-	RoleName     string `json:"role_name,omitempty"`
+	UserId       uint64   `json:"user_id"`
+	BranchIds    []uint64 `json:"branch_ids,omitempty"`
+	UserFullName string   `json:"user_full_name,omitempty"`
+	TokenType    string   `json:"typ"`
+	ExpiresAt    int64    `json:"exp"`
+	RoleID       uint64   `json:"role_id,omitempty"`
+	RoleName     string   `json:"role_name,omitempty"`
 }
 
 type SessionTokenService struct {
@@ -41,7 +42,7 @@ func NewSessionTokenService(secret string) *SessionTokenService {
 	}
 }
 
-func (s *SessionTokenService) Issue(userId uint64, tokenType string, ttl time.Duration, roleID uint64, roleName string, fullName string) (string, error) {
+func (s *SessionTokenService) Issue(userId uint64, tokenType string, ttl time.Duration, roleID uint64, roleName string, fullName string, branchIds []uint64) (string, error) {
 	if userId == 0 || strings.TrimSpace(tokenType) == "" || strings.TrimSpace(fullName) == "" || len(s.secret) == 0 || ttl <= 0 {
 		return "", ErrTokenInvalid
 	}
@@ -52,6 +53,7 @@ func (s *SessionTokenService) Issue(userId uint64, tokenType string, ttl time.Du
 	}
 	claims := SessionTokenClaims{
 		UserId:       userId,
+		BranchIds:    branchIds,
 		UserFullName: fullName,
 		TokenType:    tokenType,
 		ExpiresAt:    s.now().Add(ttl).Unix(),
