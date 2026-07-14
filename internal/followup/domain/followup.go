@@ -1,5 +1,7 @@
 package domain
 
+import branchapp "github.com/umran/new.crm/backend/internal/authorization/application"
+
 type CreateFollowUpInput struct {
 	AuthenticatedUserID       uint64
 	AuthenticatedUserFullName string
@@ -170,6 +172,7 @@ type ListQuery struct {
 	AssignedUserID       uint64
 	AssignedUserFullName string
 	BranchName           string
+	Branches             []branchapp.Branch
 	VisitDate            string
 	NextVisitDate        string
 	SortBy               string

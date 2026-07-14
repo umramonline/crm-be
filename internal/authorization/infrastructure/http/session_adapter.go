@@ -63,6 +63,7 @@ func toAuthSessionData(session application.SessionData) authhttp.SessionData {
 			RoleID:    session.User.RoleID,
 			RoleName:  session.User.RoleName,
 			BranchIds: session.User.BranchIds,
+			Branches:  session.User.Branches,
 		},
 		Permissions: permissions,
 	}

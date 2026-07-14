@@ -313,6 +313,7 @@ func normalizeListQuery(query domain.ListQuery) domain.ListQuery {
 		AssignedUserID:       query.AssignedUserID,
 		AssignedUserFullName: strings.TrimSpace(query.AssignedUserFullName),
 		BranchName:           strings.TrimSpace(query.BranchName),
+		Branches:             query.Branches,
 		VisitDate:            strings.TrimSpace(query.VisitDate),
 		NextVisitDate:        strings.TrimSpace(query.NextVisitDate),
 		SortBy:               sortBy,

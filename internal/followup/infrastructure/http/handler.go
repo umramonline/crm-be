@@ -63,6 +63,7 @@ func (h *Handler) RegisterRoutes(router fiber.Router, authRequired fiber.Handler
 }
 
 func (h *Handler) ListFollowUps(c *fiber.Ctx) error {
+	claims := c.Locals("claims").(authapp.SessionTokenClaims)
 	result, err := h.service.ListFollowUps(c.UserContext(), domain.ListQuery{
 		Page:                 queryInt(c, "page", 1),
 		PerPage:              queryInt(c, "per_page", 10),
@@ -70,6 +71,7 @@ func (h *Handler) ListFollowUps(c *fiber.Ctx) error {
 		Customer:             c.Query("customer"),
 		AssignedUserFullName: c.Query("assigned_user_full_name"),
 		BranchName:           c.Query("branch_name"),
+		Branches:             claims.Branches,
 		VisitDate:            c.Query("visit_date"),
 		NextVisitDate:        c.Query("next_visit_date"),
 		SortBy:               c.Query("sort_by"),
@@ -92,6 +94,7 @@ func (h *Handler) ListAssignedFollowUps(c *fiber.Ctx) error {
 		AssignedUserID:       claims.UserId,
 		AssignedUserFullName: c.Query("assigned_user_full_name"),
 		BranchName:           c.Query("branch_name"),
+		Branches:             claims.Branches,
 		VisitDate:            c.Query("visit_date"),
 		NextVisitDate:        c.Query("next_visit_date"),
 		SortBy:               c.Query("sort_by"),

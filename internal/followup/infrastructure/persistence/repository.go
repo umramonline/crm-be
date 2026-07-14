@@ -75,6 +75,7 @@ func (r *Repository) ListFollowUps(ctx context.Context, query domain.ListQuery) 
 			customers.unvan AS customer_unvan,
 			tasks_follow_ups.assigned_user_full_name,
 			COALESCE(tasks.branch_name, '') AS branch_name,
+			customers.branch_id AS branch_id,
 			tasks_follow_ups.visit_date,
 			tasks_follow_ups.next_visit_date,
 			tasks_follow_ups.agreement_reached
@@ -88,6 +89,14 @@ func (r *Repository) ListFollowUps(ctx context.Context, query domain.ListQuery) 
 
 	items := make([]domain.FollowUpListItem, 0, len(rows))
 	for _, row := range rows {
+		if row.BranchName == "" {
+			for _, branch := range query.Branches {
+				if branch.ID == row.BranchId {
+					row.BranchName = branch.KisaAd
+					break
+				}
+			}
+		}
 		items = append(items, domain.FollowUpListItem{
 			UUID:                 row.UUID,
 			TasksCustomerUUID:    row.TasksCustomerUUID,
@@ -305,6 +314,7 @@ type followUpListRow struct {
 	CustomerUnvan        *string
 	AssignedUserFullName string
 	BranchName           string
+	BranchId             uint64
 	VisitDate            *time.Time
 	NextVisitDate        *time.Time
 	AgreementReached     bool
