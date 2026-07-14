@@ -19,8 +19,24 @@ func NewRepository(db *gorm.DB) *Repository {
 }
 
 func AutoMigrate(db *gorm.DB) error {
-	return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci").
-		AutoMigrate(&FollowUpModel{}, &FollowUpImageModel{}, &MeetPersonModel{})
+	if err := db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci").
+		AutoMigrate(&FollowUpModel{}, &FollowUpImageModel{}, &MeetPersonModel{}); err != nil {
+		return err
+	}
+
+	return db.Exec(`
+		UPDATE tasks_follow_ups AS follow_ups
+		JOIN tasks_customers AS task_customers ON task_customers.id = follow_ups.tasks_customer_id
+		JOIN tasks AS tasks ON tasks.id = task_customers.task_id
+		SET
+			follow_ups.assigned_user_id = tasks.assigned_user_id,
+			follow_ups.assigned_user_full_name = tasks.assigned_user_full_name
+		WHERE
+			follow_ups.assigned_user_id = 0
+			OR follow_ups.assigned_user_id IS NULL
+			OR follow_ups.assigned_user_full_name = ''
+			OR follow_ups.assigned_user_full_name IS NULL
+	`).Error
 }
 
 func (r *Repository) ListFollowUps(ctx context.Context, query domain.ListQuery) (domain.ListResult, error) {
@@ -53,12 +69,12 @@ func (r *Repository) ListFollowUps(ctx context.Context, query domain.ListQuery) 
 		Select(`
 			tasks_follow_ups.uuid,
 			tasks_customers.uuid AS tasks_customer_uuid,
-			tasks.uuid AS task_uuid,
-			tasks.title,
+			COALESCE(tasks.uuid, '') AS task_uuid,
+			COALESCE(tasks.title, 'Görevsiz Takip') AS title,
 			customers.id AS customer_id,
 			customers.unvan AS customer_unvan,
-			tasks.assigned_user_full_name,
-			tasks.branch_name,
+			tasks_follow_ups.assigned_user_full_name,
+			COALESCE(tasks.branch_name, '') AS branch_name,
 			tasks_follow_ups.visit_date,
 			tasks_follow_ups.next_visit_date,
 			tasks_follow_ups.agreement_reached
@@ -140,6 +156,30 @@ func (r *Repository) FindTaskCustomerByUUID(ctx context.Context, taskCustomerUUI
 	}, nil
 }
 
+func (r *Repository) CustomerExistsForBranches(ctx context.Context, customerID uint64, branchIDs []uint64, allowAllBranches bool) (bool, error) {
+	if r == nil || r.db == nil || customerID == 0 {
+		return false, gorm.ErrInvalidDB
+	}
+	if !allowAllBranches && len(branchIDs) == 0 {
+		return false, nil
+	}
+
+	query := r.db.WithContext(ctx).
+		Table("customers").
+		Where("id = ?", customerID).
+		Where("deleted_at IS NULL")
+	if !allowAllBranches {
+		query = query.Where("branch_id IN ?", branchIDs)
+	}
+
+	var count int64
+	if err := query.Count(&count).Error; err != nil {
+		return false, err
+	}
+
+	return count > 0, nil
+}
+
 func (r *Repository) FindFollowUpUpdateTargetByUUID(ctx context.Context, followUpUUID string) (domain.FollowUpUpdateTarget, error) {
 	if r == nil || r.db == nil || strings.TrimSpace(followUpUUID) == "" {
 		return domain.FollowUpUpdateTarget{}, gorm.ErrInvalidDB
@@ -152,11 +192,10 @@ func (r *Repository) FindFollowUpUpdateTargetByUUID(ctx context.Context, followU
 			tasks_follow_ups.id,
 			tasks_follow_ups.uuid,
 			tasks_follow_ups.tasks_customer_id,
-			tasks.assigned_user_id,
+			tasks_follow_ups.assigned_user_id,
 			tasks_follow_ups.visit_date
 		`).
 		Joins("JOIN tasks_customers ON tasks_customers.id = tasks_follow_ups.tasks_customer_id").
-		Joins("JOIN tasks ON tasks.id = tasks_customers.task_id AND tasks.deleted_at IS NULL").
 		Where("tasks_follow_ups.uuid = ?", strings.TrimSpace(followUpUUID)).
 		Where("tasks_follow_ups.deleted_at IS NULL").
 		Scan(&row).Error; err != nil {
@@ -187,12 +226,12 @@ func (r *Repository) GetFollowUp(ctx context.Context, followUpUUID string) (doma
 			tasks_follow_ups.id,
 			tasks_follow_ups.uuid,
 			tasks_customers.uuid AS tasks_customer_uuid,
-			tasks.uuid AS task_uuid,
-			tasks.title,
+			COALESCE(tasks.uuid, '') AS task_uuid,
+			COALESCE(tasks.title, 'Görevsiz Takip') AS title,
 			customers.id AS customer_id,
 			customers.unvan AS customer_unvan,
-			tasks.assigned_user_full_name,
-			tasks.branch_name,
+			tasks_follow_ups.assigned_user_full_name,
+			COALESCE(tasks.branch_name, '') AS branch_name,
 			tasks_follow_ups.visit_type,
 			tasks_follow_ups.visit_date,
 			tasks_follow_ups.next_visit_date,
@@ -201,7 +240,7 @@ func (r *Repository) GetFollowUp(ctx context.Context, followUpUUID string) (doma
 			tasks_follow_ups.note
 		`).
 		Joins("JOIN tasks_customers ON tasks_customers.id = tasks_follow_ups.tasks_customer_id").
-		Joins("JOIN tasks ON tasks.id = tasks_customers.task_id AND tasks.deleted_at IS NULL").
+		Joins("LEFT JOIN tasks ON tasks.id = tasks_customers.task_id AND tasks.deleted_at IS NULL").
 		Joins("JOIN customers ON customers.id = tasks_customers.customer_id AND customers.deleted_at IS NULL").
 		Where("tasks_follow_ups.uuid = ?", strings.TrimSpace(followUpUUID)).
 		Where("tasks_follow_ups.deleted_at IS NULL").
@@ -311,6 +350,8 @@ func (r *Repository) CreateFollowUp(ctx context.Context, input domain.PersistFol
 	followUp := FollowUpModel{
 		UUID:                   input.UUID,
 		TasksCustomerID:        input.TasksCustomerID,
+		AssignedUserID:         input.AssignedUserID,
+		AssignedUserFullName:   input.AssignedUserFullName,
 		VisitType:              input.VisitType,
 		VisitDate:              visitDate,
 		NextVisitDate:          nextVisitDate,
@@ -401,6 +442,7 @@ func (r *Repository) CreateFollowUp(ctx context.Context, input domain.PersistFol
 	return domain.FollowUp{
 		UUID:                   followUp.UUID,
 		TasksCustomerUUID:      input.TasksCustomerUUID,
+		AssignedUserFullName:   input.AssignedUserFullName,
 		VisitType:              input.VisitType,
 		VisitDate:              input.VisitDate,
 		NextVisitDate:          input.NextVisitDate,
@@ -410,6 +452,44 @@ func (r *Repository) CreateFollowUp(ctx context.Context, input domain.PersistFol
 		Images:                 images,
 		MeetPeople:             meetPeople,
 	}, nil
+}
+
+func (r *Repository) CreateStandaloneFollowUp(ctx context.Context, input domain.PersistStandaloneFollowUpInput) (domain.FollowUp, error) {
+	if r == nil || r.db == nil || input.CustomerID == 0 {
+		return domain.FollowUp{}, gorm.ErrInvalidDB
+	}
+
+	var result domain.FollowUp
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		taskCustomer := TaskCustomerModel{
+			UUID:       uuid.NewString(),
+			TaskID:     nil,
+			CustomerID: input.CustomerID,
+			Status:     "pending",
+		}
+		if err := tx.Create(&taskCustomer).Error; err != nil {
+			return err
+		}
+
+		followUpInput := input.FollowUp
+		followUpInput.TasksCustomerID = taskCustomer.ID
+		followUpInput.TasksCustomerUUID = taskCustomer.UUID
+
+		created, err := (&Repository{db: tx}).CreateFollowUp(ctx, followUpInput)
+		if err != nil {
+			return err
+		}
+
+		created.CustomerID = input.CustomerID
+		created.Title = "Görevsiz Takip"
+		result = created
+		return nil
+	})
+	if err != nil {
+		return domain.FollowUp{}, err
+	}
+
+	return result, nil
 }
 
 func (r *Repository) UpdateFollowUp(ctx context.Context, input domain.PersistUpdateFollowUpInput) (domain.FollowUp, []domain.StoredImage, error) {
@@ -549,7 +629,7 @@ func (r *Repository) followUpListBaseQuery(ctx context.Context, filters domain.L
 	query := r.db.WithContext(ctx).
 		Model(&FollowUpModel{}).
 		Joins("JOIN tasks_customers ON tasks_customers.id = tasks_follow_ups.tasks_customer_id").
-		Joins("JOIN tasks ON tasks.id = tasks_customers.task_id AND tasks.deleted_at IS NULL").
+		Joins("LEFT JOIN tasks ON tasks.id = tasks_customers.task_id AND tasks.deleted_at IS NULL").
 		Joins("JOIN customers ON customers.id = tasks_customers.customer_id AND customers.deleted_at IS NULL").
 		Where("tasks_follow_ups.deleted_at IS NULL")
 
@@ -558,7 +638,7 @@ func (r *Repository) followUpListBaseQuery(ctx context.Context, filters domain.L
 
 func applyFollowUpFilters(query *gorm.DB, filters domain.ListQuery) *gorm.DB {
 	if strings.TrimSpace(filters.Title) != "" {
-		query = query.Where("tasks.title LIKE ?", "%"+strings.TrimSpace(filters.Title)+"%")
+		query = query.Where("COALESCE(tasks.title, 'Görevsiz Takip') LIKE ?", "%"+strings.TrimSpace(filters.Title)+"%")
 	}
 
 	if strings.TrimSpace(filters.Customer) != "" {
@@ -566,11 +646,11 @@ func applyFollowUpFilters(query *gorm.DB, filters domain.ListQuery) *gorm.DB {
 	}
 
 	if filters.AssignedUserID > 0 {
-		query = query.Where("tasks.assigned_user_id = ?", filters.AssignedUserID)
+		query = query.Where("tasks_follow_ups.assigned_user_id = ?", filters.AssignedUserID)
 	}
 
 	if strings.TrimSpace(filters.AssignedUserFullName) != "" {
-		query = query.Where("tasks.assigned_user_full_name LIKE ?", "%"+strings.TrimSpace(filters.AssignedUserFullName)+"%")
+		query = query.Where("tasks_follow_ups.assigned_user_full_name LIKE ?", "%"+strings.TrimSpace(filters.AssignedUserFullName)+"%")
 	}
 
 	if strings.TrimSpace(filters.BranchName) != "" {

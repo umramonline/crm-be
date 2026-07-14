@@ -14,6 +14,8 @@ import (
 	"github.com/umran/new.crm/backend/internal/shared/response"
 )
 
+const adminRoleID uint64 = 30
+
 type Handler struct {
 	service *application.Service
 }
@@ -56,6 +58,7 @@ func (h *Handler) RegisterRoutes(router fiber.Router, authRequired fiber.Handler
 	router.Get("/follow-ups/assigned-to-me", authRequired, h.ListAssignedFollowUps)
 	router.Get("/follow-ups/:uuid", authRequired, h.GetFollowUp)
 	router.Post("/follow-ups", authRequired, h.CreateFollowUp)
+	router.Post("/follow-ups/standalone", authRequired, h.CreateStandaloneFollowUp)
 	router.Put("/follow-ups/:uuid", authRequired, h.UpdateFollowUp)
 }
 
@@ -117,8 +120,33 @@ func (h *Handler) CreateFollowUp(c *fiber.Ctx) error {
 	}
 	claims := c.Locals("claims").(authapp.SessionTokenClaims)
 	input.AuthenticatedUserID = claims.UserId
+	input.AuthenticatedUserFullName = claims.UserFullName
 
 	followUp, validationErrors, err := h.service.CreateFollowUp(c.UserContext(), input)
+	if err != nil {
+		if err == application.ErrInvalidFollowUpCreateInput {
+			return response.Error(c, fiber.StatusUnprocessableEntity, "Takip kaydı bilgileri geçersiz.", validationErrors)
+		}
+
+		return response.Error(c, fiber.StatusServiceUnavailable, "Takip kaydı şu anda oluşturulamadı.", nil)
+	}
+
+	return response.Success(c, fiber.StatusCreated, "Takip kaydı oluşturuldu.", followUp)
+}
+
+func (h *Handler) CreateStandaloneFollowUp(c *fiber.Ctx) error {
+	input, validationErrors, err := standaloneFollowUpInput(c)
+	if err != nil {
+		return response.Error(c, fiber.StatusUnprocessableEntity, "Takip kaydı bilgileri geçersiz.", validationErrors)
+	}
+
+	claims := c.Locals("claims").(authapp.SessionTokenClaims)
+	input.AuthenticatedUserID = claims.UserId
+	input.AuthenticatedUserFullName = claims.UserFullName
+	input.AllowedBranchIDs = claims.BranchIds
+	input.AllowAllBranches = claims.RoleID == adminRoleID
+
+	followUp, validationErrors, err := h.service.CreateStandaloneFollowUp(c.UserContext(), input)
 	if err != nil {
 		if err == application.ErrInvalidFollowUpCreateInput {
 			return response.Error(c, fiber.StatusUnprocessableEntity, "Takip kaydı bilgileri geçersiz.", validationErrors)
@@ -207,6 +235,32 @@ func multipartFollowUpInput(c *fiber.Ctx) (domain.CreateFollowUpInput, applicati
 		Note:                   c.FormValue("note"),
 		MeetPeople:             meetPeople,
 	}, images), nil, nil
+}
+
+func standaloneFollowUpInput(c *fiber.Ctx) (domain.CreateStandaloneFollowUpInput, application.ValidationErrors, error) {
+	input, validationErrors, err := multipartFollowUpInput(c)
+	if err != nil {
+		return domain.CreateStandaloneFollowUpInput{}, validationErrors, err
+	}
+
+	customerID, err := strconv.ParseUint(strings.TrimSpace(c.FormValue("customer_id")), 10, 64)
+	if err != nil || customerID == 0 {
+		return domain.CreateStandaloneFollowUpInput{}, application.ValidationErrors{
+			"customer_id": "Müşteri zorunludur.",
+		}, err
+	}
+
+	return domain.CreateStandaloneFollowUpInput{
+		CustomerID:             customerID,
+		VisitType:              input.VisitType,
+		VisitDate:              input.VisitDate,
+		NextVisitDate:          input.NextVisitDate,
+		AgreementReached:       input.AgreementReached,
+		AgreementFailureReason: input.AgreementFailureReason,
+		Note:                   input.Note,
+		Images:                 input.Images,
+		MeetPeople:             input.MeetPeople,
+	}, nil, nil
 }
 
 func multipartUpdateFollowUpInput(c *fiber.Ctx) (domain.UpdateFollowUpInput, application.ValidationErrors, error) {

@@ -10,10 +10,13 @@ import (
 )
 
 type fakeRepository struct {
-	taskCustomer domain.TaskCustomer
-	findErr      error
-	createErr    error
-	createInput  domain.PersistFollowUpInput
+	taskCustomer          domain.TaskCustomer
+	findErr               error
+	createErr             error
+	createInput           domain.PersistFollowUpInput
+	standaloneInput       domain.PersistStandaloneFollowUpInput
+	customerAccessible    bool
+	customerAccessibleErr error
 }
 
 func (f *fakeRepository) FindTaskCustomerByUUID(_ context.Context, _ string) (domain.TaskCustomer, error) {
@@ -24,6 +27,14 @@ func (f *fakeRepository) FindTaskCustomerByUUID(_ context.Context, _ string) (do
 	return f.taskCustomer, nil
 }
 
+func (f *fakeRepository) CustomerExistsForBranches(_ context.Context, _ uint64, _ []uint64, _ bool) (bool, error) {
+	if f.customerAccessibleErr != nil {
+		return false, f.customerAccessibleErr
+	}
+
+	return f.customerAccessible, nil
+}
+
 func (f *fakeRepository) CreateFollowUp(_ context.Context, input domain.PersistFollowUpInput) (domain.FollowUp, error) {
 	f.createInput = input
 	if f.createErr != nil {
@@ -31,6 +42,16 @@ func (f *fakeRepository) CreateFollowUp(_ context.Context, input domain.PersistF
 	}
 
 	return domain.FollowUp{UUID: input.UUID, TasksCustomerUUID: input.TasksCustomerUUID}, nil
+}
+
+func (f *fakeRepository) CreateStandaloneFollowUp(_ context.Context, input domain.PersistStandaloneFollowUpInput) (domain.FollowUp, error) {
+	f.standaloneInput = input
+	f.createInput = input.FollowUp
+	if f.createErr != nil {
+		return domain.FollowUp{}, f.createErr
+	}
+
+	return domain.FollowUp{UUID: input.FollowUp.UUID}, nil
 }
 
 func (f *fakeRepository) FindFollowUpUpdateTargetByUUID(_ context.Context, uuid string) (domain.FollowUpUpdateTarget, error) {
@@ -203,18 +224,50 @@ func TestCreateFollowUpDeletesStoredImagesWhenRepositoryFails(t *testing.T) {
 	}
 }
 
+func TestCreateStandaloneFollowUpPassesCustomerAndClaimsToRepository(t *testing.T) {
+	repository := &fakeRepository{customerAccessible: true}
+	service := NewService(repository, &fakeStorage{})
+
+	_, validationErrors, err := service.CreateStandaloneFollowUp(context.Background(), validStandaloneFollowUpInput())
+	if err != nil {
+		t.Fatalf("expected nil error, got %v with validation errors %#v", err, validationErrors)
+	}
+	if repository.standaloneInput.CustomerID != 42 {
+		t.Fatalf("expected customer id 42, got %d", repository.standaloneInput.CustomerID)
+	}
+	if repository.createInput.AssignedUserID != 20 {
+		t.Fatalf("expected assigned user id 20, got %d", repository.createInput.AssignedUserID)
+	}
+	if repository.createInput.AssignedUserFullName != "Test User" {
+		t.Fatalf("expected assigned user full name, got %q", repository.createInput.AssignedUserFullName)
+	}
+}
+
+func TestCreateStandaloneFollowUpRejectsInaccessibleCustomer(t *testing.T) {
+	service := NewService(&fakeRepository{}, &fakeStorage{})
+
+	_, validationErrors, err := service.CreateStandaloneFollowUp(context.Background(), validStandaloneFollowUpInput())
+	if !errors.Is(err, ErrInvalidFollowUpCreateInput) {
+		t.Fatalf("expected ErrInvalidFollowUpCreateInput, got %v", err)
+	}
+	if validationErrors["customer_id"] == "" {
+		t.Fatalf("expected customer_id validation error, got %#v", validationErrors)
+	}
+}
+
 func validCreateFollowUpInput(mutators ...func(*domain.CreateFollowUpInput)) domain.CreateFollowUpInput {
 	agreementReached := false
 	today := time.Now().Format("2006-01-02")
 	tomorrow := time.Now().Add(24 * time.Hour).Format("2006-01-02")
 	input := domain.CreateFollowUpInput{
-		AuthenticatedUserID:    20,
-		TasksCustomerUUID:      "task-customer-uuid",
-		VisitType:              "Yerinde Ziyaret",
-		VisitDate:              today,
-		NextVisitDate:          tomorrow,
-		AgreementReached:       &agreementReached,
-		AgreementFailureReason: "Fiyat yüksek",
+		AuthenticatedUserID:       20,
+		AuthenticatedUserFullName: "Test User",
+		TasksCustomerUUID:         "task-customer-uuid",
+		VisitType:                 "Yerinde Ziyaret",
+		VisitDate:                 today,
+		NextVisitDate:             tomorrow,
+		AgreementReached:          &agreementReached,
+		AgreementFailureReason:    "Fiyat yüksek",
 		MeetPeople: []domain.MeetPersonInput{
 			{
 				Title:   "Genel Müdür",
@@ -230,4 +283,23 @@ func validCreateFollowUpInput(mutators ...func(*domain.CreateFollowUpInput)) dom
 	}
 
 	return input
+}
+
+func validStandaloneFollowUpInput() domain.CreateStandaloneFollowUpInput {
+	input := validCreateFollowUpInput()
+
+	return domain.CreateStandaloneFollowUpInput{
+		AuthenticatedUserID:       input.AuthenticatedUserID,
+		AuthenticatedUserFullName: input.AuthenticatedUserFullName,
+		CustomerID:                42,
+		AllowedBranchIDs:          []uint64{3},
+		VisitType:                 input.VisitType,
+		VisitDate:                 input.VisitDate,
+		NextVisitDate:             input.NextVisitDate,
+		AgreementReached:          input.AgreementReached,
+		AgreementFailureReason:    input.AgreementFailureReason,
+		Note:                      input.Note,
+		Images:                    input.Images,
+		MeetPeople:                input.MeetPeople,
+	}
 }

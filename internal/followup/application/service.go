@@ -29,8 +29,10 @@ type ValidationErrors map[string]string
 
 type Repository interface {
 	FindTaskCustomerByUUID(ctx context.Context, uuid string) (domain.TaskCustomer, error)
+	CustomerExistsForBranches(ctx context.Context, customerID uint64, branchIDs []uint64, allowAllBranches bool) (bool, error)
 	FindFollowUpUpdateTargetByUUID(ctx context.Context, uuid string) (domain.FollowUpUpdateTarget, error)
 	CreateFollowUp(ctx context.Context, input domain.PersistFollowUpInput) (domain.FollowUp, error)
+	CreateStandaloneFollowUp(ctx context.Context, input domain.PersistStandaloneFollowUpInput) (domain.FollowUp, error)
 	UpdateFollowUp(ctx context.Context, input domain.PersistUpdateFollowUpInput) (domain.FollowUp, []domain.StoredImage, error)
 	ListFollowUps(ctx context.Context, query domain.ListQuery) (domain.ListResult, error)
 	GetFollowUp(ctx context.Context, uuid string) (domain.FollowUp, error)
@@ -215,6 +217,8 @@ func (s *Service) CreateFollowUp(ctx context.Context, input domain.CreateFollowU
 		UUID:                   followUpUUID,
 		TasksCustomerID:        taskCustomer.ID,
 		TasksCustomerUUID:      taskCustomer.UUID,
+		AssignedUserID:         normalizedInput.AuthenticatedUserID,
+		AssignedUserFullName:   normalizedInput.AuthenticatedUserFullName,
 		VisitType:              normalizedInput.VisitType,
 		VisitDate:              normalizedInput.VisitDate,
 		NextVisitDate:          normalizedInput.NextVisitDate,
@@ -223,6 +227,62 @@ func (s *Service) CreateFollowUp(ctx context.Context, input domain.CreateFollowU
 		Note:                   normalizedInput.Note,
 		Images:                 storedImages,
 		MeetPeople:             normalizedInput.MeetPeople,
+	})
+	if err != nil {
+		_ = s.storage.DeleteImages(ctx, storedImages)
+		return domain.FollowUp{}, nil, ErrFollowUpCreateUnavailable
+	}
+
+	return followUp, nil, nil
+}
+
+func (s *Service) CreateStandaloneFollowUp(ctx context.Context, input domain.CreateStandaloneFollowUpInput) (domain.FollowUp, ValidationErrors, error) {
+	normalizedInput := normalizeStandaloneFollowUpInput(input)
+	validationErrors := validateStandaloneFollowUpInput(normalizedInput)
+	if len(validationErrors) > 0 {
+		return domain.FollowUp{}, validationErrors, ErrInvalidFollowUpCreateInput
+	}
+
+	if s == nil || s.repository == nil || s.storage == nil {
+		return domain.FollowUp{}, nil, ErrFollowUpCreateUnavailable
+	}
+
+	accessible, err := s.repository.CustomerExistsForBranches(
+		ctx,
+		normalizedInput.CustomerID,
+		normalizedInput.AllowedBranchIDs,
+		normalizedInput.AllowAllBranches,
+	)
+	if err != nil {
+		return domain.FollowUp{}, nil, ErrFollowUpCreateUnavailable
+	}
+	if !accessible {
+		return domain.FollowUp{}, ValidationErrors{
+			"customer_id": "Müşteri bulunamadı veya bu müşteriye erişim yetkiniz yok.",
+		}, ErrInvalidFollowUpCreateInput
+	}
+
+	followUpUUID := uuid.NewString()
+	storedImages, err := s.storage.SaveFollowUpImages(ctx, followUpUUID, normalizedInput.Images)
+	if err != nil {
+		return domain.FollowUp{}, nil, ErrFollowUpCreateUnavailable
+	}
+
+	followUp, err := s.repository.CreateStandaloneFollowUp(ctx, domain.PersistStandaloneFollowUpInput{
+		CustomerID: normalizedInput.CustomerID,
+		FollowUp: domain.PersistFollowUpInput{
+			UUID:                   followUpUUID,
+			AssignedUserID:         normalizedInput.AuthenticatedUserID,
+			AssignedUserFullName:   normalizedInput.AuthenticatedUserFullName,
+			VisitType:              normalizedInput.VisitType,
+			VisitDate:              normalizedInput.VisitDate,
+			NextVisitDate:          normalizedInput.NextVisitDate,
+			AgreementReached:       *normalizedInput.AgreementReached,
+			AgreementFailureReason: normalizedInput.AgreementFailureReason,
+			Note:                   normalizedInput.Note,
+			Images:                 storedImages,
+			MeetPeople:             normalizedInput.MeetPeople,
+		},
 	})
 	if err != nil {
 		_ = s.storage.DeleteImages(ctx, storedImages)
@@ -362,16 +422,48 @@ func normalizeCreateFollowUpInput(input domain.CreateFollowUpInput) domain.Creat
 	}
 
 	return domain.CreateFollowUpInput{
-		AuthenticatedUserID:    input.AuthenticatedUserID,
-		TasksCustomerUUID:      strings.TrimSpace(input.TasksCustomerUUID),
-		VisitType:              strings.TrimSpace(input.VisitType),
-		VisitDate:              strings.TrimSpace(input.VisitDate),
-		NextVisitDate:          strings.TrimSpace(input.NextVisitDate),
-		AgreementReached:       input.AgreementReached,
-		AgreementFailureReason: strings.TrimSpace(input.AgreementFailureReason),
-		Note:                   strings.TrimSpace(input.Note),
-		Images:                 images,
-		MeetPeople:             meetPeople,
+		AuthenticatedUserID:       input.AuthenticatedUserID,
+		AuthenticatedUserFullName: strings.TrimSpace(input.AuthenticatedUserFullName),
+		TasksCustomerUUID:         strings.TrimSpace(input.TasksCustomerUUID),
+		VisitType:                 strings.TrimSpace(input.VisitType),
+		VisitDate:                 strings.TrimSpace(input.VisitDate),
+		NextVisitDate:             strings.TrimSpace(input.NextVisitDate),
+		AgreementReached:          input.AgreementReached,
+		AgreementFailureReason:    strings.TrimSpace(input.AgreementFailureReason),
+		Note:                      strings.TrimSpace(input.Note),
+		Images:                    images,
+		MeetPeople:                meetPeople,
+	}
+}
+
+func normalizeStandaloneFollowUpInput(input domain.CreateStandaloneFollowUpInput) domain.CreateStandaloneFollowUpInput {
+	normalized := normalizeCreateFollowUpInput(domain.CreateFollowUpInput{
+		AuthenticatedUserID:       input.AuthenticatedUserID,
+		AuthenticatedUserFullName: input.AuthenticatedUserFullName,
+		VisitType:                 input.VisitType,
+		VisitDate:                 input.VisitDate,
+		NextVisitDate:             input.NextVisitDate,
+		AgreementReached:          input.AgreementReached,
+		AgreementFailureReason:    input.AgreementFailureReason,
+		Note:                      input.Note,
+		Images:                    input.Images,
+		MeetPeople:                input.MeetPeople,
+	})
+
+	return domain.CreateStandaloneFollowUpInput{
+		AuthenticatedUserID:       normalized.AuthenticatedUserID,
+		AuthenticatedUserFullName: normalized.AuthenticatedUserFullName,
+		CustomerID:                input.CustomerID,
+		AllowedBranchIDs:          append([]uint64(nil), input.AllowedBranchIDs...),
+		AllowAllBranches:          input.AllowAllBranches,
+		VisitType:                 normalized.VisitType,
+		VisitDate:                 normalized.VisitDate,
+		NextVisitDate:             normalized.NextVisitDate,
+		AgreementReached:          normalized.AgreementReached,
+		AgreementFailureReason:    normalized.AgreementFailureReason,
+		Note:                      normalized.Note,
+		Images:                    normalized.Images,
+		MeetPeople:                normalized.MeetPeople,
 	}
 }
 
@@ -379,6 +471,7 @@ func validateCreateFollowUpInput(input domain.CreateFollowUpInput) ValidationErr
 	errors := ValidationErrors{}
 
 	requireField(errors, "tasks_customer_uuid", input.TasksCustomerUUID, "Görev müşterisi zorunludur.")
+	requireField(errors, "assigned_user_full_name", input.AuthenticatedUserFullName, "Oturum kullanıcısının adı zorunludur.")
 	requireField(errors, "visit_type", input.VisitType, "Ziyaret tipi zorunludur.")
 	requireField(errors, "visit_date", input.VisitDate, "Ziyaret tarihi zorunludur.")
 	if input.AuthenticatedUserID == 0 {
@@ -390,6 +483,30 @@ func validateCreateFollowUpInput(input domain.CreateFollowUpInput) ValidationErr
 	validateDates(errors, input.VisitDate, input.NextVisitDate)
 	validateImages(errors, input.Images)
 	validateMeetPeople(errors, input.MeetPeople)
+
+	return errors
+}
+
+func validateStandaloneFollowUpInput(input domain.CreateStandaloneFollowUpInput) ValidationErrors {
+	errors := validateCreateFollowUpInput(domain.CreateFollowUpInput{
+		AuthenticatedUserID:       input.AuthenticatedUserID,
+		AuthenticatedUserFullName: input.AuthenticatedUserFullName,
+		TasksCustomerUUID:         "standalone",
+		VisitType:                 input.VisitType,
+		VisitDate:                 input.VisitDate,
+		NextVisitDate:             input.NextVisitDate,
+		AgreementReached:          input.AgreementReached,
+		AgreementFailureReason:    input.AgreementFailureReason,
+		Note:                      input.Note,
+		Images:                    input.Images,
+		MeetPeople:                input.MeetPeople,
+	})
+	if input.CustomerID == 0 {
+		errors["customer_id"] = "Müşteri zorunludur."
+	}
+	if !input.AllowAllBranches && len(input.AllowedBranchIDs) == 0 {
+		errors["customer_id"] = "Erişilebilir bir şube bulunamadı."
+	}
 
 	return errors
 }

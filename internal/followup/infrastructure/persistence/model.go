@@ -12,6 +12,8 @@ type FollowUpModel struct {
 	AgreementReached       bool              `gorm:"column:agreement_reached;type:tinyint(1);not null;default:0"`
 	AgreementFailureReason *string           `gorm:"column:agreement_failure_reason;type:enum('Fiyat yüksek','Mesafe Uzak','Bayi ile yaşanan sorunlar','Ekpertize ihtiyaç duymuyor','Kendisi yapıyor','Başka ekspertize yaptırıyor','Değerlendirme')"`
 	Note                   *string           `gorm:"column:note;type:varchar(150)"`
+	AssignedUserID         uint64            `gorm:"column:assigned_user_id;type:bigint unsigned;not null;index"`
+	AssignedUserFullName   string            `gorm:"column:assigned_user_full_name;type:varchar(255);not null"`
 	CreatedAt              *time.Time        `gorm:"type:timestamp;default:CURRENT_TIMESTAMP"`
 	UpdatedAt              *time.Time        `gorm:"type:timestamp;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"`
 	DeletedAt              *time.Time        `gorm:"type:timestamp;index"`
@@ -43,9 +45,11 @@ type MeetPersonModel struct {
 }
 
 type TaskCustomerModel struct {
-	ID     uint64 `gorm:"primaryKey;autoIncrement"`
-	UUID   string `gorm:"column:uuid;type:char(36);not null;uniqueIndex"`
-	Status string `gorm:"column:status;type:enum('pending','in_progress','cancelled','completed');not null;default:pending"`
+	ID         uint64  `gorm:"primaryKey;autoIncrement"`
+	UUID       string  `gorm:"column:uuid;type:char(36);not null;uniqueIndex"`
+	TaskID     *uint64 `gorm:"column:task_id;type:bigint unsigned"`
+	CustomerID uint64  `gorm:"column:customer_id;type:bigint unsigned;not null"`
+	Status     string  `gorm:"column:status;type:enum('pending','in_progress','cancelled','completed');not null;default:pending"`
 }
 
 func (FollowUpModel) TableName() string {

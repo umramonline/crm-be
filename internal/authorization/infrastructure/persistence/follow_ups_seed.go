@@ -32,6 +32,12 @@ var followUpMethodSeeds = []authorizationMethodSeed{
 		Path:        stringPointer("/api/v1/follow-ups"),
 	},
 	{
+		Name:        "follow_ups.create.standalone",
+		Description: "Göreve bağlı olmadan müşteri için takip kaydı oluşturur.",
+		Method:      stringPointer("POST"),
+		Path:        stringPointer("/api/v1/follow-ups/standalone"),
+	},
+	{
 		Name:        "follow_ups.update",
 		Description: "Takip kaydını günceller.",
 		Method:      stringPointer("PUT"),

@@ -1,16 +1,33 @@
 package domain
 
 type CreateFollowUpInput struct {
-	AuthenticatedUserID    uint64
-	TasksCustomerUUID      string
-	VisitType              string
-	VisitDate              string
-	NextVisitDate          string
-	AgreementReached       *bool
-	AgreementFailureReason string
-	Note                   string
-	Images                 []ImageUpload
-	MeetPeople             []MeetPersonInput
+	AuthenticatedUserID       uint64
+	AuthenticatedUserFullName string
+	TasksCustomerUUID         string
+	VisitType                 string
+	VisitDate                 string
+	NextVisitDate             string
+	AgreementReached          *bool
+	AgreementFailureReason    string
+	Note                      string
+	Images                    []ImageUpload
+	MeetPeople                []MeetPersonInput
+}
+
+type CreateStandaloneFollowUpInput struct {
+	AuthenticatedUserID       uint64
+	AuthenticatedUserFullName string
+	CustomerID                uint64
+	AllowedBranchIDs          []uint64
+	AllowAllBranches          bool
+	VisitType                 string
+	VisitDate                 string
+	NextVisitDate             string
+	AgreementReached          *bool
+	AgreementFailureReason    string
+	Note                      string
+	Images                    []ImageUpload
+	MeetPeople                []MeetPersonInput
 }
 
 type UpdateFollowUpInput struct {
@@ -58,6 +75,8 @@ type PersistFollowUpInput struct {
 	UUID                   string
 	TasksCustomerID        uint64
 	TasksCustomerUUID      string
+	AssignedUserID         uint64
+	AssignedUserFullName   string
 	VisitType              string
 	VisitDate              string
 	NextVisitDate          string
@@ -66,6 +85,11 @@ type PersistFollowUpInput struct {
 	Note                   string
 	Images                 []StoredImage
 	MeetPeople             []MeetPersonInput
+}
+
+type PersistStandaloneFollowUpInput struct {
+	CustomerID uint64
+	FollowUp   PersistFollowUpInput
 }
 
 type FollowUpUpdateTarget struct {

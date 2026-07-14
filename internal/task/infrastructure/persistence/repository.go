@@ -81,7 +81,7 @@ func (r *Repository) CreateTask(ctx context.Context, input domain.CreateTaskInpu
 		for _, customerID := range input.CustomerIDs {
 			taskCustomers = append(taskCustomers, TaskCustomerModel{
 				UUID:       uuid.NewString(),
-				TaskID:     task.ID,
+				TaskID:     &task.ID,
 				CustomerID: customerID,
 				Status:     "pending",
 			})
