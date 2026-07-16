@@ -10,9 +10,12 @@ import (
 )
 
 type fakeRepository struct {
-	listQuery   domain.ListQuery
-	record      domain.Record
-	findErr     error
+	listQuery        domain.ListQuery
+	record           domain.Record
+	findErr          error
+	updatedUUID      string
+	updatedCustomerID uint64
+	updateErr        error
 }
 
 func (f *fakeRepository) ListRecords(_ context.Context, query domain.ListQuery) (domain.ListResult, error) {
@@ -27,6 +30,12 @@ func (f *fakeRepository) FindRecordByUUID(_ context.Context, _ string) (domain.R
 	}
 
 	return f.record, nil
+}
+
+func (f *fakeRepository) UpdateCustomerIDByUUID(_ context.Context, uuid string, customerID uint64) error {
+	f.updatedUUID = uuid
+	f.updatedCustomerID = customerID
+	return f.updateErr
 }
 
 type fakeCustomerWriter struct {
@@ -173,6 +182,37 @@ func TestConvertToCustomerMapsFields(t *testing.T) {
 	}
 	if customerWriter.input.AddressDetail != "Example Street 1" {
 		t.Fatalf("expected address detail, got %q", customerWriter.input.AddressDetail)
+	}
+	if repository.updatedUUID != "uuid-1" {
+		t.Fatalf("expected updated uuid uuid-1, got %q", repository.updatedUUID)
+	}
+	if repository.updatedCustomerID != 86 {
+		t.Fatalf("expected updated customer id 86, got %d", repository.updatedCustomerID)
+	}
+}
+
+func TestConvertToCustomerReturnsExistingCustomerID(t *testing.T) {
+	repository := &fakeRepository{
+		record: domain.Record{
+			UUID:       "uuid-1",
+			CustomerID: 42,
+		},
+	}
+	customerWriter := &fakeCustomerWriter{id: 86}
+	service := NewService(repository, customerWriter)
+
+	result, err := service.ConvertToCustomer(context.Background(), "uuid-1")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if result.CustomerID != 42 {
+		t.Fatalf("expected existing customer id 42, got %d", result.CustomerID)
+	}
+	if customerWriter.input.Unvan != "" {
+		t.Fatalf("expected no customer creation, got input %+v", customerWriter.input)
+	}
+	if repository.updatedUUID != "" {
+		t.Fatalf("expected no customer_id update, got uuid %q", repository.updatedUUID)
 	}
 }
 

@@ -21,6 +21,7 @@ const customerAddressDetailMaxLength = 255
 type Repository interface {
 	ListRecords(ctx context.Context, query domain.ListQuery) (domain.ListResult, error)
 	FindRecordByUUID(ctx context.Context, uuid string) (domain.Record, error)
+	UpdateCustomerIDByUUID(ctx context.Context, uuid string, customerID uint64) error
 }
 
 type CustomerFromIettsWriter interface {
@@ -67,6 +68,10 @@ func (s *Service) ConvertToCustomer(ctx context.Context, uuid string) (domain.Co
 		return domain.ConvertToCustomerResult{}, ErrIettsConvertUnavailable
 	}
 
+	if record.CustomerID > 0 {
+		return domain.ConvertToCustomerResult{CustomerID: record.CustomerID}, nil
+	}
+
 	ad, soyad := domain.SplitBusinessName(record.BusinessName)
 	customerID, err := s.customerWriter.CreateCustomerFromIetts(ctx, domain.CustomerFromIettsInput{
 		Unvan:         record.CompanyName,
@@ -75,6 +80,10 @@ func (s *Service) ConvertToCustomer(ctx context.Context, uuid string) (domain.Co
 		AddressDetail: domain.TruncateRunes(record.BusinessAddress, customerAddressDetailMaxLength),
 	})
 	if err != nil {
+		return domain.ConvertToCustomerResult{}, ErrIettsConvertUnavailable
+	}
+
+	if err := s.repository.UpdateCustomerIDByUUID(ctx, normalizedUUID, customerID); err != nil {
 		return domain.ConvertToCustomerResult{}, ErrIettsConvertUnavailable
 	}
 

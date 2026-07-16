@@ -11,6 +11,7 @@ type RecordListItem struct {
 	City              *string `json:"city,omitempty"`
 	District          *string `json:"district,omitempty"`
 	CreatedAt         string  `json:"created_at,omitempty"`
+	CustomerID        *uint64 `json:"customer_id,omitempty"`
 }
 
 type Pagination struct {
@@ -48,6 +49,7 @@ type Record struct {
 	CompanyName     string
 	BusinessName    string
 	BusinessAddress string
+	CustomerID      uint64
 }
 
 type CustomerFromIettsInput struct {

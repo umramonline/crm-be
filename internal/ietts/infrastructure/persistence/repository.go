@@ -113,7 +113,36 @@ func (r *Repository) FindRecordByUUID(ctx context.Context, uuid string) (domain.
 		CompanyName:     domain.StringValue(row.CompanyName),
 		BusinessName:    domain.StringValue(row.BusinessName),
 		BusinessAddress: domain.StringValue(row.BusinessAddress),
+		CustomerID:      customerIDValue(row.CustomerID),
 	}, nil
+}
+
+func (r *Repository) UpdateCustomerIDByUUID(ctx context.Context, uuid string, customerID uint64) error {
+	if r == nil || r.db == nil {
+		return gorm.ErrInvalidDB
+	}
+
+	result := r.db.WithContext(ctx).
+		Model(&IettsRecordModel{}).
+		Where("uuid = ? AND deleted_at IS NULL", uuid).
+		Update("customer_id", customerID)
+	if result.Error != nil {
+		return result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+
+	return nil
+}
+
+func customerIDValue(value *uint64) uint64 {
+	if value == nil {
+		return 0
+	}
+
+	return *value
 }
 
 func applyIettsFilters(query *gorm.DB, filters domain.ListQuery) *gorm.DB {
@@ -193,6 +222,10 @@ func toRecordListItem(model IettsRecordModel) domain.RecordListItem {
 
 	if model.CreatedAt != nil {
 		item.CreatedAt = model.CreatedAt.Format(time.RFC3339)
+	}
+
+	if model.CustomerID != nil && *model.CustomerID > 0 {
+		item.CustomerID = model.CustomerID
 	}
 
 	return item
