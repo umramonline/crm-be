@@ -22,6 +22,9 @@ import (
 	followuphttp "github.com/umran/new.crm/backend/internal/followup/infrastructure/http"
 	followuppersistence "github.com/umran/new.crm/backend/internal/followup/infrastructure/persistence"
 	followupstorage "github.com/umran/new.crm/backend/internal/followup/infrastructure/storage"
+	iettsapp "github.com/umran/new.crm/backend/internal/ietts/application"
+	iettshttp "github.com/umran/new.crm/backend/internal/ietts/infrastructure/http"
+	iettspersistence "github.com/umran/new.crm/backend/internal/ietts/infrastructure/persistence"
 	"github.com/umran/new.crm/backend/internal/infrastructure/config"
 	httpserver "github.com/umran/new.crm/backend/internal/infrastructure/http"
 	dbpersistence "github.com/umran/new.crm/backend/internal/infrastructure/persistence"
@@ -86,6 +89,10 @@ func main() {
 		log.Fatal(err)
 	}
 
+	if err := iettspersistence.AutoMigrate(db); err != nil {
+		log.Fatal(err)
+	}
+
 	if err := authzpersistence.SeedAuthorization(db); err != nil {
 		log.Fatal(err)
 	}
@@ -99,6 +106,10 @@ func main() {
 	}
 
 	if err := authzpersistence.SeedFollowUps(db); err != nil {
+		log.Fatal(err)
+	}
+
+	if err := authzpersistence.SeedIetts(db); err != nil {
 		log.Fatal(err)
 	}
 
@@ -126,13 +137,16 @@ func main() {
 	followUpStorage := followupstorage.NewLocalImageStorage("storage/follow-ups", "/storage/follow-ups")
 	followUpService := followupapp.NewService(followUpRepository, followUpStorage)
 	followUpHandler := followuphttp.NewHandler(followUpService)
+	iettsRepository := iettspersistence.NewRepository(db)
+	iettsService := iettsapp.NewService(iettsRepository)
+	iettsHandler := iettshttp.NewHandler(iettsService)
 	authRequired := authzhttp.RequirePermission(authorizationService, sessionTokenService, authzhttp.AuthMiddlewareConfig{})
 
 	server := httpserver.NewServer(httpserver.Config{
 		Addr:                 cfg.Addr(),
 		CORSAllowedOrigins:   cfg.CORSAllowedOrigins,
 		CORSAllowCredentials: cfg.CORSAllowCredentials,
-	}, otpHandler, authorizationHandler, customerHandler, taskHandler, followUpHandler, authRequired)
+	}, otpHandler, authorizationHandler, customerHandler, taskHandler, followUpHandler, iettsHandler, authRequired)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
