@@ -100,6 +100,10 @@ func (s *Service) ListZones(ctx context.Context, branchIDs []uint64, includeAll 
 		return []domain.Zone{}, nil
 	}
 
+	if includeAll {
+		return s.provider.ListZones(ctx, nil)
+	}
+
 	return s.provider.ListZones(ctx, branchIDs)
 }
 
@@ -304,6 +308,10 @@ func (s *Service) ListBranches(ctx context.Context, branchIDs []uint64, includeA
 
 	if !includeAll && len(branchIDs) == 0 {
 		return []domain.Branch{}, nil
+	}
+
+	if includeAll {
+		return s.provider.ListBranches(ctx, nil)
 	}
 
 	return s.provider.ListBranches(ctx, branchIDs)
