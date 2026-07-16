@@ -237,6 +237,7 @@ func (r *Repository) CreateCustomerFromIetts(
 		Ad:            stringPointer(ad),
 		Soyad:         stringPointer(soyad),
 		AddressDetail: stringPointer(addressDetail),
+		Type:          stringPointer("kurumsal"),
 	}
 
 	if err := r.db.WithContext(ctx).Create(&customer).Error; err != nil {
