@@ -20,6 +20,7 @@ func NewHandler(service *application.Service) *Handler {
 
 func (h *Handler) RegisterRoutes(router fiber.Router, authRequired fiber.Handler) {
 	router.Get("/ietts", authRequired, h.ListRecords)
+	router.Post("/ietts/:uuid/convert-to-customer", authRequired, h.ConvertToCustomer)
 }
 
 func (h *Handler) ListRecords(c *fiber.Ctx) error {
@@ -43,6 +44,24 @@ func (h *Handler) ListRecords(c *fiber.Ctx) error {
 	}
 
 	return response.Success(c, fiber.StatusOK, "IETTS kayıtları getirildi.", result)
+}
+
+func (h *Handler) ConvertToCustomer(c *fiber.Ctx) error {
+	result, err := h.service.ConvertToCustomer(c.UserContext(), c.Params("uuid"))
+	if err != nil {
+		switch err {
+		case application.ErrIettsInvalidConvertInput:
+			return response.Error(c, fiber.StatusUnprocessableEntity, "IETTS kaydı geçersiz.", fiber.Map{
+				"uuid": "IETTS kaydı geçersiz.",
+			})
+		case application.ErrIettsRecordNotFound:
+			return response.Error(c, fiber.StatusNotFound, "IETTS kaydı bulunamadı.", nil)
+		default:
+			return response.Error(c, fiber.StatusServiceUnavailable, "IETTS kaydı müşteriye dönüştürülemedi.", nil)
+		}
+	}
+
+	return response.Success(c, fiber.StatusCreated, "IETTS kaydı müşteriye dönüştürüldü.", result)
 }
 
 func queryInt(c *fiber.Ctx, key string, fallback int) int {

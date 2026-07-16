@@ -42,3 +42,21 @@ type ListQuery struct {
 	SortBy            string
 	SortOrder         string
 }
+
+type Record struct {
+	UUID            string
+	CompanyName     string
+	BusinessName    string
+	BusinessAddress string
+}
+
+type CustomerFromIettsInput struct {
+	Unvan         string
+	Ad            string
+	Soyad         string
+	AddressDetail string
+}
+
+type ConvertToCustomerResult struct {
+	CustomerID uint64 `json:"customer_id"`
+}

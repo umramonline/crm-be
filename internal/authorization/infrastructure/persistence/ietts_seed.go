@@ -13,6 +13,12 @@ var iettsMethodSeeds = []authorizationMethodSeed{
 		Method:      stringPointer("GET"),
 		Path:        stringPointer("/api/v1/ietts"),
 	},
+	{
+		Name:        "ietts.convert_to_customer",
+		Description: "IETTS kaydını müşteriye dönüştürür.",
+		Method:      stringPointer("POST"),
+		Path:        stringPointer("/api/v1/ietts/:uuid/convert-to-customer"),
+	},
 }
 
 func SeedIetts(db *gorm.DB) error {

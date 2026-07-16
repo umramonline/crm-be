@@ -221,6 +221,31 @@ func (r *Repository) CreateCustomer(ctx context.Context, input domain.CreateCust
 	return toCustomerDetail(customer), nil
 }
 
+func (r *Repository) CreateCustomerFromIetts(
+	ctx context.Context,
+	unvan string,
+	ad string,
+	soyad string,
+	addressDetail string,
+) (uint64, error) {
+	if r == nil || r.db == nil {
+		return 0, gorm.ErrInvalidDB
+	}
+
+	customer := CustomerModel{
+		Unvan:         stringPointer(unvan),
+		Ad:            stringPointer(ad),
+		Soyad:         stringPointer(soyad),
+		AddressDetail: stringPointer(addressDetail),
+	}
+
+	if err := r.db.WithContext(ctx).Create(&customer).Error; err != nil {
+		return 0, err
+	}
+
+	return customer.ID, nil
+}
+
 func (r *Repository) CompleteFullRegistration(ctx context.Context, id uint64, input domain.FullRegistrationInput) (domain.CustomerDetail, error) {
 	var customer CustomerModel
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {

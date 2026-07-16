@@ -6,20 +6,37 @@ import (
 	"strings"
 
 	"github.com/umran/new.crm/backend/internal/ietts/domain"
+	"gorm.io/gorm"
 )
 
-var ErrIettsListUnavailable = errors.New("ietts list unavailable")
+var (
+	ErrIettsListUnavailable      = errors.New("ietts list unavailable")
+	ErrIettsConvertUnavailable   = errors.New("ietts convert unavailable")
+	ErrIettsRecordNotFound       = errors.New("ietts record not found")
+	ErrIettsInvalidConvertInput  = errors.New("ietts invalid convert input")
+)
+
+const customerAddressDetailMaxLength = 255
 
 type Repository interface {
 	ListRecords(ctx context.Context, query domain.ListQuery) (domain.ListResult, error)
+	FindRecordByUUID(ctx context.Context, uuid string) (domain.Record, error)
+}
+
+type CustomerFromIettsWriter interface {
+	CreateCustomerFromIetts(ctx context.Context, input domain.CustomerFromIettsInput) (uint64, error)
 }
 
 type Service struct {
-	repository Repository
+	repository     Repository
+	customerWriter CustomerFromIettsWriter
 }
 
-func NewService(repository Repository) *Service {
-	return &Service{repository: repository}
+func NewService(repository Repository, customerWriter CustomerFromIettsWriter) *Service {
+	return &Service{
+		repository:     repository,
+		customerWriter: customerWriter,
+	}
 }
 
 func (s *Service) ListRecords(ctx context.Context, query domain.ListQuery) (domain.ListResult, error) {
@@ -33,6 +50,35 @@ func (s *Service) ListRecords(ctx context.Context, query domain.ListQuery) (doma
 	}
 
 	return result, nil
+}
+
+func (s *Service) ConvertToCustomer(ctx context.Context, uuid string) (domain.ConvertToCustomerResult, error) {
+	normalizedUUID := strings.TrimSpace(uuid)
+	if s == nil || s.repository == nil || s.customerWriter == nil || normalizedUUID == "" {
+		return domain.ConvertToCustomerResult{}, ErrIettsInvalidConvertInput
+	}
+
+	record, err := s.repository.FindRecordByUUID(ctx, normalizedUUID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return domain.ConvertToCustomerResult{}, ErrIettsRecordNotFound
+		}
+
+		return domain.ConvertToCustomerResult{}, ErrIettsConvertUnavailable
+	}
+
+	ad, soyad := domain.SplitBusinessName(record.BusinessName)
+	customerID, err := s.customerWriter.CreateCustomerFromIetts(ctx, domain.CustomerFromIettsInput{
+		Unvan:         record.CompanyName,
+		Ad:            ad,
+		Soyad:         soyad,
+		AddressDetail: domain.TruncateRunes(record.BusinessAddress, customerAddressDetailMaxLength),
+	})
+	if err != nil {
+		return domain.ConvertToCustomerResult{}, ErrIettsConvertUnavailable
+	}
+
+	return domain.ConvertToCustomerResult{CustomerID: customerID}, nil
 }
 
 func normalizeListQuery(query domain.ListQuery) domain.ListQuery {

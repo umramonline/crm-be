@@ -95,6 +95,27 @@ func (r *Repository) listBaseQuery(ctx context.Context, filters domain.ListQuery
 	return applyIettsFilters(query, filters)
 }
 
+func (r *Repository) FindRecordByUUID(ctx context.Context, uuid string) (domain.Record, error) {
+	if r == nil || r.db == nil {
+		return domain.Record{}, gorm.ErrInvalidDB
+	}
+
+	var row IettsRecordModel
+	err := r.db.WithContext(ctx).
+		Where("uuid = ? AND deleted_at IS NULL", uuid).
+		First(&row).Error
+	if err != nil {
+		return domain.Record{}, err
+	}
+
+	return domain.Record{
+		UUID:            domain.StringValue(row.UUID),
+		CompanyName:     domain.StringValue(row.CompanyName),
+		BusinessName:    domain.StringValue(row.BusinessName),
+		BusinessAddress: domain.StringValue(row.BusinessAddress),
+	}, nil
+}
+
 func applyIettsFilters(query *gorm.DB, filters domain.ListQuery) *gorm.DB {
 	if strings.TrimSpace(filters.DocumentNumber) != "" {
 		query = query.Where("document_number LIKE ?", "%"+strings.TrimSpace(filters.DocumentNumber)+"%")

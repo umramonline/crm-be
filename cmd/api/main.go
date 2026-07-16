@@ -116,7 +116,8 @@ func main() {
 	authorizationRepository := authzpersistence.NewRepository(db)
 	permissionRepository = authorizationRepository
 	moduleRepository = authorizationRepository
-	customerRepository = customerpersistence.NewRepository(db)
+	customerPersistenceRepository := customerpersistence.NewRepository(db)
+	customerRepository = customerPersistenceRepository
 
 	authorizationService := authzapp.NewService(authorizationProvider, permissionRepository, moduleRepository)
 	otpHandler := authhttp.NewOTPHandler(otpRequestService, sessionTokenService, authhttp.SessionConfig{
@@ -138,7 +139,8 @@ func main() {
 	followUpService := followupapp.NewService(followUpRepository, followUpStorage)
 	followUpHandler := followuphttp.NewHandler(followUpService)
 	iettsRepository := iettspersistence.NewRepository(db)
-	iettsService := iettsapp.NewService(iettsRepository)
+	iettsCustomerWriter := iettspersistence.NewCustomerWriter(customerPersistenceRepository)
+	iettsService := iettsapp.NewService(iettsRepository, iettsCustomerWriter)
 	iettsHandler := iettshttp.NewHandler(iettsService)
 	authRequired := authzhttp.RequirePermission(authorizationService, sessionTokenService, authzhttp.AuthMiddlewareConfig{})
 
