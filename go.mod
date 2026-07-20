@@ -1,6 +1,6 @@
 module github.com/umran/new.crm/backend
 
-go 1.22
+go 1.25.0
 
 require (
 	github.com/caarlos0/env/v11 v11.4.1
@@ -8,6 +8,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/robfig/cron/v3 v3.0.1
+	golang.org/x/sync v0.22.0
 	gorm.io/driver/mysql v1.6.0
 	gorm.io/gorm v1.31.1
 )

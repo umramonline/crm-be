@@ -31,6 +31,9 @@ type Config struct {
 	TownsPath               string
 	BranchesPath            string
 	TaskSMSPath             string
+	DashboardVehicleEntryPath string
+	DashboardTotalAmountPath  string
+	DashboardLoadedCreditPath string
 	Timeout                 time.Duration
 }
 
@@ -50,6 +53,9 @@ type Client struct {
 	townsPath               string
 	branchesPath            string
 	taskSMSPath             string
+	dashboardVehicleEntryPath string
+	dashboardTotalAmountPath  string
+	dashboardLoadedCreditPath string
 	httpClient              *http.Client
 }
 
@@ -207,6 +213,37 @@ type CustomerListResult struct {
 	Pagination Pagination
 }
 
+type DashboardStatsQuery struct {
+	StartDate        time.Time
+	EndDate          time.Time
+	BranchIDs        []uint64
+	AllowAllBranches bool
+}
+
+type dashboardCountResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	Data    struct {
+		Count int64 `json:"count"`
+	} `json:"data"`
+}
+
+func (r dashboardCountResponse) successful() bool {
+	return r.Success
+}
+
+type dashboardAmountResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	Data    struct {
+		Amount float64 `json:"amount"`
+	} `json:"data"`
+}
+
+func (r dashboardAmountResponse) successful() bool {
+	return r.Success
+}
+
 func NewClient(config Config) *Client {
 	timeout := config.Timeout
 	if timeout <= 0 {
@@ -229,6 +266,9 @@ func NewClient(config Config) *Client {
 		townsPath:               "/" + strings.Trim(config.TownsPath, "/"),
 		branchesPath:            "/" + strings.Trim(config.BranchesPath, "/"),
 		taskSMSPath:             "/" + strings.Trim(config.TaskSMSPath, "/"),
+		dashboardVehicleEntryPath: "/" + strings.Trim(config.DashboardVehicleEntryPath, "/"),
+		dashboardTotalAmountPath:  "/" + strings.Trim(config.DashboardTotalAmountPath, "/"),
+		dashboardLoadedCreditPath: "/" + strings.Trim(config.DashboardLoadedCreditPath, "/"),
 		httpClient: &http.Client{
 			Timeout: timeout,
 		},
@@ -671,6 +711,60 @@ func (c *Client) GetCustomer(ctx context.Context, id uint64) (CustomerSearchItem
 	}
 
 	return *apiResponse.Data, nil
+}
+
+func (c *Client) DashboardVehicleEntryCount(ctx context.Context, query DashboardStatsQuery) (int64, error) {
+	return c.dashboardCount(ctx, c.dashboardVehicleEntryPath, query)
+}
+
+func (c *Client) DashboardTotalAmount(ctx context.Context, query DashboardStatsQuery) (float64, error) {
+	return c.dashboardAmount(ctx, c.dashboardTotalAmountPath, query)
+}
+
+func (c *Client) DashboardLoadedCredit(ctx context.Context, query DashboardStatsQuery) (float64, error) {
+	return c.dashboardAmount(ctx, c.dashboardLoadedCreditPath, query)
+}
+
+func (c *Client) dashboardCount(ctx context.Context, path string, query DashboardStatsQuery) (int64, error) {
+	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || path == "/" {
+		return 0, ErrRequestFailed
+	}
+
+	var apiResponse dashboardCountResponse
+	if err := c.getJSON(ctx, path, dashboardStatsQueryValues(query), &apiResponse); err != nil {
+		return 0, err
+	}
+
+	return apiResponse.Data.Count, nil
+}
+
+func (c *Client) dashboardAmount(ctx context.Context, path string, query DashboardStatsQuery) (float64, error) {
+	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || path == "/" {
+		return 0, ErrRequestFailed
+	}
+
+	var apiResponse dashboardAmountResponse
+	if err := c.getJSON(ctx, path, dashboardStatsQueryValues(query), &apiResponse); err != nil {
+		return 0, err
+	}
+
+	return apiResponse.Data.Amount, nil
+}
+
+func dashboardStatsQueryValues(query DashboardStatsQuery) url.Values {
+	values := url.Values{}
+	values.Set("start_date", query.StartDate.Format("2006-01-02"))
+	values.Set("end_date", query.EndDate.Format("2006-01-02"))
+
+	if !query.AllowAllBranches {
+		for _, branchID := range query.BranchIDs {
+			if branchID > 0 {
+				values.Add("branch_ids[]", strconv.FormatUint(branchID, 10))
+			}
+		}
+	}
+
+	return values
 }
 
 type customerListResponse struct {

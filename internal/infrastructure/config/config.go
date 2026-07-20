@@ -27,6 +27,9 @@ type Config struct {
 	UmramonlineTownsPath               string `env:"UMRAMONLINE_TOWNS_PATH" envDefault:"/api/v1/crm/towns"`
 	UmramonlineBranchesPath            string `env:"UMRAMONLINE_BRANCHES_PATH" envDefault:"/api/v1/crm/branches"`
 	UmramonlineTaskSMSPath             string `env:"UMRAMONLINE_TASK_SMS_PATH" envDefault:"/api/v1/crm/tasks/sms-created"`
+	UmramonlineDashboardVehicleEntryPath string `env:"UMRAMONLINE_DASHBOARD_VEHICLE_ENTRY_PATH" envDefault:"/api/v1/crm/dashboard/vehicle-entry-count"`
+	UmramonlineDashboardTotalAmountPath  string `env:"UMRAMONLINE_DASHBOARD_TOTAL_AMOUNT_PATH" envDefault:"/api/v1/crm/dashboard/total-amount"`
+	UmramonlineDashboardLoadedCreditPath string `env:"UMRAMONLINE_DASHBOARD_LOADED_CREDIT_PATH" envDefault:"/api/v1/crm/dashboard/loaded-credit"`
 	UmramonlineTimeoutSeconds          int    `env:"UMRAMONLINE_TIMEOUT_SECONDS" envDefault:"10"`
 	CustomerSyncDailyAt                string `env:"CUSTOMER_SYNC_DAILY_AT" envDefault:"03:00"`
 	CustomerSyncCron                   string `env:"CUSTOMER_SYNC_CRON" envDefault:"0 3 * * *"`

@@ -11,6 +11,7 @@ import (
 	authzhttp "github.com/umran/new.crm/backend/internal/authorization/infrastructure/http"
 	customerhttp "github.com/umran/new.crm/backend/internal/customer/infrastructure/http"
 	followuphttp "github.com/umran/new.crm/backend/internal/followup/infrastructure/http"
+	dashboardhttp "github.com/umran/new.crm/backend/internal/dashboard/infrastructure/http"
 	"github.com/umran/new.crm/backend/internal/infrastructure/http/handler"
 	iettshttp "github.com/umran/new.crm/backend/internal/ietts/infrastructure/http"
 	taskhttp "github.com/umran/new.crm/backend/internal/task/infrastructure/http"
@@ -34,6 +35,7 @@ func NewServer(config Config,
 	taskHandler *taskhttp.Handler,
 	followUpHandler *followuphttp.Handler,
 	iettsHandler *iettshttp.Handler,
+	dashboardHandler *dashboardhttp.Handler,
 	authRequired fiber.Handler) *Server {
 	greetingService := app.NewService()
 	helloHandler := handler.NewHelloHandler(greetingService)
@@ -61,6 +63,7 @@ func NewServer(config Config,
 	taskHandler.RegisterRoutes(apiV1, authRequired)
 	followUpHandler.RegisterRoutes(apiV1, authRequired)
 	iettsHandler.RegisterRoutes(apiV1, authRequired)
+	dashboardHandler.RegisterRoutes(apiV1, authRequired)
 
 	return &Server{
 		addr: config.Addr,

@@ -13,6 +13,10 @@ import (
 	authzhttp "github.com/umran/new.crm/backend/internal/authorization/infrastructure/http"
 	authzpersistence "github.com/umran/new.crm/backend/internal/authorization/infrastructure/persistence"
 	authzumramonline "github.com/umran/new.crm/backend/internal/authorization/infrastructure/umramonline"
+	dashboardapp "github.com/umran/new.crm/backend/internal/dashboard/application"
+	dashboardhttp "github.com/umran/new.crm/backend/internal/dashboard/infrastructure/http"
+	dashboardpersistence "github.com/umran/new.crm/backend/internal/dashboard/infrastructure/persistence"
+	dashboardumramonline "github.com/umran/new.crm/backend/internal/dashboard/infrastructure/umramonline"
 	customerapp "github.com/umran/new.crm/backend/internal/customer/application"
 	customerhttp "github.com/umran/new.crm/backend/internal/customer/infrastructure/http"
 	customerpersistence "github.com/umran/new.crm/backend/internal/customer/infrastructure/persistence"
@@ -58,6 +62,9 @@ func main() {
 		TownsPath:               cfg.UmramonlineTownsPath,
 		BranchesPath:            cfg.UmramonlineBranchesPath,
 		TaskSMSPath:             cfg.UmramonlineTaskSMSPath,
+		DashboardVehicleEntryPath: cfg.UmramonlineDashboardVehicleEntryPath,
+		DashboardTotalAmountPath:  cfg.UmramonlineDashboardTotalAmountPath,
+		DashboardLoadedCreditPath: cfg.UmramonlineDashboardLoadedCreditPath,
 		Timeout:                 cfg.UmramonlineTimeout(),
 	})
 	otpRequestService := authapp.NewOTPRequestService(umramonlineClient)
@@ -113,6 +120,10 @@ func main() {
 		log.Fatal(err)
 	}
 
+	if err := authzpersistence.SeedDashboard(db); err != nil {
+		log.Fatal(err)
+	}
+
 	authorizationRepository := authzpersistence.NewRepository(db)
 	permissionRepository = authorizationRepository
 	moduleRepository = authorizationRepository
@@ -142,13 +153,17 @@ func main() {
 	iettsCustomerWriter := iettspersistence.NewCustomerWriter(customerPersistenceRepository)
 	iettsService := iettsapp.NewService(iettsRepository, iettsCustomerWriter)
 	iettsHandler := iettshttp.NewHandler(iettsService)
+	dashboardRepository := dashboardpersistence.NewRepository(db)
+	dashboardProvider := dashboardumramonline.NewProvider(umramonlineClient)
+	dashboardService := dashboardapp.NewService(dashboardRepository, dashboardProvider)
+	dashboardHandler := dashboardhttp.NewHandler(dashboardService)
 	authRequired := authzhttp.RequirePermission(authorizationService, sessionTokenService, authzhttp.AuthMiddlewareConfig{})
 
 	server := httpserver.NewServer(httpserver.Config{
 		Addr:                 cfg.Addr(),
 		CORSAllowedOrigins:   cfg.CORSAllowedOrigins,
 		CORSAllowCredentials: cfg.CORSAllowCredentials,
-	}, otpHandler, authorizationHandler, customerHandler, taskHandler, followUpHandler, iettsHandler, authRequired)
+	}, otpHandler, authorizationHandler, customerHandler, taskHandler, followUpHandler, iettsHandler, dashboardHandler, authRequired)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
