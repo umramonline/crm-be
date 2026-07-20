@@ -5,6 +5,7 @@ import (
 
 	authhttp "github.com/umran/new.crm/backend/internal/auth/infrastructure/http"
 	"github.com/umran/new.crm/backend/internal/authorization/application"
+	sharedauth "github.com/umran/new.crm/backend/internal/shared/auth"
 )
 
 type SessionAdapter struct {
@@ -54,17 +55,22 @@ func toAuthSessionData(session application.SessionData) authhttp.SessionData {
 		})
 	}
 
+	user := authhttp.SessionUser{
+		ID:       session.User.ID,
+		FullName: session.User.FullName,
+		Phone:    session.User.Phone,
+		RoleID:   session.User.RoleID,
+		RoleName: session.User.RoleName,
+	}
+
+	if !sharedauth.IsAdminRole(session.User.RoleID) {
+		user.BranchIds = session.User.BranchIds
+		user.Branches = session.User.Branches
+	}
+
 	return authhttp.SessionData{
-		UserID: session.User.ID,
-		User: authhttp.SessionUser{
-			ID:        session.User.ID,
-			FullName:  session.User.FullName,
-			Phone:     session.User.Phone,
-			RoleID:    session.User.RoleID,
-			RoleName:  session.User.RoleName,
-			BranchIds: session.User.BranchIds,
-			Branches:  session.User.Branches,
-		},
+		UserID:      session.User.ID,
+		User:        user,
 		Permissions: permissions,
 	}
 }

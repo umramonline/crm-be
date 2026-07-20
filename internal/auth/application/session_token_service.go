@@ -10,6 +10,7 @@ import (
 	"time"
 
 	branchapp "github.com/umran/new.crm/backend/internal/authorization/application"
+	sharedauth "github.com/umran/new.crm/backend/internal/shared/auth"
 )
 
 const (
@@ -54,10 +55,16 @@ func (s *SessionTokenService) Issue(userId uint64, tokenType string, ttl time.Du
 		"alg": "HS256",
 		"typ": "JWT",
 	}
-	branchIds := make([]uint64, 0, len(branches))
-	for _, branch := range branches {
-		branchIds = append(branchIds, branch.ID)
+	var branchIds []uint64
+	if !sharedauth.IsAdminRole(roleID) {
+		branchIds = make([]uint64, 0, len(branches))
+		for _, branch := range branches {
+			branchIds = append(branchIds, branch.ID)
+		}
+	} else {
+		branches = nil
 	}
+
 	claims := SessionTokenClaims{
 		UserId:       userId,
 		BranchIds:    branchIds,

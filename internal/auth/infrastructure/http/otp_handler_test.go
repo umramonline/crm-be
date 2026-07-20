@@ -13,6 +13,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/umran/new.crm/backend/internal/auth/application"
+	branchapp "github.com/umran/new.crm/backend/internal/authorization/application"
 )
 
 type fakeOTPRequestService struct {
@@ -56,7 +57,7 @@ func (f *fakeOTPRequestService) LoginWithPassword(_ context.Context, phone strin
 	return f.loginData, f.loginErr
 }
 
-func (f *fakeSessionTokenService) Issue(userID uint64, tokenType string, _ time.Duration, roleID uint64, roleName string, fullName string) (string, error) {
+func (f *fakeSessionTokenService) Issue(userID uint64, tokenType string, _ time.Duration, roleID uint64, roleName string, fullName string, _ []branchapp.Branch) (string, error) {
 	if f.issueErr != nil {
 		return "", f.issueErr
 	}

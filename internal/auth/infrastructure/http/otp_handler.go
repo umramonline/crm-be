@@ -11,6 +11,7 @@ import (
 
 	"github.com/umran/new.crm/backend/internal/auth/application"
 	branchapp "github.com/umran/new.crm/backend/internal/authorization/application"
+	sharedauth "github.com/umran/new.crm/backend/internal/shared/auth"
 	"github.com/umran/new.crm/backend/internal/shared/response"
 )
 
@@ -333,11 +334,15 @@ func (h *OTPHandler) sessionDataFromLoginData(ctx context.Context, data map[stri
 
 func (h *OTPHandler) sessionDataFromClaims(ctx context.Context, claims application.SessionTokenClaims) (SessionData, error) {
 	user := SessionUser{
-		ID:        claims.UserId,
-		FullName:  claims.UserFullName,
-		BranchIds: claims.BranchIds,
-		RoleID:    claims.RoleID,
-		RoleName:  claims.RoleName,
+		ID:       claims.UserId,
+		FullName: claims.UserFullName,
+		RoleID:   claims.RoleID,
+		RoleName: claims.RoleName,
+	}
+
+	if !sharedauth.IsAdminRole(claims.RoleID) {
+		user.BranchIds = claims.BranchIds
+		user.Branches = claims.Branches
 	}
 
 	if h.authorization == nil {

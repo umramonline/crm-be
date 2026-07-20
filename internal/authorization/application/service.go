@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/umran/new.crm/backend/internal/authorization/domain"
+	sharedauth "github.com/umran/new.crm/backend/internal/shared/auth"
 )
 
 var (
@@ -241,20 +242,27 @@ func userFromLoginData(data map[string]any) (User, error) {
 	}
 
 	roleID, _ := uintFromAny(rawUser["role_id"])
+	user := User{
+		ID:       id,
+		FullName: stringFromAny(rawUser["name"]),
+		Phone:    stringFromAny(rawUser["phone"]),
+		RoleID:   roleID,
+		RoleName: stringFromAny(rawUser["role_name"]),
+	}
+
+	if sharedauth.IsAdminRole(roleID) {
+		return user, nil
+	}
+
 	branches, branchIds, err := parseBranches(rawUser["branches"])
 	if err != nil {
 		return User{}, err
 	}
 
-	return User{
-		ID:        id,
-		FullName:  stringFromAny(rawUser["name"]),
-		Phone:     stringFromAny(rawUser["phone"]),
-		RoleID:    roleID,
-		RoleName:  stringFromAny(rawUser["role_name"]),
-		BranchIds: branchIds,
-		Branches:  branches,
-	}, nil
+	user.BranchIds = branchIds
+	user.Branches = branches
+
+	return user, nil
 }
 
 func parseBranches(raw interface{}) ([]Branch, []uint64, error) {
