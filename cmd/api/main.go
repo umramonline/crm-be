@@ -17,6 +17,9 @@ import (
 	dashboardhttp "github.com/umran/new.crm/backend/internal/dashboard/infrastructure/http"
 	dashboardpersistence "github.com/umran/new.crm/backend/internal/dashboard/infrastructure/persistence"
 	dashboardumramonline "github.com/umran/new.crm/backend/internal/dashboard/infrastructure/umramonline"
+	consumeapp "github.com/umran/new.crm/backend/internal/consume/application"
+	consumehttp "github.com/umran/new.crm/backend/internal/consume/infrastructure/http"
+	consumepersistence "github.com/umran/new.crm/backend/internal/consume/infrastructure/persistence"
 	customerapp "github.com/umran/new.crm/backend/internal/customer/application"
 	customerhttp "github.com/umran/new.crm/backend/internal/customer/infrastructure/http"
 	customerpersistence "github.com/umran/new.crm/backend/internal/customer/infrastructure/persistence"
@@ -100,6 +103,10 @@ func main() {
 		log.Fatal(err)
 	}
 
+	if err := consumepersistence.AutoMigrate(db); err != nil {
+		log.Fatal(err)
+	}
+
 	if err := authzpersistence.SeedAuthorization(db); err != nil {
 		log.Fatal(err)
 	}
@@ -157,13 +164,17 @@ func main() {
 	dashboardProvider := dashboardumramonline.NewProvider(umramonlineClient)
 	dashboardService := dashboardapp.NewService(dashboardRepository, dashboardProvider)
 	dashboardHandler := dashboardhttp.NewHandler(dashboardService)
+	consumeRepository := consumepersistence.NewRepository(db)
+	consumeService := consumeapp.NewService(consumeRepository)
+	consumeHandler := consumehttp.NewHandler(consumeService)
+	consumeAPIKeyRequired := consumehttp.RequireAPIKey(cfg.ConsumeAPIKey)
 	authRequired := authzhttp.RequirePermission(authorizationService, sessionTokenService, authzhttp.AuthMiddlewareConfig{})
 
 	server := httpserver.NewServer(httpserver.Config{
 		Addr:                 cfg.Addr(),
 		CORSAllowedOrigins:   cfg.CORSAllowedOrigins,
 		CORSAllowCredentials: cfg.CORSAllowCredentials,
-	}, otpHandler, authorizationHandler, customerHandler, taskHandler, followUpHandler, iettsHandler, dashboardHandler, authRequired)
+	}, otpHandler, authorizationHandler, customerHandler, taskHandler, followUpHandler, iettsHandler, dashboardHandler, consumeHandler, consumeAPIKeyRequired, authRequired)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

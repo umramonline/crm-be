@@ -42,6 +42,7 @@ type Config struct {
 	AuthCookieSecure                   bool   `env:"AUTH_COOKIE_SECURE" envDefault:"false"`
 	AuthCookieSameSite                 string `env:"AUTH_COOKIE_SAME_SITE" envDefault:"Lax"`
 	ShutdownTimeoutSeconds             int    `env:"SHUTDOWN_TIMEOUT_SECONDS" envDefault:"10"`
+	ConsumeAPIKey                      string `env:"CONSUME_API_KEY"`
 }
 
 func Load() (*Config, error) {
