@@ -2,6 +2,12 @@ package domain
 
 const EventTypeCustomerCreated = "customer.created"
 
+type ConsumeCommand struct {
+	EventID   string
+	EventType string
+	Payload   []byte
+}
+
 type Telephone struct {
 	PhoneNumber string
 	Title       string

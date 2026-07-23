@@ -9,9 +9,11 @@ import (
 )
 
 var (
-	ErrInvalidEventPayload   = errors.New("invalid event payload")
-	ErrUnsupportedEventType  = errors.New("unsupported event type")
+	ErrInvalidEventPayload  = errors.New("invalid event payload")
+	ErrUnsupportedEventType = errors.New("unsupported event type")
 )
+
+type eventHandler func(ctx context.Context, command domain.ConsumeCommand) (domain.ConsumeResult, error)
 
 type Repository interface {
 	ConsumeCustomerCreated(ctx context.Context, event domain.CustomerCreatedEvent) (domain.ConsumeResult, error)
@@ -19,31 +21,44 @@ type Repository interface {
 
 type Service struct {
 	repository Repository
+	handlers   map[string]eventHandler
 }
 
 func NewService(repository Repository) *Service {
-	return &Service{repository: repository}
+	service := &Service{
+		repository: repository,
+		handlers:   make(map[string]eventHandler),
+	}
+
+	service.registerHandlers()
+
+	return service
 }
 
-func (s *Service) Consume(ctx context.Context, event domain.CustomerCreatedEvent) (domain.ConsumeResult, error) {
+func (s *Service) registerHandlers() {
+	s.handlers[domain.EventTypeCustomerCreated] = s.handleCustomerCreated
+}
+
+func (s *Service) Consume(ctx context.Context, command domain.ConsumeCommand) (domain.ConsumeResult, error) {
 	if s == nil || s.repository == nil {
 		return domain.ConsumeResult{}, ErrInvalidEventPayload
 	}
 
-	event.EventID = strings.TrimSpace(event.EventID)
-	event.EventType = strings.TrimSpace(event.EventType)
+	command.EventID = strings.TrimSpace(command.EventID)
+	command.EventType = strings.TrimSpace(command.EventType)
 
-	if event.EventID == "" {
+	if command.EventID == "" || command.EventType == "" {
 		return domain.ConsumeResult{}, ErrInvalidEventPayload
 	}
 
-	if event.EventType != domain.EventTypeCustomerCreated {
+	if len(command.Payload) == 0 {
+		return domain.ConsumeResult{}, ErrInvalidEventPayload
+	}
+
+	handler, ok := s.handlers[command.EventType]
+	if !ok {
 		return domain.ConsumeResult{}, ErrUnsupportedEventType
 	}
 
-	if event.UOId == 0 {
-		return domain.ConsumeResult{}, ErrInvalidEventPayload
-	}
-
-	return s.repository.ConsumeCustomerCreated(ctx, event)
+	return handler(ctx, command)
 }

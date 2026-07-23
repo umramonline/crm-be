@@ -23,10 +23,10 @@ func (f *fakeConsumeRepository) ConsumeCustomerCreated(_ context.Context, event 
 func TestConsumeRejectsUnsupportedEventType(t *testing.T) {
 	service := NewService(&fakeConsumeRepository{})
 
-	_, err := service.Consume(context.Background(), domain.CustomerCreatedEvent{
+	_, err := service.Consume(context.Background(), domain.ConsumeCommand{
 		EventID:   "event-1",
 		EventType: "customer.updated",
-		UOId:      10,
+		Payload:   []byte(`{"event_id":"event-1","event_type":"customer.updated","uo_id":10}`),
 	})
 	if !errors.Is(err, ErrUnsupportedEventType) {
 		t.Fatalf("expected ErrUnsupportedEventType, got %v", err)
@@ -36,9 +36,9 @@ func TestConsumeRejectsUnsupportedEventType(t *testing.T) {
 func TestConsumeRejectsMissingEventID(t *testing.T) {
 	service := NewService(&fakeConsumeRepository{})
 
-	_, err := service.Consume(context.Background(), domain.CustomerCreatedEvent{
+	_, err := service.Consume(context.Background(), domain.ConsumeCommand{
 		EventType: domain.EventTypeCustomerCreated,
-		UOId:      10,
+		Payload:   []byte(`{"event_type":"customer.created","uo_id":10}`),
 	})
 	if !errors.Is(err, ErrInvalidEventPayload) {
 		t.Fatalf("expected ErrInvalidEventPayload, got %v", err)
@@ -55,11 +55,15 @@ func TestConsumeDelegatesCustomerCreated(t *testing.T) {
 	}
 	service := NewService(repository)
 
-	result, err := service.Consume(context.Background(), domain.CustomerCreatedEvent{
+	result, err := service.Consume(context.Background(), domain.ConsumeCommand{
 		EventID:   "event-1",
 		EventType: domain.EventTypeCustomerCreated,
-		UOId:      10,
-		Telefon:   "05550000000",
+		Payload: []byte(`{
+			"event_id":"event-1",
+			"event_type":"customer.created",
+			"uo_id":10,
+			"telefon":"05550000000"
+		}`),
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -71,5 +75,9 @@ func TestConsumeDelegatesCustomerCreated(t *testing.T) {
 
 	if repository.event.UOId != 10 {
 		t.Fatalf("expected repository to receive uo_id 10, got %d", repository.event.UOId)
+	}
+
+	if repository.event.EventID != "event-1" {
+		t.Fatalf("expected repository to receive event_id event-1, got %q", repository.event.EventID)
 	}
 }
