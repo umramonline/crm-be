@@ -80,6 +80,8 @@ func (h *Handler) Consume(c *fiber.Ctx) error {
 		message = "Event already processed."
 	case "stale_event":
 		message = "Stale event skipped."
+	case "deleted":
+		message = "Customer deleted."
 	default:
 		message = "Unknown action."
 	}

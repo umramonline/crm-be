@@ -11,10 +11,13 @@ import (
 type fakeConsumeRepository struct {
 	createdResult domain.ConsumeResult
 	updatedResult domain.ConsumeResult
+	deletedResult domain.ConsumeResult
 	createdErr    error
 	updatedErr    error
+	deletedErr    error
 	createdEvent  domain.CustomerCreatedEvent
 	updatedEvent  domain.CustomerUpdatedEvent
+	deletedEvent  domain.CustomerDeletedEvent
 }
 
 func (f *fakeConsumeRepository) ConsumeCustomerCreated(_ context.Context, event domain.CustomerCreatedEvent) (domain.ConsumeResult, error) {
@@ -29,13 +32,19 @@ func (f *fakeConsumeRepository) ConsumeCustomerUpdated(_ context.Context, event 
 	return f.updatedResult, f.updatedErr
 }
 
+func (f *fakeConsumeRepository) ConsumeCustomerDeleted(_ context.Context, event domain.CustomerDeletedEvent) (domain.ConsumeResult, error) {
+	f.deletedEvent = event
+
+	return f.deletedResult, f.deletedErr
+}
+
 func TestConsumeRejectsUnsupportedEventType(t *testing.T) {
 	service := NewService(&fakeConsumeRepository{})
 
 	_, err := service.Consume(context.Background(), domain.ConsumeCommand{
 		EventID:   "event-1",
-		EventType: "customer.deleted",
-		Payload:   []byte(`{"event_id":"event-1","event_type":"customer.deleted","uo_id":10,"occurred_at":"2026-07-22T15:22:50+03:00"}`),
+		EventType: "customer.merged",
+		Payload:   []byte(`{"event_id":"event-1","event_type":"customer.merged","uo_id":10,"occurred_at":"2026-07-22T15:22:50+03:00"}`),
 	})
 	if !errors.Is(err, ErrUnsupportedEventType) {
 		t.Fatalf("expected ErrUnsupportedEventType, got %v", err)
@@ -135,5 +144,42 @@ func TestConsumeDelegatesCustomerUpdated(t *testing.T) {
 
 	if repository.updatedEvent.UOId != 10 {
 		t.Fatalf("expected repository to receive uo_id 10, got %d", repository.updatedEvent.UOId)
+	}
+}
+
+func TestConsumeDelegatesCustomerDeleted(t *testing.T) {
+	repository := &fakeConsumeRepository{
+		deletedResult: domain.ConsumeResult{
+			EventID:    "event-3",
+			CustomerID: 55,
+			Action:     "deleted",
+		},
+	}
+	service := NewService(repository)
+
+	result, err := service.Consume(context.Background(), domain.ConsumeCommand{
+		EventID:   "event-3",
+		EventType: domain.EventTypeCustomerDeleted,
+		Payload: []byte(`{
+			"event_id":"event-3",
+			"event_type":"customer.deleted",
+			"uo_id":10,
+			"occurred_at":"2026-07-22T17:22:50+03:00"
+		}`),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.Action != "deleted" {
+		t.Fatalf("expected deleted action, got %q", result.Action)
+	}
+
+	if repository.deletedEvent.UOId != 10 {
+		t.Fatalf("expected repository to receive uo_id 10, got %d", repository.deletedEvent.UOId)
+	}
+
+	if repository.deletedEvent.EventID != "event-3" {
+		t.Fatalf("expected repository to receive event_id event-3, got %q", repository.deletedEvent.EventID)
 	}
 }

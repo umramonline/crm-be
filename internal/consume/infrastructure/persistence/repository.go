@@ -159,6 +159,76 @@ func (r *Repository) ConsumeCustomerUpdated(ctx context.Context, event domain.Cu
 	return result, nil
 }
 
+func (r *Repository) ConsumeCustomerDeleted(ctx context.Context, event domain.CustomerDeletedEvent) (domain.ConsumeResult, error) {
+	if r == nil || r.db == nil {
+		return domain.ConsumeResult{}, gorm.ErrInvalidDB
+	}
+
+	occurredAt, err := parseOccurredAtRequired(event.OccurredAt)
+	if err != nil {
+		return domain.ConsumeResult{}, application.ErrInvalidEventPayload
+	}
+
+	var result domain.ConsumeResult
+
+	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if processed, err := r.isEventProcessedTx(tx, event.EventID); err != nil {
+			return err
+		} else if processed {
+			result = domain.ConsumeResult{
+				EventID: event.EventID,
+				Action:  "already_processed",
+			}
+
+			return nil
+		}
+
+		var customer customerpersistence.CustomerModel
+		findErr := tx.Where("uo_id = ?", event.UOId).First(&customer).Error
+		if findErr == nil {
+			if err := tx.Where("customer_id = ?", customer.ID).Delete(&customerpersistence.CustomerTelephoneModel{}).Error; err != nil {
+				return err
+			}
+
+			if err := tx.Delete(&customer).Error; err != nil {
+				return err
+			}
+
+			result.CustomerID = customer.ID
+		} else if !errors.Is(findErr, gorm.ErrRecordNotFound) {
+			return findErr
+		}
+
+		if err := tx.Create(processedEventRecord(
+			event.EventID,
+			event.UOId,
+			domain.EventTypeCustomerDeleted,
+			occurredAt,
+		)).Error; err != nil {
+			if isDuplicateKeyError(err) {
+				result = domain.ConsumeResult{
+					EventID: event.EventID,
+					Action:  "already_processed",
+				}
+
+				return nil
+			}
+
+			return err
+		}
+
+		result.EventID = event.EventID
+		result.Action = "deleted"
+
+		return nil
+	})
+	if err != nil {
+		return domain.ConsumeResult{}, err
+	}
+
+	return result, nil
+}
+
 func (r *Repository) upsertCustomerFromEvent(tx *gorm.DB, event domain.CustomerEvent) (uint64, string, error) {
 	existing, found, err := findDuplicateCustomer(tx, event)
 	if err != nil {

@@ -19,6 +19,7 @@ type eventHandler func(ctx context.Context, command domain.ConsumeCommand) (doma
 type Repository interface {
 	ConsumeCustomerCreated(ctx context.Context, event domain.CustomerCreatedEvent) (domain.ConsumeResult, error)
 	ConsumeCustomerUpdated(ctx context.Context, event domain.CustomerUpdatedEvent) (domain.ConsumeResult, error)
+	ConsumeCustomerDeleted(ctx context.Context, event domain.CustomerDeletedEvent) (domain.ConsumeResult, error)
 }
 
 type Service struct {
@@ -40,6 +41,7 @@ func NewService(repository Repository) *Service {
 func (s *Service) registerHandlers() {
 	s.handlers[domain.EventTypeCustomerCreated] = s.handleCustomerCreated
 	s.handlers[domain.EventTypeCustomerUpdated] = s.handleCustomerUpdated
+	s.handlers[domain.EventTypeCustomerDeleted] = s.handleCustomerDeleted
 }
 
 func (s *Service) Consume(ctx context.Context, command domain.ConsumeCommand) (domain.ConsumeResult, error) {

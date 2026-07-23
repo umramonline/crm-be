@@ -26,6 +26,37 @@ func (s *Service) handleCustomerUpdated(ctx context.Context, command domain.Cons
 	return s.repository.ConsumeCustomerUpdated(ctx, event)
 }
 
+func (s *Service) handleCustomerDeleted(ctx context.Context, command domain.ConsumeCommand) (domain.ConsumeResult, error) {
+	event, err := decodeCustomerDeletedEvent(command)
+	if err != nil {
+		return domain.ConsumeResult{}, err
+	}
+
+	return s.repository.ConsumeCustomerDeleted(ctx, event)
+}
+
+func decodeCustomerDeletedEvent(command domain.ConsumeCommand) (domain.CustomerDeletedEvent, error) {
+	var payload customerDeletedPayload
+	if err := json.Unmarshal(command.Payload, &payload); err != nil {
+		return domain.CustomerDeletedEvent{}, ErrInvalidEventPayload
+	}
+
+	if payload.UOId == 0 {
+		return domain.CustomerDeletedEvent{}, ErrInvalidEventPayload
+	}
+
+	if strings.TrimSpace(payload.OccurredAt) == "" {
+		return domain.CustomerDeletedEvent{}, ErrInvalidEventPayload
+	}
+
+	return domain.CustomerDeletedEvent{
+		EventID:    command.EventID,
+		EventType:  command.EventType,
+		UOId:       payload.UOId,
+		OccurredAt: payload.OccurredAt,
+	}, nil
+}
+
 func decodeCustomerEvent(command domain.ConsumeCommand) (domain.CustomerEvent, error) {
 	var payload customerEventPayload
 	if err := json.Unmarshal(command.Payload, &payload); err != nil {

@@ -42,3 +42,8 @@ type telephonePayload struct {
 	PhoneNumber string `json:"phone_number"`
 	Title       string `json:"title"`
 }
+
+type customerDeletedPayload struct {
+	UOId       uint64 `json:"uo_id"`
+	OccurredAt string `json:"occurred_at"`
+}

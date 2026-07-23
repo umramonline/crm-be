@@ -3,6 +3,7 @@ package domain
 const (
 	EventTypeCustomerCreated = "customer.created"
 	EventTypeCustomerUpdated = "customer.updated"
+	EventTypeCustomerDeleted = "customer.deleted"
 )
 
 type ConsumeCommand struct {
@@ -59,6 +60,13 @@ type CustomerEvent struct {
 type CustomerCreatedEvent = CustomerEvent
 
 type CustomerUpdatedEvent = CustomerEvent
+
+type CustomerDeletedEvent struct {
+	EventID    string
+	EventType  string
+	UOId       uint64
+	OccurredAt string
+}
 
 type ConsumeResult struct {
 	EventID    string
