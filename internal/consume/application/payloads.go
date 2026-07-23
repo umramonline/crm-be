@@ -1,6 +1,6 @@
 package application
 
-type customerCreatedPayload struct {
+type customerEventPayload struct {
 	UOId             uint64             `json:"uo_id"`
 	BranchID         int32              `json:"branch_id"`
 	Unvan            string             `json:"unvan"`

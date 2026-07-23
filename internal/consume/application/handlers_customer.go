@@ -3,25 +3,48 @@ package application
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	"github.com/umran/new.crm/backend/internal/consume/domain"
 )
 
 func (s *Service) handleCustomerCreated(ctx context.Context, command domain.ConsumeCommand) (domain.ConsumeResult, error) {
-	var payload customerCreatedPayload
-	if err := json.Unmarshal(command.Payload, &payload); err != nil {
-		return domain.ConsumeResult{}, ErrInvalidEventPayload
-	}
-
-	event := mapCustomerCreatedPayload(command.EventID, command.EventType, payload)
-	if event.UOId == 0 {
-		return domain.ConsumeResult{}, ErrInvalidEventPayload
+	event, err := decodeCustomerEvent(command)
+	if err != nil {
+		return domain.ConsumeResult{}, err
 	}
 
 	return s.repository.ConsumeCustomerCreated(ctx, event)
 }
 
-func mapCustomerCreatedPayload(eventID, eventType string, payload customerCreatedPayload) domain.CustomerCreatedEvent {
+func (s *Service) handleCustomerUpdated(ctx context.Context, command domain.ConsumeCommand) (domain.ConsumeResult, error) {
+	event, err := decodeCustomerEvent(command)
+	if err != nil {
+		return domain.ConsumeResult{}, err
+	}
+
+	return s.repository.ConsumeCustomerUpdated(ctx, event)
+}
+
+func decodeCustomerEvent(command domain.ConsumeCommand) (domain.CustomerEvent, error) {
+	var payload customerEventPayload
+	if err := json.Unmarshal(command.Payload, &payload); err != nil {
+		return domain.CustomerEvent{}, ErrInvalidEventPayload
+	}
+
+	event := mapCustomerEventPayload(command.EventID, command.EventType, payload)
+	if event.UOId == 0 {
+		return domain.CustomerEvent{}, ErrInvalidEventPayload
+	}
+
+	if strings.TrimSpace(event.OccurredAt) == "" {
+		return domain.CustomerEvent{}, ErrInvalidEventPayload
+	}
+
+	return event, nil
+}
+
+func mapCustomerEventPayload(eventID, eventType string, payload customerEventPayload) domain.CustomerEvent {
 	telephones := make([]domain.Telephone, 0, len(payload.Telephones))
 	for _, telephone := range payload.Telephones {
 		telephones = append(telephones, domain.Telephone{
@@ -30,7 +53,7 @@ func mapCustomerCreatedPayload(eventID, eventType string, payload customerCreate
 		})
 	}
 
-	return domain.CustomerCreatedEvent{
+	return domain.CustomerEvent{
 		EventID:          eventID,
 		EventType:        eventType,
 		UOId:             payload.UOId,

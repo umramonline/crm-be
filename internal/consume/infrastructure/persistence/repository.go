@@ -2,13 +2,14 @@ package persistence
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"strings"
 	"time"
 
-	customerpersistence "github.com/umran/new.crm/backend/internal/customer/infrastructure/persistence"
 	"github.com/umran/new.crm/backend/internal/consume/application"
 	"github.com/umran/new.crm/backend/internal/consume/domain"
+	customerpersistence "github.com/umran/new.crm/backend/internal/customer/infrastructure/persistence"
 	"gorm.io/gorm"
 )
 
@@ -25,18 +26,14 @@ func (r *Repository) ConsumeCustomerCreated(ctx context.Context, event domain.Cu
 		return domain.ConsumeResult{}, gorm.ErrInvalidDB
 	}
 
-	if processed, err := r.isEventProcessed(ctx, event.EventID); err != nil {
-		return domain.ConsumeResult{}, err
-	} else if processed {
-		return domain.ConsumeResult{
-			EventID: event.EventID,
-			Action:  "already_processed",
-		}, nil
+	occurredAt, err := parseOccurredAtRequired(event.OccurredAt)
+	if err != nil {
+		return domain.ConsumeResult{}, application.ErrInvalidEventPayload
 	}
 
 	var result domain.ConsumeResult
 
-	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if processed, err := r.isEventProcessedTx(tx, event.EventID); err != nil {
 			return err
 		} else if processed {
@@ -53,7 +50,12 @@ func (r *Repository) ConsumeCustomerCreated(ctx context.Context, event domain.Cu
 			return err
 		}
 
-		if err := tx.Create(&ProcessedEventModel{EventUUID: event.EventID}).Error; err != nil {
+		if err := tx.Create(processedEventRecord(
+			event.EventID,
+			event.UOId,
+			domain.EventTypeCustomerCreated,
+			occurredAt,
+		)).Error; err != nil {
 			if isDuplicateKeyError(err) {
 				result = domain.ConsumeResult{
 					EventID: event.EventID,
@@ -81,7 +83,83 @@ func (r *Repository) ConsumeCustomerCreated(ctx context.Context, event domain.Cu
 	return result, nil
 }
 
-func (r *Repository) upsertCustomerFromEvent(tx *gorm.DB, event domain.CustomerCreatedEvent) (uint64, string, error) {
+func (r *Repository) ConsumeCustomerUpdated(ctx context.Context, event domain.CustomerUpdatedEvent) (domain.ConsumeResult, error) {
+	if r == nil || r.db == nil {
+		return domain.ConsumeResult{}, gorm.ErrInvalidDB
+	}
+
+	incomingOccurredAt, err := parseOccurredAtRequired(event.OccurredAt)
+	if err != nil {
+		return domain.ConsumeResult{}, application.ErrInvalidEventPayload
+	}
+
+	var result domain.ConsumeResult
+
+	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if processed, err := r.isEventProcessedTx(tx, event.EventID); err != nil {
+			return err
+		} else if processed {
+			result = domain.ConsumeResult{
+				EventID: event.EventID,
+				Action:  "already_processed",
+			}
+
+			return nil
+		}
+
+		latestOccurredAt, err := r.latestOccurredAtTx(tx, event.UOId, domain.EventTypeCustomerUpdated)
+		if err != nil {
+			return err
+		}
+
+		if latestOccurredAt != nil && latestOccurredAt.After(incomingOccurredAt) {
+			result = domain.ConsumeResult{
+				EventID: event.EventID,
+				Action:  "stale_event",
+			}
+
+			return nil
+		}
+
+		customerID, _, err := r.upsertCustomerFromEvent(tx, event)
+		if err != nil {
+			return err
+		}
+
+		if err := tx.Create(processedEventRecord(
+			event.EventID,
+			event.UOId,
+			domain.EventTypeCustomerUpdated,
+			incomingOccurredAt,
+		)).Error; err != nil {
+			if isDuplicateKeyError(err) {
+				result = domain.ConsumeResult{
+					EventID: event.EventID,
+					Action:  "already_processed",
+				}
+
+				return nil
+			}
+
+			return err
+		}
+
+		result = domain.ConsumeResult{
+			EventID:    event.EventID,
+			CustomerID: customerID,
+			Action:     "updated",
+		}
+
+		return nil
+	})
+	if err != nil {
+		return domain.ConsumeResult{}, err
+	}
+
+	return result, nil
+}
+
+func (r *Repository) upsertCustomerFromEvent(tx *gorm.DB, event domain.CustomerEvent) (uint64, string, error) {
 	existing, found, err := findDuplicateCustomer(tx, event)
 	if err != nil {
 		return 0, "", err
@@ -112,7 +190,28 @@ func (r *Repository) upsertCustomerFromEvent(tx *gorm.DB, event domain.CustomerC
 	return model.ID, "created", nil
 }
 
-func findDuplicateCustomer(tx *gorm.DB, event domain.CustomerCreatedEvent) (customerpersistence.CustomerModel, bool, error) {
+// func (r *Repository) updateCustomerByUOIdFromEvent(tx *gorm.DB, event domain.CustomerEvent) (uint64, error) {
+// 	var customer customerpersistence.CustomerModel
+// 	if err := tx.Where("uo_id = ?", event.UOId).First(&customer).Error; err != nil {
+// 		if errors.Is(err, gorm.ErrRecordNotFound) {
+// 			return 0, application.ErrCustomerNotFound
+// 		}
+
+// 		return 0, err
+// 	}
+
+// 	if err := tx.Model(&customer).Updates(customerUpdatesFromEvent(event)).Error; err != nil {
+// 		return 0, err
+// 	}
+
+// 	if err := replaceCustomerTelephones(tx, customer.ID, event.Telephones); err != nil {
+// 		return 0, err
+// 	}
+
+// 	return customer.ID, nil
+// }
+
+func findDuplicateCustomer(tx *gorm.DB, event domain.CustomerEvent) (customerpersistence.CustomerModel, bool, error) {
 	identity := strings.TrimSpace(event.TCNo)
 	if identity == "" {
 		identity = strings.TrimSpace(event.VergiNo)
@@ -137,7 +236,7 @@ func findDuplicateCustomer(tx *gorm.DB, event domain.CustomerCreatedEvent) (cust
 	return customer, true, nil
 }
 
-func customerModelFromEvent(event domain.CustomerCreatedEvent) customerpersistence.CustomerModel {
+func customerModelFromEvent(event domain.CustomerEvent) customerpersistence.CustomerModel {
 	createdAt := parseTimestamp(event.CreatedAt)
 	updatedAt := parseTimestamp(event.UpdatedAt)
 
@@ -178,8 +277,8 @@ func customerModelFromEvent(event domain.CustomerCreatedEvent) customerpersisten
 	}
 }
 
-func customerUpdatesFromEvent(event domain.CustomerCreatedEvent) map[string]interface{} {
-	updates := map[string]interface{}{
+func customerUpdatesFromEvent(event domain.CustomerEvent) map[string]interface{} {
+	return map[string]interface{}{
 		"uo_id":              event.UOId,
 		"branch_id":          branchIDPointer(event.BranchID),
 		"unvan":              stringPointer(event.Unvan),
@@ -213,8 +312,6 @@ func customerUpdatesFromEvent(event domain.CustomerCreatedEvent) map[string]inte
 		"yetki_belge_no":     stringPointer(event.YetkiBelgeNo),
 		"updated_at":         parseTimestamp(event.UpdatedAt),
 	}
-
-	return updates
 }
 
 func replaceCustomerTelephones(tx *gorm.DB, customerID uint64, telephones []domain.Telephone) error {
@@ -242,16 +339,31 @@ func replaceCustomerTelephones(tx *gorm.DB, customerID uint64, telephones []doma
 	return nil
 }
 
-func (r *Repository) isEventProcessed(ctx context.Context, eventID string) (bool, error) {
-	var count int64
-	if err := r.db.WithContext(ctx).
-		Model(&ProcessedEventModel{}).
-		Where("event_uuid = ?", eventID).
-		Count(&count).Error; err != nil {
-		return false, err
+func processedEventRecord(eventID string, uoID uint64, eventType string, occurredAt time.Time) ProcessedEventModel {
+	return ProcessedEventModel{
+		EventUUID:  eventID,
+		UOId:       uoID,
+		EventType:  eventType,
+		OccurredAt: occurredAt,
+	}
+}
+
+func (r *Repository) latestOccurredAtTx(tx *gorm.DB, uoID uint64, eventType string) (*time.Time, error) {
+	var latest sql.NullTime
+	if err := tx.Model(&ProcessedEventModel{}).
+		Where("uo_id = ? AND event_type = ?", uoID, eventType).
+		Select("MAX(occurred_at)").
+		Scan(&latest).Error; err != nil {
+		return nil, err
 	}
 
-	return count > 0, nil
+	if !latest.Valid {
+		return nil, nil
+	}
+
+	value := latest.Time
+
+	return &value, nil
 }
 
 func (r *Repository) isEventProcessedTx(tx *gorm.DB, eventID string) (bool, error) {
@@ -261,6 +373,28 @@ func (r *Repository) isEventProcessedTx(tx *gorm.DB, eventID string) (bool, erro
 	}
 
 	return count > 0, nil
+}
+
+func parseOccurredAtRequired(value string) (time.Time, error) {
+	trimmedValue := strings.TrimSpace(value)
+	if trimmedValue == "" {
+		return time.Time{}, application.ErrInvalidEventPayload
+	}
+
+	layouts := []string{
+		time.RFC3339,
+		"2006-01-02T15:04:05-07:00",
+		"2006-01-02 15:04:05",
+	}
+
+	for _, layout := range layouts {
+		parsedValue, err := time.Parse(layout, trimmedValue)
+		if err == nil {
+			return parsedValue, nil
+		}
+	}
+
+	return time.Time{}, application.ErrInvalidEventPayload
 }
 
 func branchIDPointer(branchID int32) *int32 {

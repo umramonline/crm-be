@@ -57,7 +57,11 @@ func (h *Handler) Consume(c *fiber.Ctx) error {
 			})
 		case application.ErrUnsupportedEventType:
 			return response.Error(c, fiber.StatusUnprocessableEntity, "Desteklenmeyen event_type.", fiber.Map{
-				"event_type": "Şu an yalnızca customer.created desteklenmektedir.",
+				"event_type": "Desteklenmeyen event_type.",
+			})
+		case application.ErrCustomerNotFound:
+			return response.Error(c, fiber.StatusUnprocessableEntity, "uo_id ile müşteri bulunamadı.", fiber.Map{
+				"uo_id": "uo_id ile müşteri bulunamadı.",
 			})
 		default:
 			return response.Error(c, fiber.StatusInternalServerError, "Event işlenemedi.", nil)
@@ -66,13 +70,18 @@ func (h *Handler) Consume(c *fiber.Ctx) error {
 
 	status := fiber.StatusOK
 	message := "Event consumed."
-	if result.Action == "created" {
+	switch result.Action {
+	case "created":
 		status = fiber.StatusCreated
 		message = "Customer created."
-	} else if result.Action == "updated" {
+	case "updated":
 		message = "Customer updated."
-	} else if result.Action == "already_processed" {
+	case "already_processed":
 		message = "Event already processed."
+	case "stale_event":
+		message = "Stale event skipped."
+	default:
+		message = "Unknown action."
 	}
 
 	return response.Success(c, status, message, result)

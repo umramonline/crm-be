@@ -8,6 +8,9 @@ import (
 
 type ProcessedEventModel struct {
 	EventUUID   string    `gorm:"column:event_uuid;type:char(36);primaryKey"`
+	UOId        uint64    `gorm:"column:uo_id;type:bigint;not null;index:idx_uo_event_occurred,priority:1"`
+	EventType   string    `gorm:"column:event_type;type:varchar(100);not null;index:idx_uo_event_occurred,priority:2"`
+	OccurredAt  time.Time `gorm:"column:occurred_at;type:timestamp;not null;index:idx_uo_event_occurred,priority:3"`
 	ProcessedAt time.Time `gorm:"column:processed_at;type:timestamp;not null;default:CURRENT_TIMESTAMP"`
 }
 

@@ -11,12 +11,14 @@ import (
 var (
 	ErrInvalidEventPayload  = errors.New("invalid event payload")
 	ErrUnsupportedEventType = errors.New("unsupported event type")
+	ErrCustomerNotFound     = errors.New("customer not found")
 )
 
 type eventHandler func(ctx context.Context, command domain.ConsumeCommand) (domain.ConsumeResult, error)
 
 type Repository interface {
 	ConsumeCustomerCreated(ctx context.Context, event domain.CustomerCreatedEvent) (domain.ConsumeResult, error)
+	ConsumeCustomerUpdated(ctx context.Context, event domain.CustomerUpdatedEvent) (domain.ConsumeResult, error)
 }
 
 type Service struct {
@@ -37,6 +39,7 @@ func NewService(repository Repository) *Service {
 
 func (s *Service) registerHandlers() {
 	s.handlers[domain.EventTypeCustomerCreated] = s.handleCustomerCreated
+	s.handlers[domain.EventTypeCustomerUpdated] = s.handleCustomerUpdated
 }
 
 func (s *Service) Consume(ctx context.Context, command domain.ConsumeCommand) (domain.ConsumeResult, error) {

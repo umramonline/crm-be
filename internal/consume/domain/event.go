@@ -1,6 +1,9 @@
 package domain
 
-const EventTypeCustomerCreated = "customer.created"
+const (
+	EventTypeCustomerCreated = "customer.created"
+	EventTypeCustomerUpdated = "customer.updated"
+)
 
 type ConsumeCommand struct {
 	EventID   string
@@ -13,7 +16,7 @@ type Telephone struct {
 	Title       string
 }
 
-type CustomerCreatedEvent struct {
+type CustomerEvent struct {
 	EventID          string
 	EventType        string
 	UOId             uint64
@@ -52,6 +55,10 @@ type CustomerCreatedEvent struct {
 	Telephones       []Telephone
 	OccurredAt       string
 }
+
+type CustomerCreatedEvent = CustomerEvent
+
+type CustomerUpdatedEvent = CustomerEvent
 
 type ConsumeResult struct {
 	EventID    string
