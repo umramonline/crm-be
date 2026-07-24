@@ -2,7 +2,7 @@ package domain
 
 type Customer struct {
 	ID                uint64  `json:"id"`
-	Situation         string  `json:"situation"`
+	UOId              uint64  `json:"uo_id"`
 	Unvan             string  `json:"unvan"`
 	Cep               string  `json:"cep"`
 	Ad                string  `json:"ad"`
@@ -10,15 +10,14 @@ type Customer struct {
 	BranchName        string  `json:"branch_name"`
 	ZoneName          string  `json:"zone_name"`
 	PlusCardNo        string  `json:"plus_card_no"`
-	Credit            string  `json:"credit"`
-	Source            string  `json:"source"`
+	Credit            int64   `json:"credit"`
+	Point             int64   `json:"point"`
+	VehicleStockCount *int32  `json:"vehicle_stock_count"`
 	City              string  `json:"city"`
 	Town              string  `json:"town"`
 	CreatedAt         *string `json:"created_at,omitempty"`
-	VehicleStockCount *int32  `json:"vehicle_stock_count,omitempty"`
 	Type              string  `json:"type"`
-	DaysSpending      *int    `json:"days_spending,omitempty"`
-	DaysLoading       *int    `json:"days_loading,omitempty"`
+	Situation         string  `json:"situation,omitempty"`
 }
 
 type CustomerDetail struct {
@@ -151,6 +150,7 @@ type ListQuery struct {
 	Ad         string
 	Soyad      string
 	BranchName string
+	ZoneName   string
 	PlusCardNo string
 	Source     string
 	City       string
@@ -163,4 +163,5 @@ type ListQuery struct {
 	BranchIDs  []int32
 	CityIDs    []string
 	TownIDs    []string
+	IDs        []uint64
 }

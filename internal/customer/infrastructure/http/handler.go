@@ -136,6 +136,7 @@ func (h *Handler) listCustomers(c *fiber.Ctx, dataSource string, branchIDs []int
 		Ad:         c.Query("ad"),
 		Soyad:      c.Query("soyad"),
 		BranchName: c.Query("branch_name"),
+		ZoneName:   c.Query("zone_name"),
 		PlusCardNo: firstNonEmpty(c.Query("plus_card_no"), c.Query("no")),
 		Source:     c.Query("source"),
 		City:       firstNonEmpty(c.Query("city"), c.Query("title")),

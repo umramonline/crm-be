@@ -140,41 +140,28 @@ type CustomerListQuery struct {
 	Page       int
 	PerPage    int
 	Situation  string
-	Unvan      string
-	Cep        string
-	Ad         string
-	Soyad      string
 	BranchName string
+	ZoneName   string
 	PlusCardNo string
-	Source     string
 	City       string
 	Town       string
-	CreatedAt  string
-	Type       string
 	SortBy     string
 	SortOrder  string
 	ZoneID     int
 	BranchIDs  []int32
+	IDs        []uint64
 }
 
 type CustomerListItem struct {
-	ID           uint64  `json:"id"`
-	Situation    string  `json:"situation"`
-	Unvan        string  `json:"unvan"`
-	Cep          string  `json:"cep"`
-	Ad           string  `json:"ad"`
-	Soyad        string  `json:"soyad"`
-	BranchName   string  `json:"branch_name"`
-	ZoneName     string  `json:"zone_name"`
-	PlusCardNo   string  `json:"plus_card_no"`
-	Credit       string  `json:"credit"`
-	Source       string  `json:"source"`
-	City         string  `json:"city"`
-	Town         string  `json:"town"`
-	CreatedAt    *string `json:"created_at"`
-	Type         string  `json:"type"`
-	DaysSpending *int    `json:"daysSpending"`
-	DaysLoading  *int    `json:"daysLoading"`
+	ID         uint64 `json:"id"`
+	Situation  string `json:"situation"`
+	BranchName string `json:"branch_name"`
+	ZoneName   string `json:"zone_name"`
+	PlusCardNo string `json:"plus_card_no"`
+	Credit     int64  `json:"credit"`
+	Point      int64  `json:"point"`
+	City       string `json:"city"`
+	Town       string `json:"town"`
 }
 
 type CustomerSearchItem struct {
@@ -660,12 +647,12 @@ func (c *Client) ListCustomers(ctx context.Context, query CustomerListQuery) (Cu
 		return CustomerListResult{}, ErrRequestFailed
 	}
 
-	requestURL := c.baseURL + c.customersPath
-	if encoded := customerListQueryValues(query).Encode(); encoded != "" {
-		requestURL += "?" + encoded
+	payload, err := json.Marshal(customerListRequestBody(query))
+	if err != nil {
+		return CustomerListResult{}, ErrRequestFailed
 	}
 
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+c.customersPath, bytes.NewReader(payload))
 	if err != nil {
 		return CustomerListResult{}, ErrRequestFailed
 	}
@@ -816,33 +803,64 @@ func (r customerPhoneExistsResponse) successful() bool {
 	return r.Success
 }
 
-func customerListQueryValues(query CustomerListQuery) url.Values {
-	values := url.Values{}
+func customerListRequestBody(query CustomerListQuery) map[string]any {
+	body := map[string]any{}
 
-	setQueryInt(values, "page", query.Page)
-	setQueryInt(values, "per_page", query.PerPage)
-	setQueryString(values, "situation", query.Situation)
-	setQueryString(values, "unvan", query.Unvan)
-	setQueryString(values, "cep", query.Cep)
-	setQueryString(values, "ad", query.Ad)
-	setQueryString(values, "soyad", query.Soyad)
-	setQueryString(values, "branch_name", query.BranchName)
-	setQueryString(values, "plus_card_no", query.PlusCardNo)
-	setQueryString(values, "source", query.Source)
-	setQueryString(values, "city", query.City)
-	setQueryString(values, "town", query.Town)
-	setQueryString(values, "created_at", query.CreatedAt)
-	setQueryString(values, "type", query.Type)
-	setQueryString(values, "sort_by", query.SortBy)
-	setQueryString(values, "sort_order", query.SortOrder)
-	setQueryInt(values, "zone_id", query.ZoneID)
-	for _, branchID := range query.BranchIDs {
-		if branchID > 0 {
-			values.Add("branch_ids[]", strconv.FormatInt(int64(branchID), 10))
-		}
+	if query.Page > 0 {
+		body["page"] = query.Page
+	}
+	if query.PerPage > 0 {
+		body["per_page"] = query.PerPage
+	}
+	if strings.TrimSpace(query.Situation) != "" {
+		body["situation"] = strings.TrimSpace(query.Situation)
+	}
+	if strings.TrimSpace(query.BranchName) != "" {
+		body["branch_name"] = strings.TrimSpace(query.BranchName)
+	}
+	if strings.TrimSpace(query.ZoneName) != "" {
+		body["zone_name"] = strings.TrimSpace(query.ZoneName)
+	}
+	if strings.TrimSpace(query.PlusCardNo) != "" {
+		body["plus_card_no"] = strings.TrimSpace(query.PlusCardNo)
+	}
+	if strings.TrimSpace(query.City) != "" {
+		body["city"] = strings.TrimSpace(query.City)
+	}
+	if strings.TrimSpace(query.Town) != "" {
+		body["town"] = strings.TrimSpace(query.Town)
+	}
+	if strings.TrimSpace(query.SortBy) != "" {
+		body["sort_by"] = strings.TrimSpace(query.SortBy)
+	}
+	if strings.TrimSpace(query.SortOrder) != "" {
+		body["sort_order"] = strings.TrimSpace(query.SortOrder)
+	}
+	if query.ZoneID > 0 {
+		body["zone_id"] = query.ZoneID
 	}
 
-	return values
+	if len(query.IDs) > 0 {
+		ids := make([]uint64, 0, len(query.IDs))
+		for _, id := range query.IDs {
+			if id > 0 {
+				ids = append(ids, id)
+			}
+		}
+		body["ids"] = ids
+	}
+
+	if len(query.BranchIDs) > 0 {
+		branchIDs := make([]int32, 0, len(query.BranchIDs))
+		for _, branchID := range query.BranchIDs {
+			if branchID > 0 {
+				branchIDs = append(branchIDs, branchID)
+			}
+		}
+		body["branch_ids"] = branchIDs
+	}
+
+	return body
 }
 
 func setQueryInt(values url.Values, key string, value int) {

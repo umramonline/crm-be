@@ -2,7 +2,6 @@ package persistence
 
 import (
 	"context"
-	"strconv"
 	"strings"
 	"time"
 
@@ -46,15 +45,7 @@ func (r *Repository) ListCustomers(ctx context.Context, query domain.ListQuery) 
 		return domain.ListResult{}, err
 	}
 
-	if query.SortBy == "created_at" || query.SortBy == "vehicle_stock_count" {
-		sortOrder := "desc"
-		if strings.ToLower(query.SortOrder) == "asc" {
-			sortOrder = "asc"
-		}
-		dbQuery = dbQuery.Order(query.SortBy + " " + sortOrder)
-	} else {
-		dbQuery = dbQuery.Order("id DESC")
-	}
+	dbQuery = applyCustomerSort(dbQuery, query)
 
 	var customers []CustomerModel
 	if err := dbQuery.Offset((page - 1) * perPage).Limit(perPage).Find(&customers).Error; err != nil {
@@ -91,6 +82,47 @@ func (r *Repository) ListCustomers(ctx context.Context, query domain.ListQuery) 
 			To:          to,
 		},
 	}, nil
+}
+
+func (r *Repository) ListCustomerUOIds(ctx context.Context, query domain.ListQuery) ([]uint64, error) {
+	if r == nil || r.db == nil {
+		return nil, gorm.ErrInvalidDB
+	}
+
+	dbQuery := r.db.WithContext(ctx).Model(&CustomerModel{}).
+		Select("uo_id").
+		Where("uo_id > 0")
+	dbQuery = applyCustomerFilters(dbQuery, query)
+
+	var uoIDs []uint64
+	if err := dbQuery.Order("id DESC").Pluck("uo_id", &uoIDs).Error; err != nil {
+		return nil, err
+	}
+
+	return uoIDs, nil
+}
+
+func (r *Repository) ListCustomersByUOIds(ctx context.Context, uoIDs []uint64) ([]domain.Customer, error) {
+	if r == nil || r.db == nil {
+		return nil, gorm.ErrInvalidDB
+	}
+	if len(uoIDs) == 0 {
+		return []domain.Customer{}, nil
+	}
+
+	var customers []CustomerModel
+	if err := r.db.WithContext(ctx).
+		Where("uo_id IN ?", uoIDs).
+		Find(&customers).Error; err != nil {
+		return nil, err
+	}
+
+	items := make([]domain.Customer, 0, len(customers))
+	for _, customer := range customers {
+		items = append(items, toCustomer(customer))
+	}
+
+	return items, nil
 }
 
 func (r *Repository) SearchCustomer(ctx context.Context, query string) (domain.CustomerDetail, bool, error) {
@@ -365,29 +397,30 @@ func toCustomerDetail(customer CustomerModel) domain.CustomerDetail {
 
 func toCustomer(customer CustomerModel) domain.Customer {
 	createdAt := customer.CreatedAt.Format("2006-01-02 15:04:05")
-	branchID := ""
-	if customer.BranchID != nil {
-		branchID = strconv.FormatInt(int64(*customer.BranchID), 10)
-	}
 
 	return domain.Customer{
 		ID:                customer.ID,
-		Situation:         "Potansiyel Müşteri",
+		UOId:              customer.UOId,
 		Unvan:             stringValue(customer.Unvan),
 		Cep:               stringValue(customer.Cep),
 		Ad:                stringValue(customer.Ad),
 		Soyad:             stringValue(customer.Soyad),
-		BranchName:        branchID,
-		ZoneName:          "",
-		PlusCardNo:        "",
-		Credit:            "0",
-		Source:            "Manuel",
-		City:              stringValue(customer.IlKodu),
-		Town:              stringValue(customer.IlceKodu),
 		CreatedAt:         &createdAt,
 		VehicleStockCount: customer.VehicleStockCount,
 		Type:              stringValue(customer.Type),
 	}
+}
+
+func applyCustomerSort(query *gorm.DB, filters domain.ListQuery) *gorm.DB {
+	if filters.SortBy == "created_at" || filters.SortBy == "vehicle_stock_count" {
+		sortOrder := "desc"
+		if strings.ToLower(filters.SortOrder) == "asc" {
+			sortOrder = "asc"
+		}
+		return query.Order(filters.SortBy + " " + sortOrder)
+	}
+
+	return query.Order("id DESC")
 }
 
 func applyCustomerFilters(query *gorm.DB, filters domain.ListQuery) *gorm.DB {

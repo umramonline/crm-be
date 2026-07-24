@@ -2,10 +2,10 @@ package umramonline
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 )
 
@@ -94,13 +94,13 @@ func TestClientLoginWithPasswordReturnsErrorForServerFailure(t *testing.T) {
 }
 
 func TestClientListCustomersReturnsItemsForSuccessfulResponse(t *testing.T) {
-	server := newCustomersTestServer(t, http.StatusOK, `{"success":true,"items":[{"situation":"Aktif Müşteri","unvan":"Test A.Ş.","credit":10}],"pagination":{"current_page":1,"last_page":1,"per_page":10,"total":1,"from":1,"to":1}}`)
+	server := newCustomersTestServer(t, http.StatusOK, `{"success":true,"items":[{"id":100,"situation":"Aktif Müşteri","branch_name":"Merkez","credit":10,"point":5}],"pagination":{"current_page":1,"last_page":1,"per_page":10,"total":1,"from":1,"to":1}}`)
 	client := newCustomersTestClient(server)
 
 	result, err := client.ListCustomers(context.Background(), CustomerListQuery{
 		Page:    1,
 		PerPage: 10,
-		Unvan:   "Test",
+		IDs:     []uint64{100},
 	})
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
@@ -110,16 +110,26 @@ func TestClientListCustomersReturnsItemsForSuccessfulResponse(t *testing.T) {
 		t.Fatalf("expected 1 item, got %d", len(result.Items))
 	}
 
-	if result.Items[0].Unvan != "Test A.Ş." {
-		t.Fatalf("unexpected unvan: %s", result.Items[0].Unvan)
+	if result.Items[0].ID != 100 {
+		t.Fatalf("unexpected id: %d", result.Items[0].ID)
+	}
+	if result.Items[0].Credit != 10 {
+		t.Fatalf("unexpected credit: %d", result.Items[0].Credit)
+	}
+	if result.Items[0].Point != 5 {
+		t.Fatalf("unexpected point: %d", result.Items[0].Point)
 	}
 }
 
-func TestClientListCustomersForwardsQueryParameters(t *testing.T) {
-	var capturedQuery string
+func TestClientListCustomersForwardsRequestBody(t *testing.T) {
+	var capturedMethod string
+	var capturedBody map[string]any
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		capturedQuery = r.URL.RawQuery
+		capturedMethod = r.Method
+		if err := json.NewDecoder(r.Body).Decode(&capturedBody); err != nil {
+			t.Fatalf("failed to decode body: %v", err)
+		}
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -136,17 +146,23 @@ func TestClientListCustomersForwardsQueryParameters(t *testing.T) {
 		SortOrder:  "asc",
 		BranchName: "Merkez",
 		BranchIDs:  []int32{1, 2},
+		IDs:        []uint64{10, 20},
 	})
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
 
-	if capturedQuery == "" {
-		t.Fatal("expected query parameters to be forwarded")
+	if capturedMethod != http.MethodPost {
+		t.Fatalf("expected POST, got %s", capturedMethod)
 	}
-
-	if !strings.Contains(capturedQuery, "branch_ids") {
-		t.Fatalf("expected branch_ids in query, got %q", capturedQuery)
+	if capturedBody["branch_name"] != "Merkez" {
+		t.Fatalf("unexpected body: %#v", capturedBody)
+	}
+	if _, ok := capturedBody["ids"]; !ok {
+		t.Fatalf("expected ids in body, got %#v", capturedBody)
+	}
+	if _, ok := capturedBody["branch_ids"]; !ok {
+		t.Fatalf("expected branch_ids in body, got %#v", capturedBody)
 	}
 }
 

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/mail"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -59,6 +58,8 @@ type CustomerProvider interface {
 
 type CustomerRepository interface {
 	ListCustomers(ctx context.Context, query domain.ListQuery) (domain.ListResult, error)
+	ListCustomerUOIds(ctx context.Context, query domain.ListQuery) ([]uint64, error)
+	ListCustomersByUOIds(ctx context.Context, uoIDs []uint64) ([]domain.Customer, error)
 	SearchCustomer(ctx context.Context, query string) (domain.CustomerDetail, bool, error)
 	GetCustomer(ctx context.Context, id uint64) (domain.CustomerDetail, error)
 	PhoneExists(ctx context.Context, phone string) (bool, error)
@@ -84,11 +85,14 @@ func NewService(provider CustomerProvider, repositories ...CustomerRepository) *
 }
 
 func (s *Service) ListCustomers(ctx context.Context, query domain.ListQuery) (domain.ListResult, error) {
-	if customerDataSource(query.DataSource) == "backend" {
+	switch customerDataSource(query.DataSource) {
+	case "backend":
 		return s.listBackendCustomers(ctx, query)
+	case "umramonline":
+		return s.provider.ListCustomers(ctx, query)
+	default:
+		return s.listMergedCustomers(ctx, query)
 	}
-
-	return s.provider.ListCustomers(ctx, query)
 }
 
 func (s *Service) ListZones(ctx context.Context, branchIDs []uint64, includeAll bool) ([]domain.Zone, error) {
@@ -325,81 +329,200 @@ func (s *Service) ListBranchUsers(ctx context.Context, branchID uint64) ([]domai
 	return s.provider.ListBranchUsers(ctx, branchID)
 }
 
+func (s *Service) listMergedCustomers(ctx context.Context, query domain.ListQuery) (domain.ListResult, error) {
+	if s == nil || s.repository == nil || s.provider == nil {
+		return domain.ListResult{}, ErrCustomerListUnavailable
+	}
+
+	page := query.Page
+	if page <= 0 {
+		page = 1
+	}
+	perPage := query.PerPage
+	if perPage <= 0 {
+		perPage = 10
+	}
+
+	if usesUmramonlineListControl(query) {
+		uoIDs, err := s.repository.ListCustomerUOIds(ctx, query)
+		if err != nil {
+			return domain.ListResult{}, ErrCustomerListUnavailable
+		}
+		if len(uoIDs) == 0 {
+			return emptyListResult(query), nil
+		}
+
+		uoQuery := domain.ListQuery{
+			Page:       page,
+			PerPage:    perPage,
+			Situation:  query.Situation,
+			BranchName: query.BranchName,
+			ZoneName:   query.ZoneName,
+			PlusCardNo: query.PlusCardNo,
+			City:       query.City,
+			Town:       query.Town,
+			SortBy:     query.SortBy,
+			SortOrder:  query.SortOrder,
+			ZoneID:     query.ZoneID,
+			BranchIDs:  query.BranchIDs,
+			IDs:        uoIDs,
+		}
+
+		uoResult, err := s.provider.ListCustomers(ctx, uoQuery)
+		if err != nil {
+			return domain.ListResult{}, ErrCustomerListUnavailable
+		}
+
+		backendByUOID, err := s.backendCustomersByUOID(ctx, extractUOIds(uoResult.Items))
+		if err != nil {
+			return domain.ListResult{}, ErrCustomerListUnavailable
+		}
+
+		items := make([]domain.Customer, 0, len(uoResult.Items))
+		for _, uoItem := range uoResult.Items {
+			items = append(items, mergeCustomer(backendByUOID[uoItem.UOId], uoItem))
+		}
+
+		return domain.ListResult{
+			Items:      items,
+			Pagination: uoResult.Pagination,
+		}, nil
+	}
+
+	backendResult, err := s.repository.ListCustomers(ctx, query)
+	if err != nil {
+		return domain.ListResult{}, ErrCustomerListUnavailable
+	}
+	if len(backendResult.Items) == 0 {
+		return backendResult, nil
+	}
+
+	uoIDs := make([]uint64, 0, len(backendResult.Items))
+	for _, item := range backendResult.Items {
+		if item.UOId > 0 {
+			uoIDs = append(uoIDs, item.UOId)
+		}
+	}
+
+	uoByID := map[uint64]domain.Customer{}
+	if len(uoIDs) > 0 {
+		uoResult, err := s.provider.ListCustomers(ctx, domain.ListQuery{
+			Page:    1,
+			PerPage: len(uoIDs),
+			IDs:     uoIDs,
+		})
+		if err != nil {
+			return domain.ListResult{}, ErrCustomerListUnavailable
+		}
+		for _, item := range uoResult.Items {
+			uoByID[item.UOId] = item
+		}
+	}
+
+	items := make([]domain.Customer, 0, len(backendResult.Items))
+	for _, backendItem := range backendResult.Items {
+		items = append(items, mergeCustomer(backendItem, uoByID[backendItem.UOId]))
+	}
+
+	backendResult.Items = items
+	return backendResult, nil
+}
+
 func (s *Service) listBackendCustomers(ctx context.Context, query domain.ListQuery) (domain.ListResult, error) {
-	if query.Situation != "" && query.Situation != "Potansiyel Müşteri" {
-		return emptyListResult(query), nil
-	}
-
-	if query.Source != "" && query.Source != "Manuel" {
-		return emptyListResult(query), nil
-	}
-
-	if strings.TrimSpace(query.PlusCardNo) != "" {
-		return emptyListResult(query), nil
-	}
-
-	branches, err := s.provider.ListBranches(ctx, nil)
-	if err != nil {
+	if s == nil || s.repository == nil {
 		return domain.ListResult{}, ErrCustomerListUnavailable
 	}
 
-	cities, err := s.provider.ListCities(ctx)
+	result, err := s.repository.ListCustomers(ctx, query)
 	if err != nil {
 		return domain.ListResult{}, ErrCustomerListUnavailable
-	}
-
-	towns, err := s.provider.ListTowns(ctx, 0)
-	if err != nil {
-		return domain.ListResult{}, ErrCustomerListUnavailable
-	}
-
-	localQuery := query
-	localQuery.BranchIDs = resolveBranchIDs(query.BranchIDs, matchingBranchIDs(branches, query.BranchName), query.BranchName)
-	localQuery.CityIDs = matchingCityIDs(cities, query.City)
-	localQuery.TownIDs = matchingTownIDs(towns, query.Town)
-
-	if len(query.BranchIDs) > 0 && len(localQuery.BranchIDs) == 0 {
-		return emptyListResult(query), nil
-	}
-
-	if strings.TrimSpace(query.BranchName) != "" && len(localQuery.BranchIDs) == 0 {
-		return emptyListResult(query), nil
-	}
-
-	if strings.TrimSpace(query.City) != "" && len(localQuery.CityIDs) == 0 {
-		return emptyListResult(query), nil
-	}
-
-	if strings.TrimSpace(query.Town) != "" && len(localQuery.TownIDs) == 0 {
-		return emptyListResult(query), nil
-	}
-
-	result, err := s.repository.ListCustomers(ctx, localQuery)
-	if err != nil {
-		return domain.ListResult{}, ErrCustomerListUnavailable
-	}
-
-	branchNames := branchNameMap(branches)
-	cityNames := cityNameMap(cities)
-	townNames := townNameMap(towns)
-	for index := range result.Items {
-		result.Items[index].Situation = "Potansiyel Müşteri"
-		result.Items[index].Source = "Manuel"
-		result.Items[index].BranchName = branchNames[result.Items[index].BranchName]
-		result.Items[index].City = cityNames[result.Items[index].City]
-		result.Items[index].Town = townNames[result.Items[index].Town]
 	}
 
 	return result, nil
 }
 
-func customerDataSource(dataSource string) string {
-	normalizedDataSource := strings.ToLower(strings.TrimSpace(dataSource))
-	if normalizedDataSource == "backend" {
-		return "backend"
+func (s *Service) backendCustomersByUOID(ctx context.Context, uoIDs []uint64) (map[uint64]domain.Customer, error) {
+	result := make(map[uint64]domain.Customer, len(uoIDs))
+	if len(uoIDs) == 0 {
+		return result, nil
 	}
 
-	return "umramonline"
+	customers, err := s.repository.ListCustomersByUOIds(ctx, uoIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, customer := range customers {
+		if customer.UOId > 0 {
+			result[customer.UOId] = customer
+		}
+	}
+
+	return result, nil
+}
+
+func usesUmramonlineListControl(query domain.ListQuery) bool {
+	if strings.TrimSpace(query.BranchName) != "" ||
+		strings.TrimSpace(query.ZoneName) != "" ||
+		strings.TrimSpace(query.PlusCardNo) != "" ||
+		strings.TrimSpace(query.City) != "" ||
+		strings.TrimSpace(query.Town) != "" ||
+		strings.TrimSpace(query.Situation) != "" {
+		return true
+	}
+
+	sortBy := strings.ToLower(strings.TrimSpace(query.SortBy))
+	return sortBy == "credit" || sortBy == "point"
+}
+
+func mergeCustomer(backend domain.Customer, umramonline domain.Customer) domain.Customer {
+	merged := domain.Customer{
+		ID:                backend.ID,
+		UOId:              backend.UOId,
+		Unvan:             backend.Unvan,
+		Cep:               backend.Cep,
+		Ad:                backend.Ad,
+		Soyad:             backend.Soyad,
+		VehicleStockCount: backend.VehicleStockCount,
+		CreatedAt:         backend.CreatedAt,
+		Type:              backend.Type,
+		BranchName:        umramonline.BranchName,
+		ZoneName:          umramonline.ZoneName,
+		PlusCardNo:        umramonline.PlusCardNo,
+		Credit:            umramonline.Credit,
+		Point:             umramonline.Point,
+		City:              umramonline.City,
+		Town:              umramonline.Town,
+		Situation:         umramonline.Situation,
+	}
+
+	if merged.UOId == 0 && umramonline.UOId > 0 {
+		merged.UOId = umramonline.UOId
+	}
+
+	return merged
+}
+
+func extractUOIds(items []domain.Customer) []uint64 {
+	ids := make([]uint64, 0, len(items))
+	for _, item := range items {
+		if item.UOId > 0 {
+			ids = append(ids, item.UOId)
+		}
+	}
+	return ids
+}
+
+func customerDataSource(dataSource string) string {
+	normalizedDataSource := strings.ToLower(strings.TrimSpace(dataSource))
+	switch normalizedDataSource {
+	case "backend":
+		return "backend"
+	case "umramonline":
+		return "umramonline"
+	default:
+		return "merged"
+	}
 }
 
 func emptyListResult(query domain.ListQuery) domain.ListResult {
@@ -422,113 +545,6 @@ func emptyListResult(query domain.ListQuery) domain.ListResult {
 			Total:       0,
 		},
 	}
-}
-
-func matchingBranchIDs(branches []domain.Branch, query string) []int32 {
-	normalizedQuery := strings.ToLower(strings.TrimSpace(query))
-	if normalizedQuery == "" {
-		return nil
-	}
-
-	ids := []int32{}
-	for _, branch := range branches {
-		if strings.Contains(strings.ToLower(branch.Name), normalizedQuery) || strings.Contains(strings.ToLower(branch.Title), normalizedQuery) {
-			ids = append(ids, int32(branch.ID))
-		}
-	}
-
-	return ids
-}
-
-func resolveBranchIDs(allowedBranchIDs []int32, nameMatchedBranchIDs []int32, branchName string) []int32 {
-	if len(allowedBranchIDs) == 0 {
-		return nameMatchedBranchIDs
-	}
-
-	if strings.TrimSpace(branchName) == "" {
-		return append([]int32(nil), allowedBranchIDs...)
-	}
-
-	return intersectInt32(allowedBranchIDs, nameMatchedBranchIDs)
-}
-
-func intersectInt32(left []int32, right []int32) []int32 {
-	if len(left) == 0 || len(right) == 0 {
-		return nil
-	}
-
-	rightSet := make(map[int32]struct{}, len(right))
-	for _, value := range right {
-		rightSet[value] = struct{}{}
-	}
-
-	result := make([]int32, 0, len(left))
-	for _, value := range left {
-		if _, ok := rightSet[value]; ok {
-			result = append(result, value)
-		}
-	}
-
-	return result
-}
-
-func matchingCityIDs(cities []domain.City, query string) []string {
-	normalizedQuery := strings.ToLower(strings.TrimSpace(query))
-	if normalizedQuery == "" {
-		return nil
-	}
-
-	ids := []string{}
-	for _, city := range cities {
-		if strings.Contains(strings.ToLower(city.Title), normalizedQuery) {
-			ids = append(ids, strconv.FormatUint(city.ID, 10))
-		}
-	}
-
-	return ids
-}
-
-func matchingTownIDs(towns []domain.Town, query string) []string {
-	normalizedQuery := strings.ToLower(strings.TrimSpace(query))
-	if normalizedQuery == "" {
-		return nil
-	}
-
-	ids := []string{}
-	for _, town := range towns {
-		if strings.Contains(strings.ToLower(town.Title), normalizedQuery) {
-			ids = append(ids, strconv.FormatUint(town.ID, 10))
-		}
-	}
-
-	return ids
-}
-
-func branchNameMap(branches []domain.Branch) map[string]string {
-	names := map[string]string{}
-	for _, branch := range branches {
-		names[strconv.FormatUint(branch.ID, 10)] = branch.Name
-	}
-
-	return names
-}
-
-func cityNameMap(cities []domain.City) map[string]string {
-	names := map[string]string{}
-	for _, city := range cities {
-		names[strconv.FormatUint(city.ID, 10)] = city.Title
-	}
-
-	return names
-}
-
-func townNameMap(towns []domain.Town) map[string]string {
-	names := map[string]string{}
-	for _, town := range towns {
-		names[strconv.FormatUint(town.ID, 10)] = town.Title
-	}
-
-	return names
 }
 
 func normalizeCreateCustomerInput(input domain.CreateCustomerInput) domain.CreateCustomerInput {

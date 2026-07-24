@@ -21,21 +21,16 @@ func (p *Provider) ListCustomers(ctx context.Context, query domain.ListQuery) (d
 		Page:       query.Page,
 		PerPage:    query.PerPage,
 		Situation:  query.Situation,
-		Unvan:      query.Unvan,
-		Cep:        query.Cep,
-		Ad:         query.Ad,
-		Soyad:      query.Soyad,
 		BranchName: query.BranchName,
+		ZoneName:   query.ZoneName,
 		PlusCardNo: query.PlusCardNo,
-		Source:     query.Source,
 		City:       query.City,
 		Town:       query.Town,
-		CreatedAt:  query.CreatedAt,
-		Type:       query.Type,
 		SortBy:     query.SortBy,
 		SortOrder:  query.SortOrder,
 		ZoneID:     query.ZoneID,
 		BranchIDs:  query.BranchIDs,
+		IDs:        query.IDs,
 	})
 	if err != nil {
 		return domain.ListResult{}, err
@@ -44,23 +39,15 @@ func (p *Provider) ListCustomers(ctx context.Context, query domain.ListQuery) (d
 	items := make([]domain.Customer, 0, len(result.Items))
 	for _, item := range result.Items {
 		items = append(items, domain.Customer{
-			ID:           item.ID,
-			Situation:    item.Situation,
-			Unvan:        item.Unvan,
-			Cep:          item.Cep,
-			Ad:           item.Ad,
-			Soyad:        item.Soyad,
-			BranchName:   item.BranchName,
-			ZoneName:     item.ZoneName,
-			PlusCardNo:   item.PlusCardNo,
-			Credit:       item.Credit,
-			Source:       item.Source,
-			City:         item.City,
-			Town:         item.Town,
-			CreatedAt:    item.CreatedAt,
-			Type:         item.Type,
-			DaysSpending: item.DaysSpending,
-			DaysLoading:  item.DaysLoading,
+			UOId:       item.ID,
+			Situation:  item.Situation,
+			BranchName: item.BranchName,
+			ZoneName:   item.ZoneName,
+			PlusCardNo: item.PlusCardNo,
+			Credit:     item.Credit,
+			Point:      item.Point,
+			City:       item.City,
+			Town:       item.Town,
 		})
 	}
 
