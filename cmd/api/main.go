@@ -13,10 +13,6 @@ import (
 	authzhttp "github.com/umran/new.crm/backend/internal/authorization/infrastructure/http"
 	authzpersistence "github.com/umran/new.crm/backend/internal/authorization/infrastructure/persistence"
 	authzumramonline "github.com/umran/new.crm/backend/internal/authorization/infrastructure/umramonline"
-	dashboardapp "github.com/umran/new.crm/backend/internal/dashboard/application"
-	dashboardhttp "github.com/umran/new.crm/backend/internal/dashboard/infrastructure/http"
-	dashboardpersistence "github.com/umran/new.crm/backend/internal/dashboard/infrastructure/persistence"
-	dashboardumramonline "github.com/umran/new.crm/backend/internal/dashboard/infrastructure/umramonline"
 	consumeapp "github.com/umran/new.crm/backend/internal/consume/application"
 	consumehttp "github.com/umran/new.crm/backend/internal/consume/infrastructure/http"
 	consumepersistence "github.com/umran/new.crm/backend/internal/consume/infrastructure/persistence"
@@ -24,7 +20,10 @@ import (
 	customerhttp "github.com/umran/new.crm/backend/internal/customer/infrastructure/http"
 	customerpersistence "github.com/umran/new.crm/backend/internal/customer/infrastructure/persistence"
 	customerumramonline "github.com/umran/new.crm/backend/internal/customer/infrastructure/umramonline"
-	customersync "github.com/umran/new.crm/backend/internal/customer/sync"
+	dashboardapp "github.com/umran/new.crm/backend/internal/dashboard/application"
+	dashboardhttp "github.com/umran/new.crm/backend/internal/dashboard/infrastructure/http"
+	dashboardpersistence "github.com/umran/new.crm/backend/internal/dashboard/infrastructure/persistence"
+	dashboardumramonline "github.com/umran/new.crm/backend/internal/dashboard/infrastructure/umramonline"
 	followupapp "github.com/umran/new.crm/backend/internal/followup/application"
 	followuphttp "github.com/umran/new.crm/backend/internal/followup/infrastructure/http"
 	followuppersistence "github.com/umran/new.crm/backend/internal/followup/infrastructure/persistence"
@@ -50,25 +49,25 @@ func main() {
 	}
 
 	umramonlineClient := umramonline.NewClient(umramonline.Config{
-		BaseURL:                 cfg.UmramonlineBaseURL,
-		APIKey:                  cfg.UmramonlineAPIKey,
-		APIToken:                cfg.UmramonlineAPIToken,
-		OTPRequestPath:          cfg.UmramonlineOTPRequestPath,
-		OTPVerifyPath:           cfg.UmramonlineOTPVerifyPath,
-		PasswordLoginPath:       cfg.UmramonlinePasswordPath,
-		UserRolesPath:           cfg.UmramonlineUserRolesPath,
-		CustomersPath:           cfg.UmramonlineCustomersPath,
-		CustomerSearchPath:      cfg.UmramonlineCustomerSearchPath,
-		CustomerPhoneExistsPath: cfg.UmramonlineCustomerPhoneExistsPath,
-		ZonesPath:               cfg.UmramonlineZonesPath,
-		CitiesPath:              cfg.UmramonlineCitiesPath,
-		TownsPath:               cfg.UmramonlineTownsPath,
-		BranchesPath:            cfg.UmramonlineBranchesPath,
-		TaskSMSPath:             cfg.UmramonlineTaskSMSPath,
+		BaseURL:                   cfg.UmramonlineBaseURL,
+		APIKey:                    cfg.UmramonlineAPIKey,
+		APIToken:                  cfg.UmramonlineAPIToken,
+		OTPRequestPath:            cfg.UmramonlineOTPRequestPath,
+		OTPVerifyPath:             cfg.UmramonlineOTPVerifyPath,
+		PasswordLoginPath:         cfg.UmramonlinePasswordPath,
+		UserRolesPath:             cfg.UmramonlineUserRolesPath,
+		CustomersPath:             cfg.UmramonlineCustomersPath,
+		CustomerSearchPath:        cfg.UmramonlineCustomerSearchPath,
+		CustomerPhoneExistsPath:   cfg.UmramonlineCustomerPhoneExistsPath,
+		ZonesPath:                 cfg.UmramonlineZonesPath,
+		CitiesPath:                cfg.UmramonlineCitiesPath,
+		TownsPath:                 cfg.UmramonlineTownsPath,
+		BranchesPath:              cfg.UmramonlineBranchesPath,
+		TaskSMSPath:               cfg.UmramonlineTaskSMSPath,
 		DashboardVehicleEntryPath: cfg.UmramonlineDashboardVehicleEntryPath,
 		DashboardTotalAmountPath:  cfg.UmramonlineDashboardTotalAmountPath,
 		DashboardLoadedCreditPath: cfg.UmramonlineDashboardLoadedCreditPath,
-		Timeout:                 cfg.UmramonlineTimeout(),
+		Timeout:                   cfg.UmramonlineTimeout(),
 	})
 	otpRequestService := authapp.NewOTPRequestService(umramonlineClient)
 	sessionTokenService := authapp.NewSessionTokenService(cfg.SessionTokenSecret)
@@ -178,21 +177,6 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-
-	umramonlineDB, err := dbpersistence.OpenMySQL(cfg.CustomerSyncUmramonlineDatabaseDSN)
-	if err != nil {
-		log.Fatalf("open umramonline database for customer sync: %v", err)
-	}
-
-	customersync.StartDailyScheduler(ctx, customersync.SchedulerConfig{
-		SourceDB:  umramonlineDB,
-		TargetDB:  db,
-		BatchSize: cfg.CustomerSyncBatchSize,
-		DailyAt:   cfg.CustomerSyncDailyAt,
-		CronExpr:  cfg.CustomerSyncCron,
-		Logger:    log.Default(),
-	})
-	log.Printf("customer sync scheduler enabled cron=%q daily_at_fallback=%s", cfg.CustomerSyncCron, cfg.CustomerSyncDailyAt)
 
 	errCh := make(chan error, 1)
 	go func() {

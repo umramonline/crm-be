@@ -111,7 +111,7 @@ func syncCustomers(sourceDB *gorm.DB, targetDB *gorm.DB, batchSize int) (syncSta
 	for {
 		customers := []sourceCustomer{}
 		if err := sourceDB.
-			Where("id > ?", lastID).
+			Where("id > ? and status = 1", lastID).
 			Order("id ASC").
 			Limit(batchSize).
 			Find(&customers).Error; err != nil {
