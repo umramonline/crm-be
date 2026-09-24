@@ -8,6 +8,7 @@ import (
 	"github.com/umran/new.crm/backend/internal/auth/application"
 	authzapp "github.com/umran/new.crm/backend/internal/authorization/application"
 	"github.com/umran/new.crm/backend/internal/shared/response"
+	"github.com/umran/new.crm/backend/internal/umramonline"
 )
 
 type TokenValidator interface {
@@ -44,6 +45,7 @@ func RequirePermission(service *authzapp.Service, tokenValidator TokenValidator,
 		}
 
 		c.Locals("claims", claims)
+		c.SetUserContext(umramonline.WithToken(c.UserContext(), claims.UmramonlineToken))
 
 		return c.Next()
 	}

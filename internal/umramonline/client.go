@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	authapp "github.com/umran/new.crm/backend/internal/auth/application"
 )
 
 var ErrRequestFailed = errors.New("umramonline request failed")
@@ -59,18 +61,14 @@ type Client struct {
 	httpClient              *http.Client
 }
 
-type otpRequest struct {
-	Phone string `json:"phone"`
-}
-
-type otpVerifyRequest struct {
-	Phone   string `json:"phone"`
-	OTPCode string `json:"otp_code"`
-}
-
-type passwordLoginRequest struct {
+type adminLoginRequest struct {
 	Phone    string `json:"phone"`
 	Password string `json:"password"`
+}
+
+type adminLoginVerifyRequest struct {
+	MFAToken string `json:"mfa_token"`
+	OTPCode  string `json:"otp_code"`
 }
 
 type taskCreatedSMSRequest struct {
@@ -262,6 +260,18 @@ func NewClient(config Config) *Client {
 	}
 }
 
+func (c *Client) bearerToken(ctx context.Context) string {
+	if token := TokenFromContext(ctx); token != "" {
+		return token
+	}
+
+	return c.apiToken
+}
+
+func (c *Client) canCallAuthenticated(ctx context.Context) bool {
+	return c.baseURL != "" && c.apiKey != "" && c.bearerToken(ctx) != ""
+}
+
 func (c *Client) SendTaskCreatedSMS(
 	ctx context.Context,
 	phone string,
@@ -273,7 +283,7 @@ func (c *Client) SendTaskCreatedSMS(
 	dueDate string,
 	priority string,
 ) error {
-	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.taskSMSPath == "/" {
+	if !c.canCallAuthenticated(ctx) || c.taskSMSPath == "/" {
 		return ErrRequestFailed
 	}
 
@@ -299,7 +309,7 @@ func (c *Client) SendTaskCreatedSMS(
 	request.Header.Set("Accept", "application/json")
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("X-API-KEY", c.apiKey)
-	request.Header.Set("Authorization", "Bearer "+c.apiToken)
+	request.Header.Set("Authorization", "Bearer "+c.bearerToken(ctx))
 
 	response, err := c.httpClient.Do(request)
 	if err != nil {
@@ -319,105 +329,104 @@ func (c *Client) SendTaskCreatedSMS(
 	return nil
 }
 
-func (c *Client) RequestOTP(ctx context.Context, phone string) error {
-	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.otpRequestPath == "/" {
-		return ErrRequestFailed
-	}
-
-	body, err := json.Marshal(otpRequest{Phone: phone})
-	if err != nil {
-		return ErrRequestFailed
-	}
-
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+c.otpRequestPath, bytes.NewReader(body))
-	if err != nil {
-		return ErrRequestFailed
-	}
-
-	request.Header.Set("Accept", "application/json")
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("X-API-KEY", c.apiKey)
-	request.Header.Set("Authorization", "Bearer "+c.apiToken)
-
-	response, err := c.httpClient.Do(request)
-	if err != nil {
-		return ErrRequestFailed
-	}
-	defer response.Body.Close()
-
-	var apiResponse apiResponse
-	if err := json.NewDecoder(response.Body).Decode(&apiResponse); err != nil {
-		return ErrRequestFailed
-	}
-
-	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices || !apiResponse.Success {
-		return fmt.Errorf("%w: status=%d", ErrRequestFailed, response.StatusCode)
-	}
-
-	return nil
+func (c *Client) canCallAdminAuth(path string) bool {
+	return c.baseURL != "" && c.apiKey != "" && path != "" && path != "/"
 }
 
-func (c *Client) VerifyOTP(ctx context.Context, phone string, otpCode string) (bool, error) {
-	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.otpVerifyPath == "/" {
-		return false, ErrRequestFailed
-	}
-
-	body, err := json.Marshal(otpVerifyRequest{Phone: phone, OTPCode: otpCode})
+func (c *Client) newAdminAuthRequest(ctx context.Context, method string, path string, body []byte) (*http.Request, error) {
+	request, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, bytes.NewReader(body))
 	if err != nil {
-		return false, ErrRequestFailed
-	}
-
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+c.otpVerifyPath, bytes.NewReader(body))
-	if err != nil {
-		return false, ErrRequestFailed
+		return nil, ErrRequestFailed
 	}
 
 	request.Header.Set("Accept", "application/json")
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("X-API-KEY", c.apiKey)
-	request.Header.Set("Authorization", "Bearer "+c.apiToken)
+
+	return request, nil
+}
+
+func loginDataFromAdminAuthPayload(payload map[string]any) (map[string]any, error) {
+	user, ok := payload["user"].(map[string]any)
+	if !ok || user == nil {
+		return nil, ErrRequestFailed
+	}
+
+	data := map[string]any{"user": user}
+	if token, ok := payload["token"].(string); ok && token != "" {
+		data["token"] = token
+	}
+
+	return data, nil
+}
+
+func (c *Client) AdminLogin(ctx context.Context, phone string, password string) (authapp.RequestOTPResult, error) {
+	if !c.canCallAdminAuth(c.otpRequestPath) {
+		return authapp.RequestOTPResult{}, ErrRequestFailed
+	}
+
+	body, err := json.Marshal(adminLoginRequest{Phone: phone, Password: password})
+	if err != nil {
+		return authapp.RequestOTPResult{}, ErrRequestFailed
+	}
+
+	request, err := c.newAdminAuthRequest(ctx, http.MethodPost, c.otpRequestPath, body)
+	if err != nil {
+		return authapp.RequestOTPResult{}, err
+	}
 
 	response, err := c.httpClient.Do(request)
 	if err != nil {
-		return false, ErrRequestFailed
+		return authapp.RequestOTPResult{}, ErrRequestFailed
 	}
 	defer response.Body.Close()
 
-	var apiResponse apiResponse
-	if err := json.NewDecoder(response.Body).Decode(&apiResponse); err != nil {
-		return false, ErrRequestFailed
+	var payload map[string]any
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		return authapp.RequestOTPResult{}, ErrRequestFailed
 	}
 
 	if response.StatusCode == http.StatusUnprocessableEntity {
-		return false, nil
+		return authapp.RequestOTPResult{}, authapp.ErrPasswordRejected
 	}
 
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-		return false, fmt.Errorf("%w: status=%d", ErrRequestFailed, response.StatusCode)
+		return authapp.RequestOTPResult{}, fmt.Errorf("%w: status=%d", ErrRequestFailed, response.StatusCode)
 	}
 
-	return apiResponse.Success, nil
+	if mfaRequired, ok := payload["mfa_required"].(bool); ok && mfaRequired {
+		mfaToken, _ := payload["mfa_token"].(string)
+		mfaChannel, _ := payload["mfa_channel"].(string)
+
+		return authapp.RequestOTPResult{
+			MFARequired: true,
+			MFAToken:    mfaToken,
+			MFAChannel:  mfaChannel,
+		}, nil
+	}
+
+	loginData, err := loginDataFromAdminAuthPayload(payload)
+	if err != nil {
+		return authapp.RequestOTPResult{}, err
+	}
+
+	return authapp.RequestOTPResult{LoginData: loginData}, nil
 }
 
-func (c *Client) LoginWithPassword(ctx context.Context, phone string, password string) (map[string]any, error) {
-	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.passwordLoginPath == "/" {
+func (c *Client) AdminLoginVerify(ctx context.Context, mfaToken string, otpCode string) (map[string]any, error) {
+	if !c.canCallAdminAuth(c.otpVerifyPath) {
 		return nil, ErrRequestFailed
 	}
 
-	body, err := json.Marshal(passwordLoginRequest{Phone: phone, Password: password})
+	body, err := json.Marshal(adminLoginVerifyRequest{MFAToken: mfaToken, OTPCode: otpCode})
 	if err != nil {
 		return nil, ErrRequestFailed
 	}
 
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+c.passwordLoginPath, bytes.NewReader(body))
+	request, err := c.newAdminAuthRequest(ctx, http.MethodPost, c.otpVerifyPath, body)
 	if err != nil {
-		return nil, ErrRequestFailed
+		return nil, err
 	}
-
-	request.Header.Set("Accept", "application/json")
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("X-API-KEY", c.apiKey)
-	request.Header.Set("Authorization", "Bearer "+c.apiToken)
 
 	response, err := c.httpClient.Do(request)
 	if err != nil {
@@ -425,37 +434,24 @@ func (c *Client) LoginWithPassword(ctx context.Context, phone string, password s
 	}
 	defer response.Body.Close()
 
-	var apiResponse apiResponse
-	if err := json.NewDecoder(response.Body).Decode(&apiResponse); err != nil {
+	var payload map[string]any
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
 		return nil, ErrRequestFailed
 	}
 
 	if response.StatusCode == http.StatusUnprocessableEntity {
-		return nil, nil
+		return nil, authapp.ErrOTPVerifyRejected
 	}
 
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		return nil, fmt.Errorf("%w: status=%d", ErrRequestFailed, response.StatusCode)
 	}
 
-	if !apiResponse.Success {
-		return nil, nil
-	}
-
-	if len(apiResponse.Data) == 0 {
-		return map[string]any{}, nil
-	}
-
-	var data map[string]any
-	if err := json.Unmarshal(apiResponse.Data, &data); err != nil {
-		return nil, ErrRequestFailed
-	}
-
-	return data, nil
+	return loginDataFromAdminAuthPayload(payload)
 }
 
 func (c *Client) ListRoles(ctx context.Context) ([]Role, error) {
-	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.userRolesPath == "/" {
+	if !c.canCallAuthenticated(ctx) || c.userRolesPath == "/" {
 		return nil, ErrRequestFailed
 	}
 
@@ -467,7 +463,7 @@ func (c *Client) ListRoles(ctx context.Context) ([]Role, error) {
 	request.Header.Set("Accept", "application/json")
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("X-API-KEY", c.apiKey)
-	request.Header.Set("Authorization", "Bearer "+c.apiToken)
+	request.Header.Set("Authorization", "Bearer "+c.bearerToken(ctx))
 
 	response, err := c.httpClient.Do(request)
 	if err != nil {
@@ -488,7 +484,7 @@ func (c *Client) ListRoles(ctx context.Context) ([]Role, error) {
 }
 
 func (c *Client) ListZones(ctx context.Context, branchIDs []uint64) ([]Zone, error) {
-	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.zonesPath == "/" {
+	if !c.canCallAuthenticated(ctx) || c.zonesPath == "/" {
 		return nil, ErrRequestFailed
 	}
 
@@ -508,7 +504,7 @@ func (c *Client) ListZones(ctx context.Context, branchIDs []uint64) ([]Zone, err
 }
 
 func (c *Client) SearchCustomer(ctx context.Context, query string) (CustomerSearchItem, bool, error) {
-	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.customerSearchPath == "/" {
+	if !c.canCallAuthenticated(ctx) || c.customerSearchPath == "/" {
 		return CustomerSearchItem{}, false, ErrRequestFailed
 	}
 
@@ -528,7 +524,7 @@ func (c *Client) SearchCustomer(ctx context.Context, query string) (CustomerSear
 }
 
 func (c *Client) CustomerPhoneExists(ctx context.Context, phone string) (bool, error) {
-	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.customerPhoneExistsPath == "/" {
+	if !c.canCallAuthenticated(ctx) || c.customerPhoneExistsPath == "/" {
 		return false, ErrRequestFailed
 	}
 
@@ -544,7 +540,7 @@ func (c *Client) CustomerPhoneExists(ctx context.Context, phone string) (bool, e
 }
 
 func (c *Client) ListCities(ctx context.Context) ([]City, error) {
-	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.citiesPath == "/" {
+	if !c.canCallAuthenticated(ctx) || c.citiesPath == "/" {
 		return nil, ErrRequestFailed
 	}
 
@@ -557,7 +553,7 @@ func (c *Client) ListCities(ctx context.Context) ([]City, error) {
 }
 
 func (c *Client) ListTowns(ctx context.Context, cityID uint64) ([]Town, error) {
-	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.townsPath == "/" {
+	if !c.canCallAuthenticated(ctx) || c.townsPath == "/" {
 		return nil, ErrRequestFailed
 	}
 
@@ -575,7 +571,7 @@ func (c *Client) ListTowns(ctx context.Context, cityID uint64) ([]Town, error) {
 }
 
 func (c *Client) ListBranches(ctx context.Context, branchIDs []uint64) ([]Branch, error) {
-	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.branchesPath == "/" {
+	if !c.canCallAuthenticated(ctx) || c.branchesPath == "/" {
 		return nil, ErrRequestFailed
 	}
 
@@ -595,7 +591,7 @@ func (c *Client) ListBranches(ctx context.Context, branchIDs []uint64) ([]Branch
 }
 
 func (c *Client) GetBranch(ctx context.Context, branchID uint64) (Branch, error) {
-	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.branchesPath == "/" || branchID == 0 {
+	if !c.canCallAuthenticated(ctx) || c.branchesPath == "/" || branchID == 0 {
 		return Branch{}, ErrRequestFailed
 	}
 
@@ -612,7 +608,7 @@ func (c *Client) GetBranch(ctx context.Context, branchID uint64) (Branch, error)
 }
 
 func (c *Client) ListBranchUsers(ctx context.Context, branchID uint64) ([]User, error) {
-	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.branchesPath == "/" || branchID == 0 {
+	if !c.canCallAuthenticated(ctx) || c.branchesPath == "/" || branchID == 0 {
 		return nil, ErrRequestFailed
 	}
 
@@ -625,7 +621,7 @@ func (c *Client) ListBranchUsers(ctx context.Context, branchID uint64) ([]User, 
 }
 
 func (c *Client) GetBranchUser(ctx context.Context, branchID uint64, userID uint64) (User, error) {
-	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.branchesPath == "/" || branchID == 0 || userID == 0 {
+	if !c.canCallAuthenticated(ctx) || c.branchesPath == "/" || branchID == 0 || userID == 0 {
 		return User{}, ErrRequestFailed
 	}
 
@@ -643,48 +639,87 @@ func (c *Client) GetBranchUser(ctx context.Context, branchID uint64, userID uint
 }
 
 func (c *Client) ListCustomers(ctx context.Context, query CustomerListQuery) (CustomerListResult, error) {
-	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.customersPath == "/" {
+	if !c.canCallAuthenticated(ctx) || c.customersPath == "/" {
 		return CustomerListResult{}, ErrRequestFailed
 	}
 
-	payload, err := json.Marshal(customerListRequestBody(query))
-	if err != nil {
-		return CustomerListResult{}, ErrRequestFailed
+	if len(query.IDs) > 0 {
+		return c.listCustomersByIDs(ctx, query)
 	}
 
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+c.customersPath, bytes.NewReader(payload))
-	if err != nil {
-		return CustomerListResult{}, ErrRequestFailed
+	return c.listCustomersPage(ctx, query)
+}
+
+func (c *Client) listCustomersPage(ctx context.Context, query CustomerListQuery) (CustomerListResult, error) {
+	var apiResponse adminCustomerListResponse
+	if err := c.getJSON(ctx, c.customersPath, customerListQueryValues(query), &apiResponse); err != nil {
+		return CustomerListResult{}, err
 	}
 
-	request.Header.Set("Accept", "application/json")
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("X-API-KEY", c.apiKey)
-	request.Header.Set("Authorization", "Bearer "+c.apiToken)
-
-	response, err := c.httpClient.Do(request)
-	if err != nil {
-		return CustomerListResult{}, ErrRequestFailed
-	}
-	defer response.Body.Close()
-
-	var apiResponse customerListResponse
-	if err := json.NewDecoder(response.Body).Decode(&apiResponse); err != nil {
-		return CustomerListResult{}, ErrRequestFailed
-	}
-
-	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices || !apiResponse.Success {
-		return CustomerListResult{}, fmt.Errorf("%w: status=%d", ErrRequestFailed, response.StatusCode)
+	items := make([]CustomerListItem, 0, len(apiResponse.Items))
+	for _, item := range apiResponse.Items {
+		items = append(items, mapAdminCustomerListItem(item))
 	}
 
 	return CustomerListResult{
-		Items:      apiResponse.Items,
+		Items:      items,
 		Pagination: apiResponse.Pagination,
 	}, nil
 }
 
+func (c *Client) listCustomersByIDs(ctx context.Context, query CustomerListQuery) (CustomerListResult, error) {
+	wantIDs := uniquePositiveIDs(query.IDs)
+	if len(wantIDs) == 0 {
+		return paginateCustomerListItems(nil, query.Page, query.PerPage), nil
+	}
+
+	wantSet := make(map[uint64]struct{}, len(wantIDs))
+	for _, id := range wantIDs {
+		wantSet[id] = struct{}{}
+	}
+
+	found := make(map[uint64]CustomerListItem, len(wantIDs))
+	page := 1
+	lastPage := 1
+	perPage := 500
+
+	for page <= lastPage && len(found) < len(wantSet) {
+		batch, err := c.listCustomersPage(ctx, CustomerListQuery{
+			Page:      page,
+			PerPage:   perPage,
+			SortBy:    query.SortBy,
+			SortOrder: query.SortOrder,
+		})
+		if err != nil {
+			return CustomerListResult{}, err
+		}
+
+		for _, item := range batch.Items {
+			if _, ok := wantSet[item.ID]; ok {
+				found[item.ID] = item
+			}
+		}
+
+		if batch.Pagination.LastPage <= 0 {
+			break
+		}
+
+		lastPage = batch.Pagination.LastPage
+		page++
+	}
+
+	ordered := make([]CustomerListItem, 0, len(wantIDs))
+	for _, id := range wantIDs {
+		if item, ok := found[id]; ok {
+			ordered = append(ordered, item)
+		}
+	}
+
+	return paginateCustomerListItems(ordered, query.Page, query.PerPage), nil
+}
+
 func (c *Client) GetCustomer(ctx context.Context, id uint64) (CustomerSearchItem, error) {
-	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || c.customersPath == "/" || id == 0 {
+	if !c.canCallAuthenticated(ctx) || c.customersPath == "/" || id == 0 {
 		return CustomerSearchItem{}, ErrRequestFailed
 	}
 
@@ -713,7 +748,7 @@ func (c *Client) DashboardLoadedCredit(ctx context.Context, query DashboardStats
 }
 
 func (c *Client) dashboardCount(ctx context.Context, path string, query DashboardStatsQuery) (int64, error) {
-	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || path == "/" {
+	if !c.canCallAuthenticated(ctx) || path == "/" {
 		return 0, ErrRequestFailed
 	}
 
@@ -726,7 +761,7 @@ func (c *Client) dashboardCount(ctx context.Context, path string, query Dashboar
 }
 
 func (c *Client) dashboardAmount(ctx context.Context, path string, query DashboardStatsQuery) (float64, error) {
-	if c.baseURL == "" || c.apiKey == "" || c.apiToken == "" || path == "/" {
+	if !c.canCallAuthenticated(ctx) || path == "/" {
 		return 0, ErrRequestFailed
 	}
 
@@ -754,11 +789,29 @@ func dashboardStatsQueryValues(query DashboardStatsQuery) url.Values {
 	return values
 }
 
-type customerListResponse struct {
-	Success    bool               `json:"success"`
-	Message    string             `json:"message"`
-	Items      []CustomerListItem `json:"items"`
-	Pagination Pagination         `json:"pagination"`
+type adminCustomerListItem struct {
+	ID         uint64 `json:"id"`
+	BranchID   *int32 `json:"branch_id"`
+	PlusCardNo string `json:"plus_card_no"`
+	Unvan      string `json:"unvan"`
+	Ad         string `json:"ad"`
+	Soyad      string `json:"soyad"`
+	Cep        string `json:"cep"`
+	IlKodu     string `json:"il_kodu"`
+	IlceKodu   string `json:"ilce_kodu"`
+	Type       string `json:"type"`
+	Status     int    `json:"status"`
+}
+
+type adminCustomerListResponse struct {
+	Success    bool                    `json:"success"`
+	Message    string                  `json:"message"`
+	Items      []adminCustomerListItem `json:"items"`
+	Pagination Pagination              `json:"pagination"`
+}
+
+func (r adminCustomerListResponse) successful() bool {
+	return r.Success
 }
 
 type customerSearchResponse struct {
@@ -803,64 +856,112 @@ func (r customerPhoneExistsResponse) successful() bool {
 	return r.Success
 }
 
-func customerListRequestBody(query CustomerListQuery) map[string]any {
-	body := map[string]any{}
+func customerListQueryValues(query CustomerListQuery) url.Values {
+	values := url.Values{}
 
 	if query.Page > 0 {
-		body["page"] = query.Page
+		values.Set("page", strconv.Itoa(query.Page))
 	}
 	if query.PerPage > 0 {
-		body["per_page"] = query.PerPage
-	}
-	if strings.TrimSpace(query.Situation) != "" {
-		body["situation"] = strings.TrimSpace(query.Situation)
-	}
-	if strings.TrimSpace(query.BranchName) != "" {
-		body["branch_name"] = strings.TrimSpace(query.BranchName)
-	}
-	if strings.TrimSpace(query.ZoneName) != "" {
-		body["zone_name"] = strings.TrimSpace(query.ZoneName)
-	}
-	if strings.TrimSpace(query.PlusCardNo) != "" {
-		body["plus_card_no"] = strings.TrimSpace(query.PlusCardNo)
-	}
-	if strings.TrimSpace(query.City) != "" {
-		body["city"] = strings.TrimSpace(query.City)
-	}
-	if strings.TrimSpace(query.Town) != "" {
-		body["town"] = strings.TrimSpace(query.Town)
-	}
-	if strings.TrimSpace(query.SortBy) != "" {
-		body["sort_by"] = strings.TrimSpace(query.SortBy)
-	}
-	if strings.TrimSpace(query.SortOrder) != "" {
-		body["sort_order"] = strings.TrimSpace(query.SortOrder)
-	}
-	if query.ZoneID > 0 {
-		body["zone_id"] = query.ZoneID
+		values.Set("per_page", strconv.Itoa(query.PerPage))
 	}
 
-	if len(query.IDs) > 0 {
-		ids := make([]uint64, 0, len(query.IDs))
-		for _, id := range query.IDs {
-			if id > 0 {
-				ids = append(ids, id)
-			}
+	sortBy := strings.ToLower(strings.TrimSpace(query.SortBy))
+	switch sortBy {
+	case "credit", "point":
+		values.Set("sort_by", "plus_card_balance")
+	default:
+		if sortBy != "" {
+			values.Set("sort_by", sortBy)
 		}
-		body["ids"] = ids
 	}
 
-	if len(query.BranchIDs) > 0 {
-		branchIDs := make([]int32, 0, len(query.BranchIDs))
-		for _, branchID := range query.BranchIDs {
-			if branchID > 0 {
-				branchIDs = append(branchIDs, branchID)
-			}
+	if sortOrder := strings.TrimSpace(query.SortOrder); sortOrder != "" {
+		values.Set("sort_order", sortOrder)
+	}
+
+	return values
+}
+
+func mapAdminCustomerListItem(item adminCustomerListItem) CustomerListItem {
+	return CustomerListItem{
+		ID:         item.ID,
+		PlusCardNo: item.PlusCardNo,
+		City:       item.IlKodu,
+		Town:       item.IlceKodu,
+	}
+}
+
+func uniquePositiveIDs(ids []uint64) []uint64 {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	seen := make(map[uint64]struct{}, len(ids))
+	result := make([]uint64, 0, len(ids))
+	for _, id := range ids {
+		if id == 0 {
+			continue
 		}
-		body["branch_ids"] = branchIDs
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		result = append(result, id)
 	}
 
-	return body
+	return result
+}
+
+func paginateCustomerListItems(items []CustomerListItem, page int, perPage int) CustomerListResult {
+	if page <= 0 {
+		page = 1
+	}
+	if perPage <= 0 {
+		perPage = 10
+	}
+
+	total := len(items)
+	lastPage := (total + perPage - 1) / perPage
+	if lastPage <= 0 {
+		lastPage = 1
+	}
+
+	if page > lastPage {
+		page = lastPage
+	}
+
+	start := (page - 1) * perPage
+	if start > total {
+		start = total
+	}
+
+	end := start + perPage
+	if end > total {
+		end = total
+	}
+
+	slice := items[start:end]
+	var from *int
+	var to *int
+	if total > 0 && len(slice) > 0 {
+		fromValue := start + 1
+		toValue := start + len(slice)
+		from = &fromValue
+		to = &toValue
+	}
+
+	return CustomerListResult{
+		Items: slice,
+		Pagination: Pagination{
+			CurrentPage: page,
+			LastPage:    lastPage,
+			PerPage:     perPage,
+			Total:       total,
+			From:        from,
+			To:          to,
+		},
+	}
 }
 
 func setQueryInt(values url.Values, key string, value int) {
@@ -889,7 +990,7 @@ func (c *Client) getJSON(ctx context.Context, path string, values url.Values, ta
 	request.Header.Set("Accept", "application/json")
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("X-API-KEY", c.apiKey)
-	request.Header.Set("Authorization", "Bearer "+c.apiToken)
+	request.Header.Set("Authorization", "Bearer "+c.bearerToken(ctx))
 
 	response, err := c.httpClient.Do(request)
 	if err != nil {

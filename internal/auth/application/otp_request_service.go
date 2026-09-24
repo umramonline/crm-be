@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/umran/new.crm/backend/internal/auth/domain"
 )
@@ -11,6 +12,7 @@ var (
 	ErrInvalidPhone      = domain.ErrInvalidPhone
 	ErrInvalidOTPCode    = domain.ErrInvalidOTPCode
 	ErrInvalidPassword   = domain.ErrInvalidPassword
+	ErrInvalidMFAToken   = errors.New("mfa token is required")
 	ErrOTPRequestFailed  = errors.New("otp request failed")
 	ErrOTPVerifyRejected = errors.New("otp verification rejected")
 	ErrOTPVerifyFailed   = errors.New("otp verification failed")
@@ -19,9 +21,8 @@ var (
 )
 
 type OTPRequester interface {
-	RequestOTP(ctx context.Context, phone string) error
-	VerifyOTP(ctx context.Context, phone string, otpCode string) (bool, error)
-	LoginWithPassword(ctx context.Context, phone string, password string) (map[string]any, error)
+	AdminLogin(ctx context.Context, phone string, password string) (RequestOTPResult, error)
+	AdminLoginVerify(ctx context.Context, mfaToken string, otpCode string) (map[string]any, error)
 }
 
 type OTPRequestService struct {
@@ -32,56 +33,56 @@ func NewOTPRequestService(requester OTPRequester) *OTPRequestService {
 	return &OTPRequestService{requester: requester}
 }
 
-func (s *OTPRequestService) RequestOTP(ctx context.Context, phone string) error {
+func (s *OTPRequestService) RequestOTP(ctx context.Context, phone string, password string) (RequestOTPResult, error) {
 	if err := domain.ValidatePhone(phone); err != nil {
-		return err
-	}
-
-	if err := s.requester.RequestOTP(ctx, phone); err != nil {
-		return ErrOTPRequestFailed
-	}
-
-	return nil
-}
-
-func (s *OTPRequestService) VerifyOTP(ctx context.Context, phone string, otpCode string) error {
-	if err := domain.ValidatePhone(phone); err != nil {
-		return err
-	}
-
-	if err := domain.ValidateOTPCode(otpCode); err != nil {
-		return err
-	}
-
-	verified, err := s.requester.VerifyOTP(ctx, phone, otpCode)
-	if err != nil {
-		return ErrOTPVerifyFailed
-	}
-
-	if !verified {
-		return ErrOTPVerifyRejected
-	}
-
-	return nil
-}
-
-func (s *OTPRequestService) LoginWithPassword(ctx context.Context, phone string, password string) (map[string]any, error) {
-	if err := domain.ValidatePhone(phone); err != nil {
-		return nil, err
+		return RequestOTPResult{}, err
 	}
 
 	if err := domain.ValidatePassword(password); err != nil {
+		return RequestOTPResult{}, err
+	}
+
+	result, err := s.requester.AdminLogin(ctx, phone, password)
+	if err != nil {
+		if errors.Is(err, ErrPasswordRejected) {
+			return RequestOTPResult{}, ErrPasswordRejected
+		}
+
+		return RequestOTPResult{}, ErrOTPRequestFailed
+	}
+
+	return result, nil
+}
+
+func (s *OTPRequestService) VerifyOTP(ctx context.Context, mfaToken string, otpCode string) (map[string]any, error) {
+	if err := validateMFAToken(mfaToken); err != nil {
 		return nil, err
 	}
 
-	data, err := s.requester.LoginWithPassword(ctx, phone, password)
+	if err := domain.ValidateOTPCode(otpCode); err != nil {
+		return nil, err
+	}
+
+	data, err := s.requester.AdminLoginVerify(ctx, mfaToken, otpCode)
 	if err != nil {
-		return nil, ErrPasswordFailed
+		if errors.Is(err, ErrOTPVerifyRejected) {
+			return nil, ErrOTPVerifyRejected
+		}
+
+		return nil, ErrOTPVerifyFailed
 	}
 
 	if data == nil {
-		return nil, ErrPasswordRejected
+		return nil, ErrOTPVerifyRejected
 	}
 
 	return data, nil
+}
+
+func validateMFAToken(mfaToken string) error {
+	if strings.TrimSpace(mfaToken) == "" {
+		return ErrInvalidMFAToken
+	}
+
+	return nil
 }

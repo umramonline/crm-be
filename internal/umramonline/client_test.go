@@ -7,55 +7,53 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	authapp "github.com/umran/new.crm/backend/internal/auth/application"
 )
 
-func TestClientVerifyOTPReturnsTrueForSuccessfulResponse(t *testing.T) {
-	server := newTestServer(t, http.StatusOK, `{"success":true,"message":"OTP doğrulandı."}`)
+func TestClientAdminLoginReturnsMFAChallenge(t *testing.T) {
+	server := newAdminLoginTestServer(t, http.StatusOK, `{"mfa_required":true,"mfa_token":"abc123","mfa_channel":"sms"}`)
 	client := newTestClient(server)
 
-	verified, err := client.VerifyOTP(context.Background(), "05551234567", "123456")
+	result, err := client.AdminLogin(context.Background(), "05551234567", "secret")
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
 
-	if !verified {
-		t.Fatal("expected otp to be verified")
+	if !result.MFARequired || result.MFAToken != "abc123" || result.MFAChannel != "sms" {
+		t.Fatalf("expected mfa challenge, got %#v", result)
 	}
 }
 
-func TestClientVerifyOTPReturnsFalseForRejectedOTP(t *testing.T) {
-	server := newTestServer(t, http.StatusUnprocessableEntity, `{"success":false,"message":"Güvenlik kodu hatalı."}`)
+func TestClientAdminLoginReturnsSessionWhenMFADisabled(t *testing.T) {
+	server := newAdminLoginTestServer(t, http.StatusOK, `{"user":{"id":1,"name":"Test User","phone":"05551234567","role_id":30},"token":"1|abc","expires_at":"2026-01-01T00:00:00Z"}`)
 	client := newTestClient(server)
 
-	verified, err := client.VerifyOTP(context.Background(), "05551234567", "654321")
+	result, err := client.AdminLogin(context.Background(), "05551234567", "secret")
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
 
-	if verified {
-		t.Fatal("expected otp to be rejected")
+	if result.MFARequired || result.LoginData == nil {
+		t.Fatalf("expected direct login data, got %#v", result)
 	}
 }
 
-func TestClientVerifyOTPReturnsErrorForServerFailure(t *testing.T) {
-	server := newTestServer(t, http.StatusInternalServerError, `{"success":false,"message":"failed"}`)
+func TestClientAdminLoginReturnsRejectedCredentials(t *testing.T) {
+	server := newAdminLoginTestServer(t, http.StatusUnprocessableEntity, `{"message":"Kimlik bilgileri hatalı."}`)
 	client := newTestClient(server)
 
-	verified, err := client.VerifyOTP(context.Background(), "05551234567", "123456")
-	if !errors.Is(err, ErrRequestFailed) {
-		t.Fatalf("expected ErrRequestFailed, got %v", err)
-	}
-
-	if verified {
-		t.Fatal("expected otp to be unverified")
+	_, err := client.AdminLogin(context.Background(), "05551234567", "wrong")
+	if !errors.Is(err, authapp.ErrPasswordRejected) {
+		t.Fatalf("expected ErrPasswordRejected, got %v", err)
 	}
 }
 
-func TestClientLoginWithPasswordReturnsDataForSuccessfulResponse(t *testing.T) {
-	server := newPasswordLoginTestServer(t, http.StatusOK, `{"success":true,"message":"Giriş başarılı.","data":{"user":{"id":1,"name":"Test User","phone":"05551234567"}}}`)
+func TestClientAdminLoginVerifyReturnsLoginData(t *testing.T) {
+	server := newAdminLoginVerifyTestServer(t, http.StatusOK, `{"user":{"id":1,"name":"Test User","phone":"05551234567","role_id":30},"token":"1|abc","expires_at":"2026-01-01T00:00:00Z"}`)
 	client := newTestClient(server)
 
-	data, err := client.LoginWithPassword(context.Background(), "05551234567", "secret")
+	data, err := client.AdminLoginVerify(context.Background(), "abc123", "123456")
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -65,181 +63,106 @@ func TestClientLoginWithPasswordReturnsDataForSuccessfulResponse(t *testing.T) {
 	}
 }
 
-func TestClientLoginWithPasswordReturnsNilForRejectedCredentials(t *testing.T) {
-	server := newPasswordLoginTestServer(t, http.StatusUnprocessableEntity, `{"success":false,"message":"Kimlik bilgileri hatalı.","data":null}`)
+func TestClientAdminLoginVerifyReturnsRejectedOTP(t *testing.T) {
+	server := newAdminLoginVerifyTestServer(t, http.StatusUnprocessableEntity, `{"message":"Güvenlik kodu hatalı."}`)
 	client := newTestClient(server)
 
-	data, err := client.LoginWithPassword(context.Background(), "05551234567", "wrong")
-	if err != nil {
-		t.Fatalf("expected nil error, got %v", err)
-	}
-
-	if data != nil {
-		t.Fatalf("expected nil data for rejected credentials, got %#v", data)
+	_, err := client.AdminLoginVerify(context.Background(), "abc123", "654321")
+	if !errors.Is(err, authapp.ErrOTPVerifyRejected) {
+		t.Fatalf("expected ErrOTPVerifyRejected, got %v", err)
 	}
 }
 
-func TestClientLoginWithPasswordReturnsErrorForServerFailure(t *testing.T) {
-	server := newPasswordLoginTestServer(t, http.StatusInternalServerError, `{"success":false,"message":"failed"}`)
+func TestClientAdminLoginVerifyReturnsErrorForServerFailure(t *testing.T) {
+	server := newAdminLoginVerifyTestServer(t, http.StatusInternalServerError, `{"message":"failed"}`)
 	client := newTestClient(server)
 
-	data, err := client.LoginWithPassword(context.Background(), "05551234567", "secret")
+	_, err := client.AdminLoginVerify(context.Background(), "abc123", "123456")
 	if !errors.Is(err, ErrRequestFailed) {
 		t.Fatalf("expected ErrRequestFailed, got %v", err)
-	}
-
-	if data != nil {
-		t.Fatalf("expected nil data, got %#v", data)
 	}
 }
 
 func TestClientListCustomersReturnsItemsForSuccessfulResponse(t *testing.T) {
-	server := newCustomersTestServer(t, http.StatusOK, `{"success":true,"items":[{"id":100,"situation":"Aktif Müşteri","branch_name":"Merkez","credit":10,"point":5}],"pagination":{"current_page":1,"last_page":1,"per_page":10,"total":1,"from":1,"to":1}}`)
+	server := newCustomersTestServer(t, http.StatusOK, `{"success":true,"items":[{"id":100,"plus_card_no":"PC001","il_kodu":"34","ilce_kodu":"001"}],"pagination":{"current_page":1,"last_page":1,"per_page":10,"total":1,"from":1,"to":1}}`)
 	client := newCustomersTestClient(server)
 
 	result, err := client.ListCustomers(context.Background(), CustomerListQuery{
 		Page:    1,
 		PerPage: 10,
-		IDs:     []uint64{100},
 	})
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
 
-	if len(result.Items) != 1 {
-		t.Fatalf("expected 1 item, got %d", len(result.Items))
-	}
-
-	if result.Items[0].ID != 100 {
-		t.Fatalf("unexpected id: %d", result.Items[0].ID)
-	}
-	if result.Items[0].Credit != 10 {
-		t.Fatalf("unexpected credit: %d", result.Items[0].Credit)
-	}
-	if result.Items[0].Point != 5 {
-		t.Fatalf("unexpected point: %d", result.Items[0].Point)
+	if len(result.Items) != 1 || result.Items[0].ID != 100 || result.Items[0].PlusCardNo != "PC001" {
+		t.Fatalf("unexpected items: %#v", result.Items)
 	}
 }
 
-func TestClientListCustomersForwardsRequestBody(t *testing.T) {
-	var capturedMethod string
-	var capturedBody map[string]any
-
+func TestClientListCustomersFiltersByIDs(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		capturedMethod = r.Method
-		if err := json.NewDecoder(r.Body).Decode(&capturedBody); err != nil {
-			t.Fatalf("failed to decode body: %v", err)
+		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/admin/crm/customer-list" {
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"success":true,"items":[],"pagination":{"current_page":1,"last_page":1,"per_page":10,"total":0}}`))
+		_, _ = w.Write([]byte(`{"success":true,"items":[{"id":1,"plus_card_no":"A"},{"id":2,"plus_card_no":"B"}],"pagination":{"current_page":1,"last_page":1,"per_page":500,"total":2}}`))
 	}))
 	t.Cleanup(server.Close)
 
-	client := newCustomersTestClient(server)
-	_, err := client.ListCustomers(context.Background(), CustomerListQuery{
-		Page:       2,
-		PerPage:    25,
-		Situation:  "Aktif Müşteri",
-		SortBy:     "credit",
-		SortOrder:  "asc",
-		BranchName: "Merkez",
-		BranchIDs:  []int32{1, 2},
-		IDs:        []uint64{10, 20},
+	client := NewClient(Config{
+		BaseURL:       server.URL,
+		APIKey:        "test-key",
+		APIToken:      "test-token",
+		CustomersPath: "/api/v1/admin/crm/customer-list",
+	})
+
+	result, err := client.ListCustomers(context.Background(), CustomerListQuery{
+		Page:    1,
+		PerPage: 10,
+		IDs:     []uint64{2},
 	})
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
 
-	if capturedMethod != http.MethodPost {
-		t.Fatalf("expected POST, got %s", capturedMethod)
+	if len(result.Items) != 1 || result.Items[0].ID != 2 {
+		t.Fatalf("unexpected filtered items: %#v", result.Items)
 	}
-	if capturedBody["branch_name"] != "Merkez" {
-		t.Fatalf("unexpected body: %#v", capturedBody)
-	}
-	if _, ok := capturedBody["ids"]; !ok {
-		t.Fatalf("expected ids in body, got %#v", capturedBody)
-	}
-	if _, ok := capturedBody["branch_ids"]; !ok {
-		t.Fatalf("expected branch_ids in body, got %#v", capturedBody)
+}
+
+func TestClientListCustomersReturnsErrorForServerFailure(t *testing.T) {
+	server := newCustomersTestServer(t, http.StatusInternalServerError, `{"success":false,"message":"failed"}`)
+	client := newCustomersTestClient(server)
+
+	_, err := client.ListCustomers(context.Background(), CustomerListQuery{})
+	if !errors.Is(err, ErrRequestFailed) {
+		t.Fatalf("expected ErrRequestFailed, got %v", err)
 	}
 }
 
 func TestClientListZonesReturnsItemsForSuccessfulResponse(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/v1/crm/zones" {
-			t.Fatalf("unexpected path: %s", r.URL.Path)
-		}
+	server := newZonesTestServer(t, http.StatusOK, `{"success":true,"items":[{"id":1,"name":"Istanbul"}]}`)
+	client := newZonesTestClient(server)
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"success":true,"items":[{"id":1,"name":"Marmara"}]}`))
-	}))
-	t.Cleanup(server.Close)
-
-	client := NewClient(Config{
-		BaseURL:   server.URL,
-		APIKey:    "test-key",
-		APIToken:  "test-token",
-		ZonesPath: "/api/v1/crm/zones",
-	})
-
-	zones, err := client.ListZones(context.Background(), nil)
+	items, err := client.ListZones(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
 
-	if len(zones) != 1 || zones[0].Name != "Marmara" {
-		t.Fatalf("unexpected zones: %#v", zones)
+	if len(items) != 1 {
+		t.Fatalf("expected 1 zone, got %d", len(items))
 	}
 }
 
-func TestClientListZonesForwardsBranchIDs(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		branchIDs := r.URL.Query()["branch_ids[]"]
-		if len(branchIDs) != 2 || branchIDs[0] != "2" || branchIDs[1] != "7" {
-			t.Fatalf("unexpected branch ids: %#v", branchIDs)
-		}
+func TestClientListZonesReturnsErrorForServerFailure(t *testing.T) {
+	server := newZonesTestServer(t, http.StatusInternalServerError, `{"success":false,"message":"failed"}`)
+	client := newZonesTestClient(server)
 
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"success":true,"items":[]}`))
-	}))
-	t.Cleanup(server.Close)
-
-	client := NewClient(Config{
-		BaseURL:   server.URL,
-		APIKey:    "test-key",
-		APIToken:  "test-token",
-		ZonesPath: "/api/v1/crm/zones",
-	})
-
-	if _, err := client.ListZones(context.Background(), []uint64{2, 7}); err != nil {
-		t.Fatalf("expected nil error, got %v", err)
-	}
-}
-
-func TestClientListBranchesForwardsBranchIDs(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		branchIDs := r.URL.Query()["branch_ids[]"]
-		if len(branchIDs) != 2 || branchIDs[0] != "2" || branchIDs[1] != "7" {
-			t.Fatalf("unexpected branch ids: %#v", branchIDs)
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"success":true,"items":[]}`))
-	}))
-	t.Cleanup(server.Close)
-
-	client := NewClient(Config{
-		BaseURL:      server.URL,
-		APIKey:       "test-key",
-		APIToken:     "test-token",
-		BranchesPath: "/api/v1/crm/branches",
-	})
-
-	if _, err := client.ListBranches(context.Background(), []uint64{2, 7}); err != nil {
-		t.Fatalf("expected nil error, got %v", err)
+	_, err := client.ListZones(context.Background(), nil)
+	if !errors.Is(err, ErrRequestFailed) {
+		t.Fatalf("expected ErrRequestFailed, got %v", err)
 	}
 }
 
@@ -248,7 +171,7 @@ func newCustomersTestClient(server *httptest.Server) *Client {
 		BaseURL:       server.URL,
 		APIKey:        "test-key",
 		APIToken:      "test-token",
-		CustomersPath: "/api/v1/crm/customers",
+		CustomersPath: "/api/v1/admin/crm/customer-list",
 	})
 }
 
@@ -256,8 +179,8 @@ func newCustomersTestServer(t *testing.T, status int, responseBody string) *http
 	t.Helper()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/v1/crm/customers" {
-			t.Fatalf("unexpected path: %s", r.URL.Path)
+		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/admin/crm/customer-list" {
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
 		}
 
 		if r.Header.Get("X-API-KEY") != "test-key" {
@@ -276,20 +199,54 @@ func newCustomersTestServer(t *testing.T, status int, responseBody string) *http
 
 func newTestClient(server *httptest.Server) *Client {
 	return NewClient(Config{
-		BaseURL:           server.URL,
-		APIKey:            "test-key",
-		APIToken:          "test-token",
-		OTPRequestPath:    "/api/v1/crm/auth/otp/request",
-		OTPVerifyPath:     "/api/v1/crm/auth/otp/verify",
-		PasswordLoginPath: "/api/v1/crm/auth/password/login",
+		BaseURL:        server.URL,
+		APIKey:         "test-key",
+		APIToken:       "test-token",
+		OTPRequestPath: "/api/v1/admin/login",
+		OTPVerifyPath:  "/api/v1/admin/login/verify",
 	})
 }
 
-func newTestServer(t *testing.T, status int, responseBody string) *httptest.Server {
+func newAdminLoginTestServer(t *testing.T, status int, responseBody string) *httptest.Server {
 	t.Helper()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/v1/crm/auth/otp/verify" {
+		if r.URL.Path != "/api/v1/admin/login" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+
+		if r.Header.Get("X-API-KEY") != "test-key" {
+			t.Fatalf("unexpected api key: %s", r.Header.Get("X-API-KEY"))
+		}
+
+		if r.Header.Get("Authorization") != "" {
+			t.Fatal("admin login should not send bearer token")
+		}
+
+		var payload map[string]string
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("failed to decode body: %v", err)
+		}
+
+		if payload["phone"] == "" || payload["password"] == "" {
+			t.Fatalf("expected phone and password in body, got %#v", payload)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(responseBody))
+	}))
+
+	t.Cleanup(server.Close)
+
+	return server
+}
+
+func newAdminLoginVerifyTestServer(t *testing.T, status int, responseBody string) *httptest.Server {
+	t.Helper()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/admin/login/verify" {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
 
@@ -307,16 +264,21 @@ func newTestServer(t *testing.T, status int, responseBody string) *httptest.Serv
 	return server
 }
 
-func newPasswordLoginTestServer(t *testing.T, status int, responseBody string) *httptest.Server {
+func newZonesTestClient(server *httptest.Server) *Client {
+	return NewClient(Config{
+		BaseURL:   server.URL,
+		APIKey:    "test-key",
+		APIToken:  "test-token",
+		ZonesPath: "/api/v1/crm/zones",
+	})
+}
+
+func newZonesTestServer(t *testing.T, status int, responseBody string) *httptest.Server {
 	t.Helper()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/v1/crm/auth/password/login" {
+		if r.URL.Path != "/api/v1/crm/zones" {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
-		}
-
-		if r.Header.Get("X-API-KEY") != "test-key" {
-			t.Fatalf("unexpected api key: %s", r.Header.Get("X-API-KEY"))
 		}
 
 		w.Header().Set("Content-Type", "application/json")

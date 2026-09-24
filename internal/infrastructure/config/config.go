@@ -15,17 +15,17 @@ type Config struct {
 	UmramonlineBaseURL                   string `env:"UMRAMONLINE_BASE_URL"`
 	UmramonlineAPIKey                    string `env:"UMRAMONLINE_API_KEY"`
 	UmramonlineAPIToken                  string `env:"UMRAMONLINE_API_TOKEN"`
-	UmramonlineOTPRequestPath            string `env:"UMRAMONLINE_OTP_REQUEST_PATH" envDefault:"/api/v1/crm/auth/otp/request"`
-	UmramonlineOTPVerifyPath             string `env:"UMRAMONLINE_OTP_VERIFY_PATH" envDefault:"/api/v1/crm/auth/otp/verify"`
-	UmramonlinePasswordPath              string `env:"UMRAMONLINE_PASSWORD_LOGIN_PATH" envDefault:"/api/v1/crm/auth/password/login"`
-	UmramonlineUserRolesPath             string `env:"UMRAMONLINE_USER_ROLES_PATH" envDefault:"/api/v1/crm/auth/user-roles"`
-	UmramonlineCustomersPath             string `env:"UMRAMONLINE_CUSTOMERS_PATH" envDefault:"/api/v1/crm/customers"`
+	UmramonlineOTPRequestPath            string `env:"UMRAMONLINE_OTP_REQUEST_PATH" envDefault:"/api/v1/admin/login"`
+	UmramonlineOTPVerifyPath             string `env:"UMRAMONLINE_OTP_VERIFY_PATH" envDefault:"/api/v1/admin/login/verify"`
+	UmramonlinePasswordPath              string `env:"UMRAMONLINE_PASSWORD_LOGIN_PATH" envDefault:"/api/v1/admin/login"`
+	UmramonlineUserRolesPath             string `env:"UMRAMONLINE_USER_ROLES_PATH" envDefault:"/api/v1/admin/crm/user-roles"`
+	UmramonlineCustomersPath             string `env:"UMRAMONLINE_CUSTOMERS_PATH" envDefault:"/api/v1/admin/crm/customer-list"`
 	UmramonlineCustomerSearchPath        string `env:"UMRAMONLINE_CUSTOMER_SEARCH_PATH" envDefault:"/api/v1/crm/customers/search"`
 	UmramonlineCustomerPhoneExistsPath   string `env:"UMRAMONLINE_CUSTOMER_PHONE_EXISTS_PATH" envDefault:"/api/v1/crm/customers/phone-exists"`
-	UmramonlineZonesPath                 string `env:"UMRAMONLINE_ZONES_PATH" envDefault:"/api/v1/crm/zones"`
-	UmramonlineCitiesPath                string `env:"UMRAMONLINE_CITIES_PATH" envDefault:"/api/v1/crm/cities"`
-	UmramonlineTownsPath                 string `env:"UMRAMONLINE_TOWNS_PATH" envDefault:"/api/v1/crm/towns"`
-	UmramonlineBranchesPath              string `env:"UMRAMONLINE_BRANCHES_PATH" envDefault:"/api/v1/crm/branches"`
+	UmramonlineZonesPath                 string `env:"UMRAMONLINE_ZONES_PATH" envDefault:"/api/v1/admin/crm/zones"`
+	UmramonlineCitiesPath                string `env:"UMRAMONLINE_CITIES_PATH" envDefault:"/api/v1/admin/cities"`
+	UmramonlineTownsPath                 string `env:"UMRAMONLINE_TOWNS_PATH" envDefault:"/api/v1/admin/towns"`
+	UmramonlineBranchesPath              string `env:"UMRAMONLINE_BRANCHES_PATH" envDefault:"/api/v1/admin/crm/branches"`
 	UmramonlineTaskSMSPath               string `env:"UMRAMONLINE_TASK_SMS_PATH" envDefault:"/api/v1/crm/tasks/sms-created"`
 	UmramonlineDashboardVehicleEntryPath string `env:"UMRAMONLINE_DASHBOARD_VEHICLE_ENTRY_PATH" envDefault:"/api/v1/crm/dashboard/vehicle-entry-count"`
 	UmramonlineDashboardTotalAmountPath  string `env:"UMRAMONLINE_DASHBOARD_TOTAL_AMOUNT_PATH" envDefault:"/api/v1/crm/dashboard/total-amount"`

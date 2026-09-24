@@ -15,7 +15,7 @@ func TestSessionTokenServiceIssuesAndValidatesToken(t *testing.T) {
 		return time.Unix(1000, 0)
 	}
 
-	token, err := service.Issue(1, TokenTypeAccess, time.Minute, 30, "Admin", "Test User", []branchapp.Branch{{ID: 5, KisaAd: "A"}})
+	token, err := service.Issue(1, TokenTypeAccess, time.Minute, 30, "Admin", "Test User", []branchapp.Branch{{ID: 5, KisaAd: "A"}}, "uo-token")
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -41,7 +41,7 @@ func TestSessionTokenServiceIncludesBranchesForNonAdmin(t *testing.T) {
 	}
 
 	branches := []branchapp.Branch{{ID: 5, KisaAd: "A"}}
-	token, err := service.Issue(1, TokenTypeAccess, time.Minute, sharedauth.AdminRoleID+1, "User", "Test User", branches)
+	token, err := service.Issue(1, TokenTypeAccess, time.Minute, sharedauth.AdminRoleID+1, "User", "Test User", branches, "")
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -66,7 +66,7 @@ func TestSessionTokenServiceRejectsWrongTokenType(t *testing.T) {
 		return time.Unix(1000, 0)
 	}
 
-	token, err := service.Issue(1, TokenTypeAccess, time.Minute, 0, "", "Test User", nil)
+	token, err := service.Issue(1, TokenTypeAccess, time.Minute, 0, "", "Test User", nil, "")
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -84,7 +84,7 @@ func TestSessionTokenServiceRejectsExpiredToken(t *testing.T) {
 		return currentTime
 	}
 
-	token, err := service.Issue(1, TokenTypeAccess, time.Minute, 0, "", "Test User", nil)
+	token, err := service.Issue(1, TokenTypeAccess, time.Minute, 0, "", "Test User", nil, "")
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}

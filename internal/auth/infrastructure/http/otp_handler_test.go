@@ -17,13 +17,14 @@ import (
 )
 
 type fakeOTPRequestService struct {
-	requestErr error
-	verifyErr  error
-	loginErr   error
-	phone      string
-	otpCode    string
-	password   string
-	loginData  map[string]any
+	requestErr    error
+	verifyErr     error
+	phone         string
+	otpCode       string
+	password      string
+	mfaToken      string
+	loginData     map[string]any
+	requestResult application.RequestOTPResult
 }
 
 type fakeSessionTokenService struct {
@@ -37,27 +38,37 @@ type fakeSessionTokenService struct {
 	issueErr     error
 }
 
-func (f *fakeOTPRequestService) RequestOTP(_ context.Context, phone string) error {
-	f.phone = phone
-
-	return f.requestErr
-}
-
-func (f *fakeOTPRequestService) VerifyOTP(_ context.Context, phone string, otpCode string) error {
-	f.phone = phone
-	f.otpCode = otpCode
-
-	return f.verifyErr
-}
-
-func (f *fakeOTPRequestService) LoginWithPassword(_ context.Context, phone string, password string) (map[string]any, error) {
+func (f *fakeOTPRequestService) RequestOTP(_ context.Context, phone string, password string) (application.RequestOTPResult, error) {
 	f.phone = phone
 	f.password = password
 
-	return f.loginData, f.loginErr
+	if f.requestErr != nil {
+		return application.RequestOTPResult{}, f.requestErr
+	}
+
+	if f.requestResult.MFARequired || f.requestResult.LoginData != nil {
+		return f.requestResult, nil
+	}
+
+	return application.RequestOTPResult{
+		MFARequired: true,
+		MFAToken:    "mfa-token",
+		MFAChannel:  "sms",
+	}, nil
 }
 
-func (f *fakeSessionTokenService) Issue(userID uint64, tokenType string, _ time.Duration, roleID uint64, roleName string, fullName string, _ []branchapp.Branch) (string, error) {
+func (f *fakeOTPRequestService) VerifyOTP(_ context.Context, mfaToken string, otpCode string) (map[string]any, error) {
+	f.mfaToken = mfaToken
+	f.otpCode = otpCode
+
+	if f.verifyErr != nil {
+		return nil, f.verifyErr
+	}
+
+	return f.loginData, nil
+}
+
+func (f *fakeSessionTokenService) Issue(userID uint64, tokenType string, _ time.Duration, roleID uint64, roleName string, fullName string, _ []branchapp.Branch, _ string) (string, error) {
 	if f.issueErr != nil {
 		return "", f.issueErr
 	}
@@ -93,7 +104,7 @@ func TestOTPHandlerReturnsValidationErrorForInvalidPhone(t *testing.T) {
 	service := &fakeOTPRequestService{requestErr: application.ErrInvalidPhone}
 	app := newTestApp(service)
 
-	response := performRequest(t, app, `{"phone":"5551234567"}`)
+	response := performRequest(t, app, `{"phone":"5551234567","password":"secret"}`)
 	defer response.Body.Close()
 
 	if response.StatusCode != fiber.StatusUnprocessableEntity {
@@ -110,7 +121,7 @@ func TestOTPHandlerReturnsSuccessEnvelope(t *testing.T) {
 	service := &fakeOTPRequestService{}
 	app := newTestApp(service)
 
-	response := performRequest(t, app, `{"phone":"05551234567"}`)
+	response := performRequest(t, app, `{"phone":"05551234567","password":"secret"}`)
 	defer response.Body.Close()
 
 	if response.StatusCode != fiber.StatusOK {
@@ -118,12 +129,12 @@ func TestOTPHandlerReturnsSuccessEnvelope(t *testing.T) {
 	}
 
 	body := readBody(t, response.Body)
-	if !strings.Contains(body, `"success":true`) {
-		t.Fatalf("expected success envelope, got %s", body)
+	if !strings.Contains(body, `"success":true`) || !strings.Contains(body, `"mfa_token"`) {
+		t.Fatalf("expected success envelope with mfa token, got %s", body)
 	}
 
-	if service.phone != "05551234567" {
-		t.Fatalf("expected phone to be passed to service, got %s", service.phone)
+	if service.phone != "05551234567" || service.password != "secret" {
+		t.Fatalf("expected payload to be passed to service, got phone=%s password=%s", service.phone, service.password)
 	}
 }
 
@@ -131,7 +142,7 @@ func TestOTPHandlerDoesNotLeakRequesterErrors(t *testing.T) {
 	service := &fakeOTPRequestService{requestErr: errors.New("secret upstream error")}
 	app := newTestApp(service)
 
-	response := performRequest(t, app, `{"phone":"05551234567"}`)
+	response := performRequest(t, app, `{"phone":"05551234567","password":"secret"}`)
 	defer response.Body.Close()
 
 	if response.StatusCode != fiber.StatusInternalServerError {
@@ -144,11 +155,11 @@ func TestOTPHandlerDoesNotLeakRequesterErrors(t *testing.T) {
 	}
 }
 
-func TestOTPHandlerReturnsValidationErrorForInvalidVerifyPhone(t *testing.T) {
-	service := &fakeOTPRequestService{verifyErr: application.ErrInvalidPhone}
+func TestOTPHandlerReturnsValidationErrorForInvalidMFAToken(t *testing.T) {
+	service := &fakeOTPRequestService{verifyErr: application.ErrInvalidMFAToken}
 	app := newTestApp(service)
 
-	response := performVerifyRequest(t, app, `{"phone":"5551234567","otp_code":"123456"}`)
+	response := performVerifyRequest(t, app, `{"mfa_token":" ","otp_code":"123456"}`)
 	defer response.Body.Close()
 
 	if response.StatusCode != fiber.StatusUnprocessableEntity {
@@ -156,8 +167,8 @@ func TestOTPHandlerReturnsValidationErrorForInvalidVerifyPhone(t *testing.T) {
 	}
 
 	body := readBody(t, response.Body)
-	if !strings.Contains(body, `"success":false`) || !strings.Contains(body, `"phone"`) {
-		t.Fatalf("expected phone validation envelope, got %s", body)
+	if !strings.Contains(body, `"success":false`) || !strings.Contains(body, `"mfa_token"`) {
+		t.Fatalf("expected mfa token validation envelope, got %s", body)
 	}
 }
 
@@ -165,7 +176,7 @@ func TestOTPHandlerReturnsValidationErrorForInvalidOTPCode(t *testing.T) {
 	service := &fakeOTPRequestService{verifyErr: application.ErrInvalidOTPCode}
 	app := newTestApp(service)
 
-	response := performVerifyRequest(t, app, `{"phone":"05551234567","otp_code":"12345"}`)
+	response := performVerifyRequest(t, app, `{"mfa_token":"mfa-token","otp_code":"12345"}`)
 	defer response.Body.Close()
 
 	if response.StatusCode != fiber.StatusUnprocessableEntity {
@@ -179,10 +190,10 @@ func TestOTPHandlerReturnsValidationErrorForInvalidOTPCode(t *testing.T) {
 }
 
 func TestOTPHandlerReturnsVerifySuccessEnvelope(t *testing.T) {
-	service := &fakeOTPRequestService{}
+	service := &fakeOTPRequestService{loginData: map[string]any{"user": map[string]any{"id": float64(1), "role_id": float64(30)}}}
 	app := newTestApp(service)
 
-	response := performVerifyRequest(t, app, `{"phone":"05551234567","otp_code":"123456"}`)
+	response := performVerifyRequest(t, app, `{"mfa_token":"mfa-token","otp_code":"123456"}`)
 	defer response.Body.Close()
 
 	if response.StatusCode != fiber.StatusOK {
@@ -190,12 +201,16 @@ func TestOTPHandlerReturnsVerifySuccessEnvelope(t *testing.T) {
 	}
 
 	body := readBody(t, response.Body)
-	if !strings.Contains(body, `"success":true`) || !strings.Contains(body, `"OTP doğrulandı."`) {
+	if !strings.Contains(body, `"success":true`) || !strings.Contains(body, `"Giriş başarılı."`) {
 		t.Fatalf("expected success envelope, got %s", body)
 	}
 
-	if service.phone != "05551234567" || service.otpCode != "123456" {
-		t.Fatalf("expected payload to be passed to service, got phone=%s otp=%s", service.phone, service.otpCode)
+	if service.mfaToken != "mfa-token" || service.otpCode != "123456" {
+		t.Fatalf("expected payload to be passed to service, got mfa=%s otp=%s", service.mfaToken, service.otpCode)
+	}
+
+	if !hasCookie(response.Cookies(), "access_token") || !hasCookie(response.Cookies(), "refresh_token") {
+		t.Fatalf("expected auth cookies, got %#v", response.Cookies())
 	}
 }
 
@@ -203,7 +218,7 @@ func TestOTPHandlerReturnsRejectedForWrongOTPCode(t *testing.T) {
 	service := &fakeOTPRequestService{verifyErr: application.ErrOTPVerifyRejected}
 	app := newTestApp(service)
 
-	response := performVerifyRequest(t, app, `{"phone":"05551234567","otp_code":"654321"}`)
+	response := performVerifyRequest(t, app, `{"mfa_token":"mfa-token","otp_code":"654321"}`)
 	defer response.Body.Close()
 
 	if response.StatusCode != fiber.StatusUnprocessableEntity {
@@ -220,7 +235,7 @@ func TestOTPHandlerDoesNotLeakVerifyRequesterErrors(t *testing.T) {
 	service := &fakeOTPRequestService{verifyErr: errors.New("secret upstream error")}
 	app := newTestApp(service)
 
-	response := performVerifyRequest(t, app, `{"phone":"05551234567","otp_code":"123456"}`)
+	response := performVerifyRequest(t, app, `{"mfa_token":"mfa-token","otp_code":"123456"}`)
 	defer response.Body.Close()
 
 	if response.StatusCode != fiber.StatusInternalServerError {
@@ -234,7 +249,7 @@ func TestOTPHandlerDoesNotLeakVerifyRequesterErrors(t *testing.T) {
 }
 
 func TestOTPHandlerReturnsValidationErrorForInvalidPasswordLoginPhone(t *testing.T) {
-	service := &fakeOTPRequestService{loginErr: application.ErrInvalidPhone}
+	service := &fakeOTPRequestService{requestErr: application.ErrInvalidPhone}
 	app := newTestApp(service)
 
 	response := performPasswordLoginRequest(t, app, `{"phone":"5551234567","password":"secret"}`)
@@ -251,7 +266,7 @@ func TestOTPHandlerReturnsValidationErrorForInvalidPasswordLoginPhone(t *testing
 }
 
 func TestOTPHandlerReturnsValidationErrorForEmptyPassword(t *testing.T) {
-	service := &fakeOTPRequestService{loginErr: application.ErrInvalidPassword}
+	service := &fakeOTPRequestService{requestErr: application.ErrInvalidPassword}
 	app := newTestApp(service)
 
 	response := performPasswordLoginRequest(t, app, `{"phone":"05551234567","password":""}`)
@@ -268,7 +283,11 @@ func TestOTPHandlerReturnsValidationErrorForEmptyPassword(t *testing.T) {
 }
 
 func TestOTPHandlerReturnsPasswordLoginSuccessEnvelope(t *testing.T) {
-	service := &fakeOTPRequestService{loginData: map[string]any{"user": map[string]any{"id": float64(1)}}}
+	service := &fakeOTPRequestService{
+		requestResult: application.RequestOTPResult{
+			LoginData: map[string]any{"user": map[string]any{"id": float64(1), "role_id": float64(30)}},
+		},
+	}
 	app := newTestApp(service)
 
 	response := performPasswordLoginRequest(t, app, `{"phone":"05551234567","password":"secret"}`)
@@ -293,7 +312,7 @@ func TestOTPHandlerReturnsPasswordLoginSuccessEnvelope(t *testing.T) {
 }
 
 func TestOTPHandlerReturnsRejectedForWrongPassword(t *testing.T) {
-	service := &fakeOTPRequestService{loginErr: application.ErrPasswordRejected}
+	service := &fakeOTPRequestService{requestErr: application.ErrPasswordRejected}
 	app := newTestApp(service)
 
 	response := performPasswordLoginRequest(t, app, `{"phone":"05551234567","password":"wrong"}`)
@@ -310,7 +329,7 @@ func TestOTPHandlerReturnsRejectedForWrongPassword(t *testing.T) {
 }
 
 func TestOTPHandlerDoesNotLeakPasswordLoginRequesterErrors(t *testing.T) {
-	service := &fakeOTPRequestService{loginErr: errors.New("secret upstream error")}
+	service := &fakeOTPRequestService{requestErr: errors.New("secret upstream error")}
 	app := newTestApp(service)
 
 	response := performPasswordLoginRequest(t, app, `{"phone":"05551234567","password":"secret"}`)

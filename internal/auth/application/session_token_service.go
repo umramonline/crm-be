@@ -24,14 +24,15 @@ var (
 )
 
 type SessionTokenClaims struct {
-	UserId       uint64             `json:"user_id"`
-	BranchIds    []uint64           `json:"branch_ids,omitempty"`
-	Branches     []branchapp.Branch `json:"branches,omitempty"`
-	UserFullName string             `json:"user_full_name,omitempty"`
-	TokenType    string             `json:"typ"`
-	ExpiresAt    int64              `json:"exp"`
-	RoleID       uint64             `json:"role_id,omitempty"`
-	RoleName     string             `json:"role_name,omitempty"`
+	UserId            uint64             `json:"user_id"`
+	BranchIds         []uint64           `json:"branch_ids,omitempty"`
+	Branches          []branchapp.Branch `json:"branches,omitempty"`
+	UserFullName      string             `json:"user_full_name,omitempty"`
+	TokenType         string             `json:"typ"`
+	ExpiresAt         int64              `json:"exp"`
+	RoleID            uint64             `json:"role_id,omitempty"`
+	RoleName          string             `json:"role_name,omitempty"`
+	UmramonlineToken  string             `json:"uo_token,omitempty"`
 }
 
 type SessionTokenService struct {
@@ -46,7 +47,7 @@ func NewSessionTokenService(secret string) *SessionTokenService {
 	}
 }
 
-func (s *SessionTokenService) Issue(userId uint64, tokenType string, ttl time.Duration, roleID uint64, roleName string, fullName string, branches []branchapp.Branch) (string, error) {
+func (s *SessionTokenService) Issue(userId uint64, tokenType string, ttl time.Duration, roleID uint64, roleName string, fullName string, branches []branchapp.Branch, umramonlineToken string) (string, error) {
 	if userId == 0 || strings.TrimSpace(tokenType) == "" || strings.TrimSpace(fullName) == "" || len(s.secret) == 0 || ttl <= 0 {
 		return "", ErrTokenInvalid
 	}
@@ -66,14 +67,15 @@ func (s *SessionTokenService) Issue(userId uint64, tokenType string, ttl time.Du
 	}
 
 	claims := SessionTokenClaims{
-		UserId:       userId,
-		BranchIds:    branchIds,
-		Branches:     branches,
-		UserFullName: fullName,
-		TokenType:    tokenType,
-		ExpiresAt:    s.now().Add(ttl).Unix(),
-		RoleID:       roleID,
-		RoleName:     roleName,
+		UserId:           userId,
+		BranchIds:        branchIds,
+		Branches:         branches,
+		UserFullName:     fullName,
+		TokenType:        tokenType,
+		ExpiresAt:        s.now().Add(ttl).Unix(),
+		RoleID:           roleID,
+		RoleName:         roleName,
+		UmramonlineToken: umramonlineToken,
 	}
 
 	headerJSON, err := json.Marshal(header)

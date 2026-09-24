@@ -16,13 +16,12 @@ import (
 )
 
 type OTPRequestService interface {
-	RequestOTP(ctx context.Context, phone string) error
-	VerifyOTP(ctx context.Context, phone string, otpCode string) error
-	LoginWithPassword(ctx context.Context, phone string, password string) (map[string]any, error)
+	RequestOTP(ctx context.Context, phone string, password string) (application.RequestOTPResult, error)
+	VerifyOTP(ctx context.Context, mfaToken string, otpCode string) (map[string]any, error)
 }
 
 type SessionTokenService interface {
-	Issue(userId uint64, tokenType string, ttl time.Duration, roleID uint64, roleName string, name string, branches []branchapp.Branch) (string, error)
+	Issue(userId uint64, tokenType string, ttl time.Duration, roleID uint64, roleName string, name string, branches []branchapp.Branch, umramonlineToken string) (string, error)
 	Validate(token string, expectedType string) (application.SessionTokenClaims, error)
 }
 
@@ -74,12 +73,13 @@ type OTPHandler struct {
 }
 
 type otpRequest struct {
-	Phone string `json:"phone"`
+	Phone    string `json:"phone"`
+	Password string `json:"password"`
 }
 
 type otpVerifyRequest struct {
-	Phone   string `json:"phone"`
-	OTPCode string `json:"otp_code"`
+	MFAToken string `json:"mfa_token"`
+	OTPCode  string `json:"otp_code"`
 }
 
 type passwordLoginRequest struct {
@@ -123,17 +123,35 @@ func (h *OTPHandler) RequestOTP(c *fiber.Ctx) error {
 		})
 	}
 
-	if err := h.service.RequestOTP(c.UserContext(), request.Phone); err != nil {
+	result, err := h.service.RequestOTP(c.UserContext(), request.Phone, request.Password)
+	if err != nil {
 		if errors.Is(err, application.ErrInvalidPhone) {
 			return response.Error(c, fiber.StatusUnprocessableEntity, "Doğrulama hatası.", map[string]string{
 				"phone": "Telefon numarası 05XXXXXXXXX formatında olmalıdır.",
 			})
 		}
 
+		if errors.Is(err, application.ErrInvalidPassword) {
+			return response.Error(c, fiber.StatusUnprocessableEntity, "Doğrulama hatası.", map[string]string{
+				"password": "Şifre zorunludur.",
+			})
+		}
+
+		if errors.Is(err, application.ErrPasswordRejected) {
+			return response.Error(c, fiber.StatusUnprocessableEntity, "Kimlik bilgileri hatalı.", nil)
+		}
+
 		return response.Error(c, fiber.StatusInternalServerError, "OTP isteği şu anda tamamlanamadı.", nil)
 	}
 
-	return response.Success(c, fiber.StatusOK, "OTP kodu gönderildi.", fiber.Map{})
+	if result.MFARequired {
+		return response.Success(c, fiber.StatusOK, "OTP kodu gönderildi.", fiber.Map{
+			"mfa_token":   result.MFAToken,
+			"mfa_channel": result.MFAChannel,
+		})
+	}
+
+	return h.completeLogin(c, result.LoginData)
 }
 
 func (h *OTPHandler) VerifyOTP(c *fiber.Ctx) error {
@@ -144,10 +162,11 @@ func (h *OTPHandler) VerifyOTP(c *fiber.Ctx) error {
 		})
 	}
 
-	if err := h.service.VerifyOTP(c.UserContext(), request.Phone, request.OTPCode); err != nil {
-		if errors.Is(err, application.ErrInvalidPhone) {
+	data, err := h.service.VerifyOTP(c.UserContext(), request.MFAToken, request.OTPCode)
+	if err != nil {
+		if errors.Is(err, application.ErrInvalidMFAToken) {
 			return response.Error(c, fiber.StatusUnprocessableEntity, "Doğrulama hatası.", map[string]string{
-				"phone": "Telefon numarası 05XXXXXXXXX formatında olmalıdır.",
+				"mfa_token": "MFA oturumu geçersiz veya süresi dolmuş.",
 			})
 		}
 
@@ -164,7 +183,7 @@ func (h *OTPHandler) VerifyOTP(c *fiber.Ctx) error {
 		return response.Error(c, fiber.StatusInternalServerError, "OTP doğrulama şu anda tamamlanamadı.", nil)
 	}
 
-	return response.Success(c, fiber.StatusOK, "OTP doğrulandı.", fiber.Map{})
+	return h.completeLogin(c, data)
 }
 
 func (h *OTPHandler) LoginWithPassword(c *fiber.Ctx) error {
@@ -175,7 +194,7 @@ func (h *OTPHandler) LoginWithPassword(c *fiber.Ctx) error {
 		})
 	}
 
-	data, err := h.service.LoginWithPassword(c.UserContext(), request.Phone, request.Password)
+	result, err := h.service.RequestOTP(c.UserContext(), request.Phone, request.Password)
 	if err != nil {
 		if errors.Is(err, application.ErrInvalidPhone) {
 			return response.Error(c, fiber.StatusUnprocessableEntity, "Doğrulama hatası.", map[string]string{
@@ -196,12 +215,22 @@ func (h *OTPHandler) LoginWithPassword(c *fiber.Ctx) error {
 		return response.Error(c, fiber.StatusInternalServerError, "Giriş işlemi şu anda tamamlanamadı.", nil)
 	}
 
+	if result.MFARequired {
+		return response.Error(c, fiber.StatusUnprocessableEntity, "OTP doğrulaması gerekli.", map[string]string{
+			"otp": "Bu hesap için OTP adımını tamamlayın.",
+		})
+	}
+
+	return h.completeLogin(c, result.LoginData)
+}
+
+func (h *OTPHandler) completeLogin(c *fiber.Ctx, data map[string]any) error {
 	sessionData, err := h.sessionDataFromLoginData(c.UserContext(), data)
 	if err != nil {
 		return response.Error(c, fiber.StatusInternalServerError, "Giriş işlemi şu anda tamamlanamadı.", nil)
 	}
 
-	if err := h.setSessionCookies(c, sessionData.User); err != nil {
+	if err := h.setSessionCookies(c, sessionData.User, umramonlineTokenFromLoginData(data)); err != nil {
 		return response.Error(c, fiber.StatusInternalServerError, "Giriş işlemi şu anda tamamlanamadı.", nil)
 	}
 
@@ -219,7 +248,7 @@ func (h *OTPHandler) RefreshSession(c *fiber.Ctx) error {
 		return response.Error(c, fiber.StatusUnauthorized, "Oturum geçersiz.", nil)
 	}
 
-	accessToken, err := h.tokenService.Issue(claims.UserId, application.TokenTypeAccess, h.sessionConfig.AccessTTL, claims.RoleID, claims.RoleName, claims.UserFullName, claims.Branches)
+	accessToken, err := h.tokenService.Issue(claims.UserId, application.TokenTypeAccess, h.sessionConfig.AccessTTL, claims.RoleID, claims.RoleName, claims.UserFullName, claims.Branches, claims.UmramonlineToken)
 	if err != nil {
 		return response.Error(c, fiber.StatusInternalServerError, "Oturum yenilenemedi.", nil)
 	}
@@ -260,14 +289,14 @@ func (h *OTPHandler) Session(c *fiber.Ctx) error {
 	return response.Success(c, fiber.StatusOK, "Oturum geçerli.", sessionData)
 }
 
-func (h *OTPHandler) setSessionCookies(c *fiber.Ctx, user SessionUser) error {
+func (h *OTPHandler) setSessionCookies(c *fiber.Ctx, user SessionUser, umramonlineToken string) error {
 	userID := user.ID
-	accessToken, err := h.tokenService.Issue(userID, application.TokenTypeAccess, h.sessionConfig.AccessTTL, user.RoleID, user.RoleName, user.FullName, user.Branches)
+	accessToken, err := h.tokenService.Issue(userID, application.TokenTypeAccess, h.sessionConfig.AccessTTL, user.RoleID, user.RoleName, user.FullName, user.Branches, umramonlineToken)
 	if err != nil {
 		return err
 	}
 
-	refreshToken, err := h.tokenService.Issue(userID, application.TokenTypeRefresh, h.sessionConfig.RefreshTTL, user.RoleID, user.RoleName, user.FullName, user.Branches)
+	refreshToken, err := h.tokenService.Issue(userID, application.TokenTypeRefresh, h.sessionConfig.RefreshTTL, user.RoleID, user.RoleName, user.FullName, user.Branches, umramonlineToken)
 	if err != nil {
 		return err
 	}
@@ -300,6 +329,14 @@ func (h *OTPHandler) clearCookie(c *fiber.Ctx, name string, path string) {
 		HTTPOnly: true,
 		SameSite: h.sessionConfig.CookieSameSite,
 	})
+}
+
+func umramonlineTokenFromLoginData(data map[string]any) string {
+	if token, ok := data["token"].(string); ok {
+		return token
+	}
+
+	return ""
 }
 
 func extractUserID(data map[string]any) (uint64, error) {
