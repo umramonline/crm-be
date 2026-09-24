@@ -327,9 +327,21 @@ func applyTaskFilters(query *gorm.DB, filters domain.ListQuery) *gorm.DB {
 	return query
 }
 
+var taskListSortExpressions = map[string]string{
+	"title":                     "tasks.title",
+	"customer_count":            "(SELECT COUNT(*) FROM tasks_customers tc WHERE tc.task_id = tasks.id)",
+	"assigned_user_full_name":   "tasks.assigned_user_full_name",
+	"branch_name":               "tasks.branch_name",
+	"visit_date":                "tasks.visit_date",
+	"due_date":                  "tasks.due_date",
+	"priority":                  "tasks.priority",
+	"created_by_user_full_name": "tasks.created_by_user_full_name",
+}
+
 func taskListOrder(query domain.ListQuery) string {
-	sortBy := strings.ToLower(strings.TrimSpace(query.SortBy))
-	if sortBy != "visit_date" && sortBy != "due_date" {
+	sortBy := domain.NormalizeListSortBy(query.SortBy)
+	expr, ok := taskListSortExpressions[sortBy]
+	if !ok {
 		return "tasks.id DESC"
 	}
 
@@ -338,7 +350,7 @@ func taskListOrder(query domain.ListQuery) string {
 		sortOrder = "ASC"
 	}
 
-	return "tasks." + sortBy + " " + sortOrder + ", tasks.id DESC"
+	return expr + " " + sortOrder + ", tasks.id DESC"
 }
 
 type taskCustomerRow struct {

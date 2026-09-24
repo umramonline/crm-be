@@ -293,12 +293,7 @@ func (s *Service) CreateStandaloneFollowUp(ctx context.Context, input domain.Cre
 }
 
 func normalizeListQuery(query domain.ListQuery) domain.ListQuery {
-	sortBy := strings.ToLower(strings.TrimSpace(query.SortBy))
-	switch sortBy {
-	case "visit_date", "next_visit_date", "agreement_reached":
-	default:
-		sortBy = ""
-	}
+	sortBy := domain.NormalizeListSortBy(query.SortBy)
 
 	sortOrder := strings.ToLower(strings.TrimSpace(query.SortOrder))
 	if sortOrder != "asc" {

@@ -678,11 +678,20 @@ func applyFollowUpFilters(query *gorm.DB, filters domain.ListQuery) *gorm.DB {
 	return query
 }
 
+var followUpListSortExpressions = map[string]string{
+	"title":                   "COALESCE(tasks.title, 'Görevsiz Takip')",
+	"customer":                "customers.unvan",
+	"assigned_user_full_name": "tasks_follow_ups.assigned_user_full_name",
+	"branch_name":             "COALESCE(tasks.branch_name, '')",
+	"visit_date":              "tasks_follow_ups.visit_date",
+	"next_visit_date":         "tasks_follow_ups.next_visit_date",
+	"agreement_reached":       "tasks_follow_ups.agreement_reached",
+}
+
 func followUpListOrder(query domain.ListQuery) string {
-	sortBy := strings.ToLower(strings.TrimSpace(query.SortBy))
-	switch sortBy {
-	case "visit_date", "next_visit_date", "agreement_reached":
-	default:
+	sortBy := domain.NormalizeListSortBy(query.SortBy)
+	expr, ok := followUpListSortExpressions[sortBy]
+	if !ok {
 		return "tasks_follow_ups.id DESC"
 	}
 
@@ -691,7 +700,7 @@ func followUpListOrder(query domain.ListQuery) string {
 		sortOrder = "ASC"
 	}
 
-	return "tasks_follow_ups." + sortBy + " " + sortOrder + ", tasks_follow_ups.id DESC"
+	return expr + " " + sortOrder + ", tasks_follow_ups.id DESC"
 }
 
 func (r *Repository) followUpImages(ctx context.Context, followUpID uint64) ([]domain.Image, error) {

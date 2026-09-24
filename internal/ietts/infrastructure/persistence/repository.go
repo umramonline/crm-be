@@ -186,10 +186,8 @@ func applyIettsFilters(query *gorm.DB, filters domain.ListQuery) *gorm.DB {
 }
 
 func iettsListOrder(query domain.ListQuery) string {
-	sortBy := strings.ToLower(strings.TrimSpace(query.SortBy))
-	switch sortBy {
-	case "document_issue_date", "created_at":
-	default:
+	sortBy := domain.NormalizeListSortBy(query.SortBy)
+	if sortBy == "" {
 		return "id DESC"
 	}
 

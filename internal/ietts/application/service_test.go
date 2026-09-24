@@ -58,7 +58,7 @@ func TestListRecordsRejectsInvalidSortBy(t *testing.T) {
 	service := NewService(repository, &fakeCustomerWriter{})
 
 	_, err := service.ListRecords(context.Background(), domain.ListQuery{
-		SortBy:    "company_name",
+		SortBy:    "unknown_column",
 		SortOrder: "asc",
 	})
 	if err != nil {
@@ -67,6 +67,23 @@ func TestListRecordsRejectsInvalidSortBy(t *testing.T) {
 
 	if repository.listQuery.SortBy != "" {
 		t.Fatalf("expected empty sort_by, got %q", repository.listQuery.SortBy)
+	}
+}
+
+func TestListRecordsAcceptsCompanyNameSort(t *testing.T) {
+	repository := &fakeRepository{}
+	service := NewService(repository, &fakeCustomerWriter{})
+
+	_, err := service.ListRecords(context.Background(), domain.ListQuery{
+		SortBy:    "company_name",
+		SortOrder: "asc",
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if repository.listQuery.SortBy != "company_name" {
+		t.Fatalf("expected company_name sort_by, got %q", repository.listQuery.SortBy)
 	}
 }
 

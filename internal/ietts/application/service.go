@@ -91,12 +91,7 @@ func (s *Service) ConvertToCustomer(ctx context.Context, uuid string) (domain.Co
 }
 
 func normalizeListQuery(query domain.ListQuery) domain.ListQuery {
-	sortBy := strings.ToLower(strings.TrimSpace(query.SortBy))
-	switch sortBy {
-	case "document_issue_date", "created_at":
-	default:
-		sortBy = ""
-	}
+	sortBy := domain.NormalizeListSortBy(query.SortBy)
 
 	sortOrder := strings.ToLower(strings.TrimSpace(query.SortOrder))
 	if sortOrder != "asc" {
