@@ -1,0 +1,39 @@
+---
+description: crm-be Go Clean Architecture — katman kuralları ve best practices
+globs: "**/*.{go,md}"
+alwaysApply: false
+---
+
+# crm-be Clean Architecture
+
+Genel ekip standartları: repo kökü `.cursor/rules/clean-architecture.mdc`
+
+## Katmanlar
+
+```
+internal/<modül>/
+  domain/         — entity, value object, saf domain kuralları
+  application/    — use-case + Repository/Provider interface
+  infrastructure/ — handler, persistence, umramonline, storage
+```
+
+**Bağımlılık:** infrastructure → application → domain
+
+## Kurallar
+
+- Handler: request parse, service call, response — iş kuralı yok
+- Service: orkestrasyon, validasyon, transaction sınırı
+- Interface tanımı `application`; implementasyon `infrastructure`
+- Umramonline: Anti-Corruption Layer adapter — domain’e ham JSON sızdırma
+- DI: `cmd/api/main.go` composition root
+- Test: anlamlı domain/application unit test; `go test ./internal/<modül>/...`
+
+## Yapma
+
+- Domain/application’da Fiber/GORM import
+- Handler içinde SQL veya repository concrete tipi
+- Cross-module concrete bağımlılık (interface veya shared kernel)
+
+## Referans
+
+- `crm-be/docs/01-architecture.md`
