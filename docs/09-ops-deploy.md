@@ -28,24 +28,29 @@ SIGINT / SIGTERM alındığında:
 go build -o app ./cmd/api
 ```
 
-Not: Deploy workflow örneği `./cmd/api/main.go` path’ini kullanır; paket olarak `./cmd/api` tercih edilebilir.
+Workflow build komutu: `go build -o app ./cmd/api`.
 
-## GitHub Actions deploy
+## GitHub Actions
 
-Dosya: `.github/workflows/deploy.yml`
+| Workflow | Tetikleyici | Amaç |
+|----------|-------------|------|
+| `ci.yml` | push (main, test, develop), PR | `go test ./...`, build doğrulama |
+| `deploy-test.yml` | push → `test` | CI sonrası test sunucusu |
+| `deploy-production.yml` | push → `main` | CI sonrası production |
 
-Durum: **yorum satırında (disabled)**.
+Deploy: self-hosted runner, SSH, sunucuda `git pull`, `go build -o app ./cmd/api`, `systemctl restart` (varsayılan unit: `crm-api`).
 
-Planlanan akış:
+### GitHub Environment ayarları
 
-1. Self-hosted runner
-2. SSH agent + known_hosts
-3. Sunucuda `git pull origin main`
-4. `go mod download`
-5. `go build -o app ./cmd/api/main.go`
-6. Binary’yi çalıştır
+**Variables** (`test` / `production`):
 
-Production’da process manager (systemd, supervisord, docker) kullanılması önerilir; workflow örneği process yönetimini detaylandırmaz.
+| Variable | Örnek (test) |
+|----------|----------------|
+| `DEPLOY_APP_DIR` | `/var/www/testcrm.umram.online/crm-be` |
+| `HEALTH_CHECK_URL` | API kökü (`GET /`) |
+| `SYSTEMD_SERVICE` | `crm-api` (opsiyonel) |
+
+**Secrets:** `TEST_SSH_PRIVATE_KEY`, `TEST_SSH_HOST`, `TEST_SSH_USER` ve production için `PROD_SSH_*`.
 
 ## Sync job
 

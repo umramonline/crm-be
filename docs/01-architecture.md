@@ -131,7 +131,9 @@ internal/
     persistence/                    # OpenMySQL
   application/greeting/             # Hello use-case
   domain/greeting/
-.github/workflows/deploy.yml
+.github/workflows/ci.yml
+.github/workflows/deploy-test.yml
+.github/workflows/deploy-production.yml
 docs/
 ```
 

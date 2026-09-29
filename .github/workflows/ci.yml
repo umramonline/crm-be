@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main, test, develop]
+  pull_request:
+  workflow_call:
+
+jobs:
+  ci:
+    name: Tests & Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Verify modules
+        run: go mod verify
+
+      - name: Run tests
+        run: go test ./...
+
+      - name: Build API binary
+        run: go build -o /dev/null ./cmd/api
