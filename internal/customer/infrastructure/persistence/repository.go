@@ -131,15 +131,22 @@ func (r *Repository) SearchCustomer(ctx context.Context, query string) (domain.C
 		return domain.CustomerDetail{}, false, nil
 	}
 
-	pattern := "%" + normalizedQuery + "%"
 	var customer CustomerModel
-	err := r.db.WithContext(ctx).
-		Where("cep LIKE ?", pattern).
-		Or("telefon LIKE ?", pattern).
-		Or("tc_no LIKE ?", pattern).
-		Or("vergi_no LIKE ?", pattern).
-		Order("id DESC").
-		First(&customer).Error
+	dbQuery := r.db.WithContext(ctx).Model(&CustomerModel{})
+	if len(domain.PhoneDigits(normalizedQuery)) >= 5 {
+		dbQuery = applyCustomerPhoneFilter(dbQuery, normalizedQuery)
+	} else {
+		pattern := "%" + normalizedQuery + "%"
+		dbQuery = dbQuery.Where(
+			"cep LIKE ? OR telefon LIKE ? OR tc_no LIKE ? OR vergi_no LIKE ?",
+			pattern,
+			pattern,
+			pattern,
+			pattern,
+		)
+	}
+
+	err := dbQuery.Order("id DESC").First(&customer).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return domain.CustomerDetail{}, false, nil
@@ -402,7 +409,7 @@ func toCustomer(customer CustomerModel) domain.Customer {
 		ID:                customer.ID,
 		UOId:              customer.UOId,
 		Unvan:             stringValue(customer.Unvan),
-		Cep:               stringValue(customer.Cep),
+		Cep:               firstNonEmptyString(customer.Cep, customer.Telefon),
 		Ad:                stringValue(customer.Ad),
 		Soyad:             stringValue(customer.Soyad),
 		CreatedAt:         &createdAt,
@@ -412,24 +419,34 @@ func toCustomer(customer CustomerModel) domain.Customer {
 }
 
 func applyCustomerSort(query *gorm.DB, filters domain.ListQuery) *gorm.DB {
-	if filters.SortBy == "created_at" || filters.SortBy == "vehicle_stock_count" {
-		sortOrder := "desc"
-		if strings.ToLower(filters.SortOrder) == "asc" {
-			sortOrder = "asc"
-		}
-		return query.Order(filters.SortBy + " " + sortOrder)
+	sortBy := domain.NormalizeListSortBy(filters.SortBy)
+	sortOrder := "DESC"
+	if strings.ToLower(strings.TrimSpace(filters.SortOrder)) == "asc" {
+		sortOrder = "ASC"
 	}
 
-	return query.Order("id DESC")
+	switch sortBy {
+	case "created_at", "vehicle_stock_count":
+		return query.Order(sortBy + " " + sortOrder)
+	default:
+		return query.Order("id DESC")
+	}
 }
 
 func applyCustomerFilters(query *gorm.DB, filters domain.ListQuery) *gorm.DB {
-	if strings.TrimSpace(filters.Unvan) != "" {
-		query = query.Where("unvan LIKE ?", "%"+strings.TrimSpace(filters.Unvan)+"%")
+	if unvan := strings.TrimSpace(filters.Unvan); unvan != "" {
+		pattern := "%" + unvan + "%"
+		query = query.Where(
+			"unvan LIKE ? OR ad LIKE ? OR soyad LIKE ? OR CONCAT(COALESCE(ad, ''), ' ', COALESCE(soyad, '')) LIKE ?",
+			pattern,
+			pattern,
+			pattern,
+			pattern,
+		)
 	}
 
 	if strings.TrimSpace(filters.Cep) != "" {
-		query = query.Where("cep LIKE ? OR telefon LIKE ?", "%"+strings.TrimSpace(filters.Cep)+"%", "%"+strings.TrimSpace(filters.Cep)+"%")
+		query = applyCustomerPhoneFilter(query, filters.Cep)
 	}
 
 	if strings.TrimSpace(filters.Ad) != "" {

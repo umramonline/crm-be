@@ -126,7 +126,7 @@ func (h *Handler) listCustomersScopedToClaimsBranches(c *fiber.Ctx, dataSource s
 }
 
 func (h *Handler) listCustomers(c *fiber.Ctx, dataSource string, branchIDs []int32) error {
-	query := domain.ListQuery{
+	query := domain.NormalizeListQuery(domain.ListQuery{
 		Page:       queryInt(c, "page", 1),
 		PerPage:    queryInt(c, "per_page", 10),
 		DataSource: dataSource,
@@ -147,7 +147,7 @@ func (h *Handler) listCustomers(c *fiber.Ctx, dataSource string, branchIDs []int
 		SortOrder:  c.Query("sort_order"),
 		ZoneID:     queryInt(c, "zone_id", 0),
 		BranchIDs:  branchIDs,
-	}
+	})
 
 	result, err := h.service.ListCustomers(c.UserContext(), query)
 	if err != nil {

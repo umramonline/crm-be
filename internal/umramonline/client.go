@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -141,6 +142,7 @@ type CustomerListQuery struct {
 	BranchName string
 	ZoneName   string
 	PlusCardNo string
+	Cep        string
 	City       string
 	Town       string
 	SortBy     string
@@ -156,6 +158,7 @@ type CustomerListItem struct {
 	BranchName string `json:"branch_name"`
 	ZoneName   string `json:"zone_name"`
 	PlusCardNo string `json:"plus_card_no"`
+	Cep        string `json:"cep"`
 	Credit     int64  `json:"credit"`
 	Point      int64  `json:"point"`
 	City       string `json:"city"`
@@ -715,6 +718,12 @@ func (c *Client) listCustomersByIDs(ctx context.Context, query CustomerListQuery
 		}
 	}
 
+	sortBy := strings.ToLower(strings.TrimSpace(query.SortBy))
+	sortOrder := strings.ToLower(strings.TrimSpace(query.SortOrder))
+	if sortBy == "credit" || sortBy == "point" {
+		sortCustomerListItems(ordered, sortBy, sortOrder)
+	}
+
 	return paginateCustomerListItems(ordered, query.Page, query.PerPage), nil
 }
 
@@ -792,7 +801,12 @@ func dashboardStatsQueryValues(query DashboardStatsQuery) url.Values {
 type adminCustomerListItem struct {
 	ID         uint64 `json:"id"`
 	BranchID   *int32 `json:"branch_id"`
+	BranchName string `json:"branch_name"`
+	ZoneName   string `json:"zone_name"`
+	Situation  string `json:"situation"`
 	PlusCardNo string `json:"plus_card_no"`
+	Credit     int64  `json:"credit"`
+	Point      int64  `json:"point"`
 	Unvan      string `json:"unvan"`
 	Ad         string `json:"ad"`
 	Soyad      string `json:"soyad"`
@@ -880,13 +894,43 @@ func customerListQueryValues(query CustomerListQuery) url.Values {
 		values.Set("sort_order", sortOrder)
 	}
 
+	if v := strings.TrimSpace(query.Situation); v != "" {
+		values.Set("situation", v)
+	}
+	if v := strings.TrimSpace(query.BranchName); v != "" {
+		values.Set("branch_name", v)
+	}
+	if v := strings.TrimSpace(query.ZoneName); v != "" {
+		values.Set("zone_name", v)
+	}
+	if v := strings.TrimSpace(query.PlusCardNo); v != "" {
+		values.Set("plus_card_no", v)
+	}
+	if v := strings.TrimSpace(query.Cep); v != "" {
+		values.Set("cep", v)
+		values.Set("phone", v)
+		values.Set("q", v)
+	}
+	if v := strings.TrimSpace(query.City); v != "" {
+		values.Set("city", v)
+	}
+	if v := strings.TrimSpace(query.Town); v != "" {
+		values.Set("town", v)
+	}
+
 	return values
 }
 
 func mapAdminCustomerListItem(item adminCustomerListItem) CustomerListItem {
 	return CustomerListItem{
 		ID:         item.ID,
+		Situation:  item.Situation,
+		BranchName: item.BranchName,
+		ZoneName:   item.ZoneName,
 		PlusCardNo: item.PlusCardNo,
+		Cep:        item.Cep,
+		Credit:     item.Credit,
+		Point:      item.Point,
 		City:       item.IlKodu,
 		Town:       item.IlceKodu,
 	}
@@ -911,6 +955,40 @@ func uniquePositiveIDs(ids []uint64) []uint64 {
 	}
 
 	return result
+}
+
+func sortCustomerListItems(items []CustomerListItem, sortBy string, sortOrder string) {
+	if len(items) < 2 {
+		return
+	}
+
+	ascending := sortOrder == "asc"
+
+	sort.Slice(items, func(i, j int) bool {
+		left := items[i]
+		right := items[j]
+
+		switch sortBy {
+		case "credit":
+			if left.Credit == right.Credit {
+				return left.ID < right.ID
+			}
+			if ascending {
+				return left.Credit < right.Credit
+			}
+			return left.Credit > right.Credit
+		case "point":
+			if left.Point == right.Point {
+				return left.ID < right.ID
+			}
+			if ascending {
+				return left.Point < right.Point
+			}
+			return left.Point > right.Point
+		default:
+			return left.ID < right.ID
+		}
+	})
 }
 
 func paginateCustomerListItems(items []CustomerListItem, page int, perPage int) CustomerListResult {

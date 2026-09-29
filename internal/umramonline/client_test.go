@@ -83,6 +83,38 @@ func TestClientAdminLoginVerifyReturnsErrorForServerFailure(t *testing.T) {
 	}
 }
 
+func TestCustomerListQueryValuesIncludesFilters(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		if query.Get("situation") != "Aktif Müşteri" {
+			t.Fatalf("expected situation filter, got %q", query.Get("situation"))
+		}
+		if query.Get("branch_name") != "Test Bayi" {
+			t.Fatalf("expected branch_name filter, got %q", query.Get("branch_name"))
+		}
+		if query.Get("sort_by") != "plus_card_balance" {
+			t.Fatalf("expected credit sort mapping, got %q", query.Get("sort_by"))
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true,"items":[],"pagination":{"current_page":1,"last_page":1,"per_page":10,"total":0}}`))
+	}))
+	t.Cleanup(server.Close)
+
+	client := newCustomersTestClient(server)
+	_, err := client.ListCustomers(context.Background(), CustomerListQuery{
+		Page:       1,
+		PerPage:    10,
+		Situation:  "Aktif Müşteri",
+		BranchName: "Test Bayi",
+		SortBy:     "credit",
+		SortOrder:  "desc",
+	})
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+}
+
 func TestClientListCustomersReturnsItemsForSuccessfulResponse(t *testing.T) {
 	server := newCustomersTestServer(t, http.StatusOK, `{"success":true,"items":[{"id":100,"plus_card_no":"PC001","il_kodu":"34","ilce_kodu":"001"}],"pagination":{"current_page":1,"last_page":1,"per_page":10,"total":1,"from":1,"to":1}}`)
 	client := newCustomersTestClient(server)

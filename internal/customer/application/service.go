@@ -85,6 +85,8 @@ func NewService(provider CustomerProvider, repositories ...CustomerRepository) *
 }
 
 func (s *Service) ListCustomers(ctx context.Context, query domain.ListQuery) (domain.ListResult, error) {
+	query = domain.NormalizeListQuery(query)
+
 	switch customerDataSource(query.DataSource) {
 	case "backend":
 		return s.listBackendCustomers(ctx, query)
@@ -334,59 +336,26 @@ func (s *Service) listMergedCustomers(ctx context.Context, query domain.ListQuer
 		return domain.ListResult{}, ErrCustomerListUnavailable
 	}
 
-	page := query.Page
-	if page <= 0 {
-		page = 1
-	}
-	perPage := query.PerPage
-	if perPage <= 0 {
-		perPage = 10
+	if strings.TrimSpace(query.Cep) != "" && !usesUmramonlineListControl(query) {
+		return s.listMergedCustomersWithPhoneFilter(ctx, query)
 	}
 
 	if usesUmramonlineListControl(query) {
-		uoIDs, err := s.repository.ListCustomerUOIds(ctx, query)
-		if err != nil {
-			return domain.ListResult{}, ErrCustomerListUnavailable
-		}
-		if len(uoIDs) == 0 {
-			return emptyListResult(query), nil
-		}
-
-		uoQuery := domain.ListQuery{
-			Page:       page,
-			PerPage:    perPage,
-			Situation:  query.Situation,
-			BranchName: query.BranchName,
-			ZoneName:   query.ZoneName,
-			PlusCardNo: query.PlusCardNo,
-			City:       query.City,
-			Town:       query.Town,
-			SortBy:     query.SortBy,
-			SortOrder:  query.SortOrder,
-			ZoneID:     query.ZoneID,
-			BranchIDs:  query.BranchIDs,
-			IDs:        uoIDs,
+		if hasBackendCustomerFilters(query) {
+			if strings.TrimSpace(query.Cep) != "" {
+				result, err := s.listMergedCustomersViaBackendUOIds(ctx, query)
+				if err != nil {
+					return domain.ListResult{}, err
+				}
+				if result.Pagination.Total == 0 {
+					return s.listMergedCustomersUOPhoneScan(ctx, query)
+				}
+				return result, nil
+			}
+			return s.listMergedCustomersViaBackendUOIds(ctx, query)
 		}
 
-		uoResult, err := s.provider.ListCustomers(ctx, uoQuery)
-		if err != nil {
-			return domain.ListResult{}, ErrCustomerListUnavailable
-		}
-
-		backendByUOID, err := s.backendCustomersByUOID(ctx, extractUOIds(uoResult.Items))
-		if err != nil {
-			return domain.ListResult{}, ErrCustomerListUnavailable
-		}
-
-		items := make([]domain.Customer, 0, len(uoResult.Items))
-		for _, uoItem := range uoResult.Items {
-			items = append(items, mergeCustomer(backendByUOID[uoItem.UOId], uoItem))
-		}
-
-		return domain.ListResult{
-			Items:      items,
-			Pagination: uoResult.Pagination,
-		}, nil
+		return s.listMergedCustomersFromUmramonlineLead(ctx, query)
 	}
 
 	backendResult, err := s.repository.ListCustomers(ctx, query)
@@ -397,35 +366,7 @@ func (s *Service) listMergedCustomers(ctx context.Context, query domain.ListQuer
 		return backendResult, nil
 	}
 
-	uoIDs := make([]uint64, 0, len(backendResult.Items))
-	for _, item := range backendResult.Items {
-		if item.UOId > 0 {
-			uoIDs = append(uoIDs, item.UOId)
-		}
-	}
-
-	uoByID := map[uint64]domain.Customer{}
-	if len(uoIDs) > 0 {
-		uoResult, err := s.provider.ListCustomers(ctx, domain.ListQuery{
-			Page:    1,
-			PerPage: len(uoIDs),
-			IDs:     uoIDs,
-		})
-		if err != nil {
-			return domain.ListResult{}, ErrCustomerListUnavailable
-		}
-		for _, item := range uoResult.Items {
-			uoByID[item.UOId] = item
-		}
-	}
-
-	items := make([]domain.Customer, 0, len(backendResult.Items))
-	for _, backendItem := range backendResult.Items {
-		items = append(items, mergeCustomer(backendItem, uoByID[backendItem.UOId]))
-	}
-
-	backendResult.Items = items
-	return backendResult, nil
+	return s.mergeBackendListPageWithUmramonline(ctx, backendResult)
 }
 
 func (s *Service) listBackendCustomers(ctx context.Context, query domain.ListQuery) (domain.ListResult, error) {
@@ -461,6 +402,81 @@ func (s *Service) backendCustomersByUOID(ctx context.Context, uoIDs []uint64) (m
 	return result, nil
 }
 
+func hasBackendCustomerFilters(query domain.ListQuery) bool {
+	return strings.TrimSpace(query.Unvan) != "" ||
+		strings.TrimSpace(query.Cep) != "" ||
+		strings.TrimSpace(query.Ad) != "" ||
+		strings.TrimSpace(query.Soyad) != "" ||
+		strings.TrimSpace(query.CreatedAt) != "" ||
+		strings.TrimSpace(query.Type) != ""
+}
+
+func (s *Service) listMergedCustomersFromUmramonlineLead(
+	ctx context.Context,
+	query domain.ListQuery,
+) (domain.ListResult, error) {
+	uoResult, err := s.provider.ListCustomers(ctx, query)
+	if err != nil {
+		return domain.ListResult{}, ErrCustomerListUnavailable
+	}
+
+	backendByUOID, err := s.backendCustomersByUOID(ctx, extractUOIds(uoResult.Items))
+	if err != nil {
+		return domain.ListResult{}, ErrCustomerListUnavailable
+	}
+
+	items := make([]domain.Customer, 0, len(uoResult.Items))
+	for _, uoItem := range uoResult.Items {
+		merged := mergeCustomer(backendByUOID[uoItem.UOId], uoItem)
+		if !customerMatchesPhoneListFilters(merged, query) {
+			continue
+		}
+		items = append(items, merged)
+	}
+
+	if phone := strings.TrimSpace(query.Cep); phone != "" {
+		if len(items) == 0 && uoResult.Pagination.Total == 0 {
+			return s.listMergedCustomersUOPhoneScan(ctx, query)
+		}
+		sortBy := query.SortBy
+		if sortBy == "" {
+			sortBy = "created_at"
+		}
+		sortMergedCustomers(items, sortBy, query.SortOrder)
+		return domain.PaginateCustomers(items, query.Page, query.PerPage), nil
+	}
+
+	return domain.ListResult{
+		Items:      items,
+		Pagination: uoResult.Pagination,
+	}, nil
+}
+
+func (s *Service) listMergedCustomersViaBackendUOIds(
+	ctx context.Context,
+	query domain.ListQuery,
+) (domain.ListResult, error) {
+	allowedUOIDs, err := s.repository.ListCustomerUOIds(ctx, query)
+	if err != nil {
+		return domain.ListResult{}, ErrCustomerListUnavailable
+	}
+	if len(allowedUOIDs) == 0 {
+		return emptyListResult(query), nil
+	}
+
+	sortBy := query.SortBy
+	if !hasUmramonlineFieldFilters(query) && !isCreditPointSort(sortBy) {
+		return s.listMergedCustomersBackendPaginated(ctx, query)
+	}
+
+	const allowedBatchThreshold = 1500
+	if len(allowedUOIDs) <= allowedBatchThreshold {
+		return s.listMergedCustomersFromAllowedUOIDs(ctx, query, allowedUOIDs)
+	}
+
+	return s.listMergedCustomersUOIntersectScan(ctx, query, allowedUOSet(allowedUOIDs))
+}
+
 func usesUmramonlineListControl(query domain.ListQuery) bool {
 	if strings.TrimSpace(query.BranchName) != "" ||
 		strings.TrimSpace(query.ZoneName) != "" ||
@@ -480,7 +496,7 @@ func mergeCustomer(backend domain.Customer, umramonline domain.Customer) domain.
 		ID:                backend.ID,
 		UOId:              backend.UOId,
 		Unvan:             backend.Unvan,
-		Cep:               backend.Cep,
+		Cep:               firstNonEmptyCustomerPhone(backend.Cep, umramonline.Cep),
 		Ad:                backend.Ad,
 		Soyad:             backend.Soyad,
 		VehicleStockCount: backend.VehicleStockCount,
