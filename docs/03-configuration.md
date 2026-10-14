@@ -55,18 +55,16 @@ user:password@tcp(127.0.0.1:3306)/crm?charset=utf8mb4&parseTime=True&loc=Local
 | `UMRAMONLINE_OTP_REQUEST_PATH` | `/api/v1/crm/auth/otp/request` | |
 | `UMRAMONLINE_OTP_VERIFY_PATH` | `/api/v1/crm/auth/otp/verify` | |
 | `UMRAMONLINE_PASSWORD_LOGIN_PATH` | `/api/v1/crm/auth/password/login` | |
-| `UMRAMONLINE_USER_ROLES_PATH` | `/api/v1/crm/auth/user-roles` | |
-| `UMRAMONLINE_CUSTOMERS_PATH` | `/api/v1/crm/customers` | |
+| `UMRAMONLINE_USER_ROLES_PATH` | `/api/v1/admin/crm/user-roles` | |
+| `UMRAMONLINE_CUSTOMERS_PATH` | `/api/v1/admin/crm/customer-list` | |
 | `UMRAMONLINE_CUSTOMER_SEARCH_PATH` | `/api/v1/crm/customers/search` | |
 | `UMRAMONLINE_CUSTOMER_PHONE_EXISTS_PATH` | `/api/v1/crm/customers/phone-exists` | config.go’da; `.env.example`’da yok |
 | `UMRAMONLINE_ZONES_PATH` | `/api/v1/crm/zones` | |
 | `UMRAMONLINE_CITIES_PATH` | `/api/v1/crm/cities` | |
 | `UMRAMONLINE_TOWNS_PATH` | `/api/v1/crm/towns` | |
 | `UMRAMONLINE_BRANCHES_PATH` | `/api/v1/crm/branches` | |
-| `UMRAMONLINE_TASK_SMS_PATH` | `/api/v1/crm/tasks/sms-created` | config.go’da; `.env.example`’da yok |
-| `UMRAMONLINE_DASHBOARD_VEHICLE_ENTRY_PATH` | `/api/v1/crm/dashboard/vehicle-entry-count` | config.go’da |
-| `UMRAMONLINE_DASHBOARD_TOTAL_AMOUNT_PATH` | `/api/v1/crm/dashboard/total-amount` | config.go’da |
-| `UMRAMONLINE_DASHBOARD_LOADED_CREDIT_PATH` | `/api/v1/crm/dashboard/loaded-credit` | config.go’da |
+| `UMRAMONLINE_TASK_SMS_PATH` | `/api/v1/crm/tasks/sms-created` | |
+| `UMRAMONLINE_DASHBOARD_PATH` | `/api/v1/admin/dashboard` | Tek çağrıda 3 UO metriği |
 
 ## Helper metodlar
 

@@ -20,11 +20,13 @@ Tarih aralığı ve şube kapsamına göre KPI dashboard verisi üretmek.
 
 ### Umramonline (provider)
 
-- Vehicle entry count
-- Total amount
-- Loaded credit
+Tek istek: `GET /api/v1/admin/dashboard?start_date=&end_date=`
 
-Metrikler `errgroup` ile paralel çekilir.
+- `vehicle_entry_count`
+- `total_amount`
+- `loaded_credit` → CRM `loaded_credit_amount`
+
+Local metrikler `errgroup` ile paralel; UO üçlüsü tek çağrıda gelir.
 
 ## Domain
 

@@ -26,11 +26,9 @@ type Config struct {
 	UmramonlineCitiesPath                string `env:"UMRAMONLINE_CITIES_PATH" envDefault:"/api/v1/admin/cities"`
 	UmramonlineTownsPath                 string `env:"UMRAMONLINE_TOWNS_PATH" envDefault:"/api/v1/admin/towns"`
 	UmramonlineBranchesPath              string `env:"UMRAMONLINE_BRANCHES_PATH" envDefault:"/api/v1/admin/crm/branches"`
-	UmramonlineTaskSMSPath               string `env:"UMRAMONLINE_TASK_SMS_PATH" envDefault:"/api/v1/crm/tasks/sms-created"`
-	UmramonlineDashboardVehicleEntryPath string `env:"UMRAMONLINE_DASHBOARD_VEHICLE_ENTRY_PATH" envDefault:"/api/v1/crm/dashboard/vehicle-entry-count"`
-	UmramonlineDashboardTotalAmountPath  string `env:"UMRAMONLINE_DASHBOARD_TOTAL_AMOUNT_PATH" envDefault:"/api/v1/crm/dashboard/total-amount"`
-	UmramonlineDashboardLoadedCreditPath string `env:"UMRAMONLINE_DASHBOARD_LOADED_CREDIT_PATH" envDefault:"/api/v1/crm/dashboard/loaded-credit"`
-	UmramonlineTimeoutSeconds            int    `env:"UMRAMONLINE_TIMEOUT_SECONDS" envDefault:"10"`
+	UmramonlineTaskSMSPath    string `env:"UMRAMONLINE_TASK_SMS_PATH" envDefault:"/api/v1/crm/tasks/sms-created"`
+	UmramonlineDashboardPath  string `env:"UMRAMONLINE_DASHBOARD_PATH" envDefault:"/api/v1/admin/dashboard"`
+	UmramonlineTimeoutSeconds int    `env:"UMRAMONLINE_TIMEOUT_SECONDS" envDefault:"10"`
 	DatabaseDSN                          string `env:"DATABASE_DSN"`
 	SessionTokenSecret                   string `env:"SESSION_TOKEN_SECRET" envDefault:"dev-session-token-secret-change-me"`
 	AccessTokenTTLMinutes                int    `env:"ACCESS_TOKEN_TTL_MINUTES" envDefault:"15"`

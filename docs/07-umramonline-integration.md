@@ -23,8 +23,8 @@ Her istekte:
 | `RequestOTP` | POST | `/api/v1/crm/auth/otp/request` |
 | `VerifyOTP` | POST | `/api/v1/crm/auth/otp/verify` |
 | `LoginWithPassword` | POST | `/api/v1/crm/auth/password/login` |
-| `ListRoles` | GET | `/api/v1/crm/auth/user-roles` |
-| `ListCustomers` | POST | `/api/v1/crm/customers` |
+| `ListRoles` | GET | `/api/v1/admin/crm/user-roles` |
+| `ListCustomers` | GET | `/api/v1/admin/crm/customer-list` |
 | `GetCustomer` | GET | `/api/v1/crm/customers/{id}` |
 | `SearchCustomer` | GET | `/api/v1/crm/customers/search?q=` |
 | `CustomerPhoneExists` | GET | `/api/v1/crm/customers/phone-exists?phone=` |
@@ -36,11 +36,9 @@ Her istekte:
 | `ListBranchUsers` | GET | `/api/v1/crm/branches/{id}/users` |
 | `GetBranchUser` | GET | `/api/v1/crm/branches/{id}/users/{userId}` |
 | `SendTaskCreatedSMS` | POST | `/api/v1/crm/tasks/sms-created` |
-| `DashboardVehicleEntryCount` | GET | `/api/v1/crm/dashboard/vehicle-entry-count` |
-| `DashboardTotalAmount` | GET | `/api/v1/crm/dashboard/total-amount` |
-| `DashboardLoadedCredit` | GET | `/api/v1/crm/dashboard/loaded-credit` |
+| `GetDashboardStats` | GET | `/api/v1/admin/dashboard` |
 
-Dashboard query parametreleri: `start_date`, `end_date`, opsiyonel `branch_ids[]` (`AllowAllBranches` ise branch gönderilmez).
+Dashboard query: zorunlu `start_date`, `end_date` (`Y-m-d`); yanıtta `vehicle_entry_count`, `total_amount`, `loaded_credit`.
 
 ## Modül kullanım matrisi
 
@@ -50,7 +48,7 @@ Dashboard query parametreleri: `start_date`, `end_date`, opsiyonel `branch_ids[]
 | authorization | `authorization/.../umramonline` | `ListRoles` |
 | customer | `customer/.../umramonline` | customers, search, phone-exists, zones, cities, towns, branches, users |
 | task | `task/.../umramonline` | GetBranch, GetBranchUser, SendTaskCreatedSMS |
-| dashboard | `dashboard/.../umramonline` | vehicle entry, total amount, loaded credit |
+| dashboard | `dashboard/.../umramonline` | `GET /api/v1/admin/dashboard` (3 metrik) |
 | followup | — | HTTP çağrısı yok |
 | ietts | — | HTTP çağrısı yok |
 | consume | — | HTTP çağrısı yok (UO CRM’e event gönderir) |

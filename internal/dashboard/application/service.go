@@ -27,10 +27,14 @@ type StatsRepository interface {
 	CountOverdueTasks(ctx context.Context, filter domain.Filter) (int64, error)
 }
 
+type ExternalStats struct {
+	VehicleEntryCount int64
+	TotalAmount       float64
+	LoadedCredit      float64
+}
+
 type UmramonlineStatsProvider interface {
-	CountVehicleEntries(ctx context.Context, filter domain.Filter) (int64, error)
-	SumTotalAmount(ctx context.Context, filter domain.Filter) (float64, error)
-	SumLoadedCredit(ctx context.Context, filter domain.Filter) (float64, error)
+	GetStats(ctx context.Context, filter domain.Filter) (ExternalStats, error)
 }
 
 type Service struct {
@@ -107,34 +111,14 @@ func (s *Service) GetDashboard(ctx context.Context, filter domain.Filter) (domai
 	})
 
 	group.Go(func() error {
-		value, err := s.provider.CountVehicleEntries(groupCtx, filter)
+		externalStats, err := s.provider.GetStats(groupCtx, filter)
 		if err != nil {
 			return err
 		}
 		mu.Lock()
-		stats.VehicleEntryCount = value
-		mu.Unlock()
-		return nil
-	})
-
-	group.Go(func() error {
-		value, err := s.provider.SumTotalAmount(groupCtx, filter)
-		if err != nil {
-			return err
-		}
-		mu.Lock()
-		stats.TotalAmount = value
-		mu.Unlock()
-		return nil
-	})
-
-	group.Go(func() error {
-		value, err := s.provider.SumLoadedCredit(groupCtx, filter)
-		if err != nil {
-			return err
-		}
-		mu.Lock()
-		stats.LoadedCreditAmount = value
+		stats.VehicleEntryCount = externalStats.VehicleEntryCount
+		stats.TotalAmount = externalStats.TotalAmount
+		stats.LoadedCreditAmount = externalStats.LoadedCredit
 		mu.Unlock()
 		return nil
 	})

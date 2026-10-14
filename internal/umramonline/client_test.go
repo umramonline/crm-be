@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	authapp "github.com/umran/new.crm/backend/internal/auth/application"
 )
@@ -134,12 +135,15 @@ func TestClientListCustomersReturnsItemsForSuccessfulResponse(t *testing.T) {
 
 func TestClientListCustomersFiltersByIDs(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/admin/crm/customer-list" {
+		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/admin/customers" {
 			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		if got := r.URL.Query()["ids[]"]; len(got) != 1 || got[0] != "2" {
+			t.Fatalf("expected ids[]=2, got %#v", got)
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"success":true,"items":[{"id":1,"plus_card_no":"A"},{"id":2,"plus_card_no":"B"}],"pagination":{"current_page":1,"last_page":1,"per_page":500,"total":2}}`))
+		_, _ = w.Write([]byte(`{"success":true,"items":[{"id":2,"plus_card_no":"B","city":"İstanbul","town":"Kadıköy"}],"pagination":{"current_page":1,"last_page":1,"per_page":1,"total":1}}`))
 	}))
 	t.Cleanup(server.Close)
 
@@ -147,7 +151,7 @@ func TestClientListCustomersFiltersByIDs(t *testing.T) {
 		BaseURL:       server.URL,
 		APIKey:        "test-key",
 		APIToken:      "test-token",
-		CustomersPath: "/api/v1/admin/crm/customer-list",
+		CustomersPath: "/api/v1/admin/customers",
 	})
 
 	result, err := client.ListCustomers(context.Background(), CustomerListQuery{
@@ -159,7 +163,7 @@ func TestClientListCustomersFiltersByIDs(t *testing.T) {
 		t.Fatalf("expected nil error, got %v", err)
 	}
 
-	if len(result.Items) != 1 || result.Items[0].ID != 2 {
+	if len(result.Items) != 1 || result.Items[0].ID != 2 || result.Items[0].City != "İstanbul" {
 		t.Fatalf("unexpected filtered items: %#v", result.Items)
 	}
 }
@@ -171,6 +175,39 @@ func TestClientListCustomersReturnsErrorForServerFailure(t *testing.T) {
 	_, err := client.ListCustomers(context.Background(), CustomerListQuery{})
 	if !errors.Is(err, ErrRequestFailed) {
 		t.Fatalf("expected ErrRequestFailed, got %v", err)
+	}
+}
+
+func TestClientGetDashboardStatsUsesAdminDashboard(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/admin/dashboard" {
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		if r.URL.Query().Get("start_date") != "2026-01-01" || r.URL.Query().Get("end_date") != "2026-01-31" {
+			t.Fatalf("unexpected date query: %s", r.URL.RawQuery)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true,"message":"ok","data":{"vehicle_entry_count":120,"total_amount":154320.5,"loaded_credit":45}}`))
+	}))
+	t.Cleanup(server.Close)
+
+	client := NewClient(Config{
+		BaseURL:       server.URL,
+		APIKey:        "test-key",
+		APIToken:      "test-token",
+		DashboardPath: "/api/v1/admin/dashboard",
+	})
+
+	stats, err := client.GetDashboardStats(context.Background(), DashboardStatsQuery{
+		StartDate: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:   time.Date(2026, 1, 31, 0, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if stats.VehicleEntryCount != 120 || stats.TotalAmount != 154320.5 || stats.LoadedCredit != 45 {
+		t.Fatalf("unexpected stats: %#v", stats)
 	}
 }
 
@@ -203,7 +240,7 @@ func newCustomersTestClient(server *httptest.Server) *Client {
 		BaseURL:       server.URL,
 		APIKey:        "test-key",
 		APIToken:      "test-token",
-		CustomersPath: "/api/v1/admin/crm/customer-list",
+		CustomersPath: "/api/v1/admin/customers",
 	})
 }
 
@@ -211,7 +248,7 @@ func newCustomersTestServer(t *testing.T, status int, responseBody string) *http
 	t.Helper()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/admin/crm/customer-list" {
+		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/admin/customers" {
 			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
 		}
 

@@ -16,25 +16,22 @@ func NewProvider(client *integration.Client) *Provider {
 	return &Provider{client: client}
 }
 
-func (p *Provider) CountVehicleEntries(ctx context.Context, filter domain.Filter) (int64, error) {
-	return p.client.DashboardVehicleEntryCount(ctx, toStatsQuery(filter))
-}
-
-func (p *Provider) SumTotalAmount(ctx context.Context, filter domain.Filter) (float64, error) {
-	return p.client.DashboardTotalAmount(ctx, toStatsQuery(filter))
-}
-
-func (p *Provider) SumLoadedCredit(ctx context.Context, filter domain.Filter) (float64, error) {
-	return p.client.DashboardLoadedCredit(ctx, toStatsQuery(filter))
-}
-
-var _ dashboardapp.UmramonlineStatsProvider = (*Provider)(nil)
-
-func toStatsQuery(filter domain.Filter) integration.DashboardStatsQuery {
-	return integration.DashboardStatsQuery{
+func (p *Provider) GetStats(ctx context.Context, filter domain.Filter) (dashboardapp.ExternalStats, error) {
+	stats, err := p.client.GetDashboardStats(ctx, integration.DashboardStatsQuery{
 		StartDate:        filter.StartDate,
 		EndDate:          filter.EndDate,
 		BranchIDs:        filter.BranchIDs,
 		AllowAllBranches: filter.AllowAllBranches,
+	})
+	if err != nil {
+		return dashboardapp.ExternalStats{}, err
 	}
+
+	return dashboardapp.ExternalStats{
+		VehicleEntryCount: stats.VehicleEntryCount,
+		TotalAmount:       stats.TotalAmount,
+		LoadedCredit:      stats.LoadedCredit,
+	}, nil
 }
+
+var _ dashboardapp.UmramonlineStatsProvider = (*Provider)(nil)

@@ -63,11 +63,9 @@ func main() {
 		CitiesPath:                cfg.UmramonlineCitiesPath,
 		TownsPath:                 cfg.UmramonlineTownsPath,
 		BranchesPath:              cfg.UmramonlineBranchesPath,
-		TaskSMSPath:               cfg.UmramonlineTaskSMSPath,
-		DashboardVehicleEntryPath: cfg.UmramonlineDashboardVehicleEntryPath,
-		DashboardTotalAmountPath:  cfg.UmramonlineDashboardTotalAmountPath,
-		DashboardLoadedCreditPath: cfg.UmramonlineDashboardLoadedCreditPath,
-		Timeout:                   cfg.UmramonlineTimeout(),
+		TaskSMSPath:    cfg.UmramonlineTaskSMSPath,
+		DashboardPath:  cfg.UmramonlineDashboardPath,
+		Timeout:        cfg.UmramonlineTimeout(),
 	})
 	otpRequestService := authapp.NewOTPRequestService(umramonlineClient)
 	sessionTokenService := authapp.NewSessionTokenService(cfg.SessionTokenSecret)
