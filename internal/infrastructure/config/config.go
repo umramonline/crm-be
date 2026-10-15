@@ -20,13 +20,13 @@ type Config struct {
 	UmramonlinePasswordPath              string `env:"UMRAMONLINE_PASSWORD_LOGIN_PATH" envDefault:"/api/v1/admin/login"`
 	UmramonlineUserRolesPath             string `env:"UMRAMONLINE_USER_ROLES_PATH" envDefault:"/api/v1/admin/crm/user-roles"`
 	UmramonlineCustomersPath             string `env:"UMRAMONLINE_CUSTOMERS_PATH" envDefault:"/api/v1/admin/crm/customer-list"`
-	UmramonlineCustomerSearchPath        string `env:"UMRAMONLINE_CUSTOMER_SEARCH_PATH" envDefault:"/api/v1/crm/customers/search"`
-	UmramonlineCustomerPhoneExistsPath   string `env:"UMRAMONLINE_CUSTOMER_PHONE_EXISTS_PATH" envDefault:"/api/v1/crm/customers/phone-exists"`
+	UmramonlineCustomerSearchPath        string `env:"UMRAMONLINE_CUSTOMER_SEARCH_PATH" envDefault:"/api/v1/admin/customer/search"`
+	UmramonlineCustomerPhoneExistsPath   string `env:"UMRAMONLINE_CUSTOMER_PHONE_EXISTS_PATH"`
 	UmramonlineZonesPath                 string `env:"UMRAMONLINE_ZONES_PATH" envDefault:"/api/v1/admin/crm/zones"`
 	UmramonlineCitiesPath                string `env:"UMRAMONLINE_CITIES_PATH" envDefault:"/api/v1/admin/cities"`
 	UmramonlineTownsPath                 string `env:"UMRAMONLINE_TOWNS_PATH" envDefault:"/api/v1/admin/towns"`
 	UmramonlineBranchesPath              string `env:"UMRAMONLINE_BRANCHES_PATH" envDefault:"/api/v1/admin/crm/branches"`
-	UmramonlineTaskSMSPath    string `env:"UMRAMONLINE_TASK_SMS_PATH" envDefault:"/api/v1/crm/tasks/sms-created"`
+	UmramonlineTaskSMSPath    string `env:"UMRAMONLINE_TASK_SMS_PATH"`
 	UmramonlineDashboardPath  string `env:"UMRAMONLINE_DASHBOARD_PATH" envDefault:"/api/v1/admin/dashboard"`
 	UmramonlineTimeoutSeconds int    `env:"UMRAMONLINE_TIMEOUT_SECONDS" envDefault:"10"`
 	DatabaseDSN                          string `env:"DATABASE_DSN"`
@@ -46,6 +46,8 @@ func Load() (*Config, error) {
 	if err := env.Parse(cfg); err != nil {
 		return nil, err
 	}
+
+	cfg.applyUmramonlineDefaults()
 
 	return cfg, nil
 }

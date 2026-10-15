@@ -20,22 +20,22 @@ Her istekte:
 
 | Client method | HTTP | Default path |
 |---------------|------|--------------|
-| `RequestOTP` | POST | `/api/v1/crm/auth/otp/request` |
-| `VerifyOTP` | POST | `/api/v1/crm/auth/otp/verify` |
-| `LoginWithPassword` | POST | `/api/v1/crm/auth/password/login` |
+| `RequestOTP` | POST | `/api/v1/admin/login` |
+| `VerifyOTP` | POST | `/api/v1/admin/login/verify` |
+| `LoginWithPassword` | POST | `/api/v1/admin/login` |
 | `ListRoles` | GET | `/api/v1/admin/crm/user-roles` |
 | `ListCustomers` | GET | `/api/v1/admin/crm/customer-list` |
 | `GetCustomer` | GET | `/api/v1/crm/customers/{id}` |
-| `SearchCustomer` | GET | `/api/v1/crm/customers/search?q=` |
-| `CustomerPhoneExists` | GET | `/api/v1/crm/customers/phone-exists?phone=` |
-| `ListZones` | GET | `/api/v1/crm/zones` (+ `branch_ids[]`) |
-| `ListCities` | GET | `/api/v1/crm/cities` |
-| `ListTowns` | GET | `/api/v1/crm/towns?city_id=` |
-| `ListBranches` | GET | `/api/v1/crm/branches` |
-| `GetBranch` | GET | `/api/v1/crm/branches/{id}` |
-| `ListBranchUsers` | GET | `/api/v1/crm/branches/{id}/users` |
-| `GetBranchUser` | GET | `/api/v1/crm/branches/{id}/users/{userId}` |
-| `SendTaskCreatedSMS` | POST | `/api/v1/crm/tasks/sms-created` |
+| `SearchCustomer` | GET | `/api/v1/admin/customer/search?q=` |
+| `CustomerPhoneExists` | GET | *(env; UO endpoint yoksa kapalı)* |
+| `ListZones` | GET | `/api/v1/admin/crm/zones` (+ `branch_ids[]`) |
+| `ListCities` | GET | `/api/v1/admin/cities` |
+| `ListTowns` | GET | `/api/v1/admin/towns?city_id=` |
+| `ListBranches` | GET | `/api/v1/admin/crm/branches` |
+| `GetBranch` | GET | `{UMRAMONLINE_BRANCHES_PATH}/{id}` |
+| `ListBranchUsers` | GET | `{UMRAMONLINE_BRANCHES_PATH}/{id}/users` |
+| `GetBranchUser` | GET | `{UMRAMONLINE_BRANCHES_PATH}/{id}/users/{userId}` |
+| `SendTaskCreatedSMS` | POST | *(env; UO endpoint yoksa kapalı)* |
 | `GetDashboardStats` | GET | `/api/v1/admin/dashboard` |
 
 Dashboard query: zorunlu `start_date`, `end_date` (`Y-m-d`); yanıtta `vehicle_entry_count`, `total_amount`, `loaded_credit`.

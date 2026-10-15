@@ -52,18 +52,18 @@ user:password@tcp(127.0.0.1:3306)/crm?charset=utf8mb4&parseTime=True&loc=Local
 | `UMRAMONLINE_API_KEY` | — | `X-API-KEY` header |
 | `UMRAMONLINE_API_TOKEN` | — | `Authorization: Bearer` |
 | `UMRAMONLINE_TIMEOUT_SECONDS` | `10` | HTTP client timeout |
-| `UMRAMONLINE_OTP_REQUEST_PATH` | `/api/v1/crm/auth/otp/request` | |
-| `UMRAMONLINE_OTP_VERIFY_PATH` | `/api/v1/crm/auth/otp/verify` | |
-| `UMRAMONLINE_PASSWORD_LOGIN_PATH` | `/api/v1/crm/auth/password/login` | |
+| `UMRAMONLINE_OTP_REQUEST_PATH` | `/api/v1/admin/login` | |
+| `UMRAMONLINE_OTP_VERIFY_PATH` | `/api/v1/admin/login/verify` | |
+| `UMRAMONLINE_PASSWORD_LOGIN_PATH` | `/api/v1/admin/login` | |
 | `UMRAMONLINE_USER_ROLES_PATH` | `/api/v1/admin/crm/user-roles` | |
 | `UMRAMONLINE_CUSTOMERS_PATH` | `/api/v1/admin/crm/customer-list` | |
-| `UMRAMONLINE_CUSTOMER_SEARCH_PATH` | `/api/v1/crm/customers/search` | |
-| `UMRAMONLINE_CUSTOMER_PHONE_EXISTS_PATH` | `/api/v1/crm/customers/phone-exists` | config.go’da; `.env.example`’da yok |
-| `UMRAMONLINE_ZONES_PATH` | `/api/v1/crm/zones` | |
-| `UMRAMONLINE_CITIES_PATH` | `/api/v1/crm/cities` | |
-| `UMRAMONLINE_TOWNS_PATH` | `/api/v1/crm/towns` | |
-| `UMRAMONLINE_BRANCHES_PATH` | `/api/v1/crm/branches` | |
-| `UMRAMONLINE_TASK_SMS_PATH` | `/api/v1/crm/tasks/sms-created` | |
+| `UMRAMONLINE_CUSTOMER_SEARCH_PATH` | `/api/v1/admin/customer/search` | |
+| `UMRAMONLINE_CUSTOMER_PHONE_EXISTS_PATH` | *(boş)* | UO tarafında endpoint yoksa boş bırakın |
+| `UMRAMONLINE_ZONES_PATH` | `/api/v1/admin/crm/zones` | |
+| `UMRAMONLINE_CITIES_PATH` | `/api/v1/admin/cities` | |
+| `UMRAMONLINE_TOWNS_PATH` | `/api/v1/admin/towns` | |
+| `UMRAMONLINE_BRANCHES_PATH` | `/api/v1/admin/crm/branches` | |
+| `UMRAMONLINE_TASK_SMS_PATH` | *(boş)* | UO tarafında endpoint yoksa boş bırakın |
 | `UMRAMONLINE_DASHBOARD_PATH` | `/api/v1/admin/dashboard` | Tek çağrıda 3 UO metriği |
 
 ## Helper metodlar
@@ -78,4 +78,4 @@ Config struct üzerinde:
 
 ## `.env.example` vs kod
 
-`.env.example` temel değişkenleri listeler. SMS, dashboard path’leri ve phone-exists path’i örnek dosyada olmayabilir; kod default path’lerle çalışır. Production’da tüm kritik secret’ların env’de tanımlı olduğundan emin olun.
+`.env.example` umramonline admin path’lerini listeler. Boş bırakılan path env’leri (`UMRAMONLINE_TASK_SMS_PATH`, `UMRAMONLINE_CUSTOMER_PHONE_EXISTS_PATH`) kod tarafında devre dışı bırakılır; yalnızca boşluk/`=` ile set edilen zorunlu path’ler (ör. dashboard) default’a düşer. Production’da tüm kritik secret’ların env’de tanımlı olduğundan emin olun.

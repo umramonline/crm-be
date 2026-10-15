@@ -338,7 +338,7 @@ func newZonesTestClient(server *httptest.Server) *Client {
 		BaseURL:   server.URL,
 		APIKey:    "test-key",
 		APIToken:  "test-token",
-		ZonesPath: "/api/v1/crm/zones",
+		ZonesPath: "/api/v1/admin/crm/zones",
 	})
 }
 
@@ -346,7 +346,7 @@ func newZonesTestServer(t *testing.T, status int, responseBody string) *httptest
 	t.Helper()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/v1/crm/zones" {
+		if r.URL.Path != "/api/v1/admin/crm/zones" {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
 
