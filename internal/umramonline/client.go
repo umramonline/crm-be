@@ -33,11 +33,9 @@ type Config struct {
 	CitiesPath              string
 	TownsPath               string
 	BranchesPath            string
-	TaskSMSPath             string
-	DashboardVehicleEntryPath string
-	DashboardTotalAmountPath  string
-	DashboardLoadedCreditPath string
-	Timeout                 time.Duration
+	TaskSMSPath    string
+	DashboardPath  string
+	Timeout        time.Duration
 }
 
 type Client struct {
@@ -56,9 +54,7 @@ type Client struct {
 	townsPath               string
 	branchesPath            string
 	taskSMSPath             string
-	dashboardVehicleEntryPath string
-	dashboardTotalAmountPath  string
-	dashboardLoadedCreditPath string
+	dashboardPath           string
 	httpClient              *http.Client
 }
 
@@ -208,27 +204,23 @@ type DashboardStatsQuery struct {
 	AllowAllBranches bool
 }
 
-type dashboardCountResponse struct {
+type DashboardStats struct {
+	VehicleEntryCount int64
+	TotalAmount       float64
+	LoadedCredit      float64
+}
+
+type adminDashboardResponse struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`
 	Data    struct {
-		Count int64 `json:"count"`
+		VehicleEntryCount int64   `json:"vehicle_entry_count"`
+		TotalAmount       float64 `json:"total_amount"`
+		LoadedCredit      float64 `json:"loaded_credit"`
 	} `json:"data"`
 }
 
-func (r dashboardCountResponse) successful() bool {
-	return r.Success
-}
-
-type dashboardAmountResponse struct {
-	Success bool   `json:"success"`
-	Message string `json:"message"`
-	Data    struct {
-		Amount float64 `json:"amount"`
-	} `json:"data"`
-}
-
-func (r dashboardAmountResponse) successful() bool {
+func (r adminDashboardResponse) successful() bool {
 	return r.Success
 }
 
@@ -253,10 +245,8 @@ func NewClient(config Config) *Client {
 		citiesPath:              "/" + strings.Trim(config.CitiesPath, "/"),
 		townsPath:               "/" + strings.Trim(config.TownsPath, "/"),
 		branchesPath:            "/" + strings.Trim(config.BranchesPath, "/"),
-		taskSMSPath:             "/" + strings.Trim(config.TaskSMSPath, "/"),
-		dashboardVehicleEntryPath: "/" + strings.Trim(config.DashboardVehicleEntryPath, "/"),
-		dashboardTotalAmountPath:  "/" + strings.Trim(config.DashboardTotalAmountPath, "/"),
-		dashboardLoadedCreditPath: "/" + strings.Trim(config.DashboardLoadedCreditPath, "/"),
+		taskSMSPath:    "/" + strings.Trim(config.TaskSMSPath, "/"),
+		dashboardPath:  "/" + strings.Trim(config.DashboardPath, "/"),
 		httpClient: &http.Client{
 			Timeout: timeout,
 		},
@@ -676,39 +666,39 @@ func (c *Client) listCustomersByIDs(ctx context.Context, query CustomerListQuery
 		return paginateCustomerListItems(nil, query.Page, query.PerPage), nil
 	}
 
-	wantSet := make(map[uint64]struct{}, len(wantIDs))
-	for _, id := range wantIDs {
-		wantSet[id] = struct{}{}
-	}
-
+	const chunkSize = 200
 	found := make(map[uint64]CustomerListItem, len(wantIDs))
-	page := 1
-	lastPage := 1
-	perPage := 500
 
-	for page <= lastPage && len(found) < len(wantSet) {
+	for start := 0; start < len(wantIDs); start += chunkSize {
+		end := start + chunkSize
+		if end > len(wantIDs) {
+			end = len(wantIDs)
+		}
+		chunk := wantIDs[start:end]
+
 		batch, err := c.listCustomersPage(ctx, CustomerListQuery{
-			Page:      page,
-			PerPage:   perPage,
-			SortBy:    query.SortBy,
-			SortOrder: query.SortOrder,
+			Page:       1,
+			PerPage:    len(chunk),
+			Situation:  query.Situation,
+			BranchName: query.BranchName,
+			ZoneName:   query.ZoneName,
+			PlusCardNo: query.PlusCardNo,
+			Cep:        query.Cep,
+			City:       query.City,
+			Town:       query.Town,
+			SortBy:     query.SortBy,
+			SortOrder:  query.SortOrder,
+			ZoneID:     query.ZoneID,
+			BranchIDs:  query.BranchIDs,
+			IDs:        chunk,
 		})
 		if err != nil {
 			return CustomerListResult{}, err
 		}
 
 		for _, item := range batch.Items {
-			if _, ok := wantSet[item.ID]; ok {
-				found[item.ID] = item
-			}
+			found[item.ID] = item
 		}
-
-		if batch.Pagination.LastPage <= 0 {
-			break
-		}
-
-		lastPage = batch.Pagination.LastPage
-		page++
 	}
 
 	ordered := make([]CustomerListItem, 0, len(wantIDs))
@@ -744,42 +734,21 @@ func (c *Client) GetCustomer(ctx context.Context, id uint64) (CustomerSearchItem
 	return *apiResponse.Data, nil
 }
 
-func (c *Client) DashboardVehicleEntryCount(ctx context.Context, query DashboardStatsQuery) (int64, error) {
-	return c.dashboardCount(ctx, c.dashboardVehicleEntryPath, query)
-}
-
-func (c *Client) DashboardTotalAmount(ctx context.Context, query DashboardStatsQuery) (float64, error) {
-	return c.dashboardAmount(ctx, c.dashboardTotalAmountPath, query)
-}
-
-func (c *Client) DashboardLoadedCredit(ctx context.Context, query DashboardStatsQuery) (float64, error) {
-	return c.dashboardAmount(ctx, c.dashboardLoadedCreditPath, query)
-}
-
-func (c *Client) dashboardCount(ctx context.Context, path string, query DashboardStatsQuery) (int64, error) {
-	if !c.canCallAuthenticated(ctx) || path == "/" {
-		return 0, ErrRequestFailed
+func (c *Client) GetDashboardStats(ctx context.Context, query DashboardStatsQuery) (DashboardStats, error) {
+	if !c.canCallAuthenticated(ctx) || c.dashboardPath == "/" {
+		return DashboardStats{}, ErrRequestFailed
 	}
 
-	var apiResponse dashboardCountResponse
-	if err := c.getJSON(ctx, path, dashboardStatsQueryValues(query), &apiResponse); err != nil {
-		return 0, err
+	var apiResponse adminDashboardResponse
+	if err := c.getJSON(ctx, c.dashboardPath, dashboardStatsQueryValues(query), &apiResponse); err != nil {
+		return DashboardStats{}, err
 	}
 
-	return apiResponse.Data.Count, nil
-}
-
-func (c *Client) dashboardAmount(ctx context.Context, path string, query DashboardStatsQuery) (float64, error) {
-	if !c.canCallAuthenticated(ctx) || path == "/" {
-		return 0, ErrRequestFailed
-	}
-
-	var apiResponse dashboardAmountResponse
-	if err := c.getJSON(ctx, path, dashboardStatsQueryValues(query), &apiResponse); err != nil {
-		return 0, err
-	}
-
-	return apiResponse.Data.Amount, nil
+	return DashboardStats{
+		VehicleEntryCount: apiResponse.Data.VehicleEntryCount,
+		TotalAmount:       apiResponse.Data.TotalAmount,
+		LoadedCredit:      apiResponse.Data.LoadedCredit,
+	}, nil
 }
 
 func dashboardStatsQueryValues(query DashboardStatsQuery) url.Values {
@@ -807,6 +776,8 @@ type adminCustomerListItem struct {
 	PlusCardNo string `json:"plus_card_no"`
 	Credit     int64  `json:"credit"`
 	Point      int64  `json:"point"`
+	City       string `json:"city"`
+	Town       string `json:"town"`
 	Unvan      string `json:"unvan"`
 	Ad         string `json:"ad"`
 	Soyad      string `json:"soyad"`
@@ -918,10 +889,31 @@ func customerListQueryValues(query CustomerListQuery) url.Values {
 		values.Set("town", v)
 	}
 
+	for _, id := range uniquePositiveIDs(query.IDs) {
+		values.Add("ids[]", strconv.FormatUint(id, 10))
+	}
+	for _, branchID := range query.BranchIDs {
+		if branchID > 0 {
+			values.Add("branch_ids[]", strconv.FormatInt(int64(branchID), 10))
+		}
+	}
+	if query.ZoneID > 0 {
+		values.Set("zone_id", strconv.Itoa(query.ZoneID))
+	}
+
 	return values
 }
 
 func mapAdminCustomerListItem(item adminCustomerListItem) CustomerListItem {
+	city := strings.TrimSpace(item.City)
+	if city == "" {
+		city = item.IlKodu
+	}
+	town := strings.TrimSpace(item.Town)
+	if town == "" {
+		town = item.IlceKodu
+	}
+
 	return CustomerListItem{
 		ID:         item.ID,
 		Situation:  item.Situation,
@@ -931,8 +923,8 @@ func mapAdminCustomerListItem(item adminCustomerListItem) CustomerListItem {
 		Cep:        item.Cep,
 		Credit:     item.Credit,
 		Point:      item.Point,
-		City:       item.IlKodu,
-		Town:       item.IlceKodu,
+		City:       city,
+		Town:       town,
 	}
 }
 

@@ -83,28 +83,16 @@ type fakeUmramonlineStatsProvider struct {
 	err            error
 }
 
-func (f *fakeUmramonlineStatsProvider) CountVehicleEntries(_ context.Context, _ domain.Filter) (int64, error) {
+func (f *fakeUmramonlineStatsProvider) GetStats(_ context.Context, _ domain.Filter) (ExternalStats, error) {
 	if f.err != nil {
-		return 0, f.err
+		return ExternalStats{}, f.err
 	}
 
-	return f.vehicleEntries, nil
-}
-
-func (f *fakeUmramonlineStatsProvider) SumTotalAmount(_ context.Context, _ domain.Filter) (float64, error) {
-	if f.err != nil {
-		return 0, f.err
-	}
-
-	return f.totalAmount, nil
-}
-
-func (f *fakeUmramonlineStatsProvider) SumLoadedCredit(_ context.Context, _ domain.Filter) (float64, error) {
-	if f.err != nil {
-		return 0, f.err
-	}
-
-	return f.loadedCredit, nil
+	return ExternalStats{
+		VehicleEntryCount: f.vehicleEntries,
+		TotalAmount:       f.totalAmount,
+		LoadedCredit:      f.loadedCredit,
+	}, nil
 }
 
 func validDashboardFilter() domain.Filter {
